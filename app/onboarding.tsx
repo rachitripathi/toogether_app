@@ -41,8 +41,16 @@ export default function OnboardingScreen() {
       <LinearGradient colors={[...gradients.hero]} style={{ flex: 1, paddingTop: insets.top + 20 }}>
         <View style={{ paddingHorizontal: 24, alignItems: 'flex-end' }}>
           {index < slides.length - 1 ? (
-            <Pressable onPress={finish}>
-              <Text style={{ color: 'rgba(255,255,255,0.88)', fontWeight: '700' }}>Skip</Text>
+            <Pressable
+              onPress={finish}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.24)',
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Skip</Text>
             </Pressable>
           ) : null}
         </View>
@@ -88,7 +96,7 @@ export default function OnboardingScreen() {
                   width: dotIndex === index ? 28 : 8,
                   height: 8,
                   borderRadius: 999,
-                  backgroundColor: dotIndex === index ? '#6B57FF' : '#D0D5DD',
+                  backgroundColor: dotIndex === index ? '#F5A623' : '#D0D5DD',
                 }}
               />
             ))}

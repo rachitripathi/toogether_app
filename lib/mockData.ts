@@ -8,6 +8,9 @@ export const MOCK_USERS: User[] = [
     username: 'aryanshah',
     avatarColors: ['#8B5CF6', '#6366F1'],
     gender: 'man',
+    age: 23,
+    city: 'Guwahati',
+    verified: false,
     bio: 'Living for spontaneous plans.',
   },
   {
@@ -17,6 +20,9 @@ export const MOCK_USERS: User[] = [
     username: 'priyak',
     avatarColors: ['#F472B6', '#FB7185'],
     gender: 'woman',
+    age: 24,
+    city: 'Guwahati',
+    verified: true,
     bio: 'Film nerd and chai addict.',
   },
   {
@@ -26,6 +32,9 @@ export const MOCK_USERS: User[] = [
     username: 'rohanm',
     avatarColors: ['#38BDF8', '#0EA5E9'],
     gender: 'man',
+    age: 27,
+    city: 'Guwahati',
+    verified: true,
     bio: 'Coffee shop philosopher.',
   },
   {
@@ -35,6 +44,9 @@ export const MOCK_USERS: User[] = [
     username: 'snehat',
     avatarColors: ['#34D399', '#14B8A6'],
     gender: 'woman',
+    age: 22,
+    city: 'Guwahati',
+    verified: false,
     bio: 'Musician and wanderer.',
   },
   {
@@ -44,6 +56,9 @@ export const MOCK_USERS: User[] = [
     username: 'kabirsingh',
     avatarColors: ['#FB923C', '#F59E0B'],
     gender: 'man',
+    age: 26,
+    city: 'Guwahati',
+    verified: false,
     bio: 'Early bird and badminton pro.',
   },
 ];
@@ -55,7 +70,11 @@ export const MOCK_EVENTS: Event[] = [
     description:
       "Catching the IMAX premiere at PVR. Grab your tickets, we'll meet in the lobby and do chai after.",
     dateTime: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-    location: 'PVR City Center, Mumbai',
+    area: 'Zoo Road',
+    timeSlot: 'Night',
+    exactTime: '9:30 PM',
+    exactLocation: 'PVR City Center, Christian Basti, Guwahati',
+    location: 'PVR City Center, Christian Basti, Guwahati',
     creatorId: 'u2',
     maxPeople: 6,
     approvedUserIds: ['u3'],
@@ -63,6 +82,7 @@ export const MOCK_EVENTS: Event[] = [
     category: 'movies',
     emoji: '🎬',
     womenOnly: false,
+    pinned: true,
   },
   {
     id: 'e2',
@@ -70,7 +90,11 @@ export const MOCK_EVENTS: Event[] = [
     description:
       'Random topics. Real talk. No agenda. Perfect for meeting new people without awkward networking.',
     dateTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-    location: 'Chaayos, Connaught Place, Delhi',
+    area: 'Ganeshguri',
+    timeSlot: 'Evening',
+    exactTime: '7:00 PM',
+    exactLocation: 'The Tea Story, Ganeshguri, Guwahati',
+    location: 'The Tea Story, Ganeshguri, Guwahati',
     creatorId: 'u3',
     maxPeople: 8,
     approvedUserIds: ['u1', 'u4'],
@@ -87,7 +111,11 @@ export const MOCK_EVENTS: Event[] = [
     dateTime: new Date(
       Date.now() + 4 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000
     ).toISOString(),
-    location: 'Start: Bandra Station, Mumbai',
+    area: 'Uzan Bazar',
+    timeSlot: 'Night',
+    exactTime: '11:00 PM',
+    exactLocation: 'Start from Uzan Bazar Riverside, Guwahati',
+    location: 'Start from Uzan Bazar Riverside, Guwahati',
     creatorId: 'u1',
     maxPeople: 4,
     approvedUserIds: ['u2'],
@@ -104,7 +132,11 @@ export const MOCK_EVENTS: Event[] = [
     dateTime: new Date(
       Date.now() + 3 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000
     ).toISOString(),
-    location: 'Bandra West, Mumbai',
+    area: 'GS Road',
+    timeSlot: 'Evening',
+    exactTime: '6:30 PM',
+    exactLocation: 'Rooftop at GS Road, Guwahati',
+    location: 'Rooftop at GS Road, Guwahati',
     creatorId: 'u4',
     maxPeople: 10,
     approvedUserIds: [],
@@ -121,7 +153,11 @@ export const MOCK_EVENTS: Event[] = [
     dateTime: new Date(
       Date.now() + 1 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000
     ).toISOString(),
-    location: 'Nehru Park, New Delhi',
+    area: 'Khanapara',
+    timeSlot: 'Morning',
+    exactTime: '6:00 AM',
+    exactLocation: 'Indoor court near Khanapara, Guwahati',
+    location: 'Indoor court near Khanapara, Guwahati',
     creatorId: 'u5',
     maxPeople: 4,
     approvedUserIds: [],

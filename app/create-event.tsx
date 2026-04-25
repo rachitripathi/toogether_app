@@ -26,26 +26,49 @@ export default function CreateEventScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
+  const [timeSlot, setTimeSlot] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night'>('Evening');
+  const [area, setArea] = useState('');
+  const [exactTime, setExactTime] = useState('');
+  const [exactLocation, setExactLocation] = useState('');
   const [maxPeople, setMaxPeople] = useState('');
   const [category, setCategory] = useState<EventCategory>('chill');
   const [womenOnly, setWomenOnly] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreate = () => {
-    if (!title || !date || !time || !location) {
-      setError('Add title, date, time, and location.');
+    if (!title || !date || !area || !exactTime || !exactLocation) {
+      setError('Add title, area, date, exact time, and exact location.');
       return;
     }
+
+    const parsedDate = new Date(`${date}T12:00`);
+    if (Number.isNaN(parsedDate.getTime())) {
+      setError('Use a valid date in YYYY-MM-DD format.');
+      return;
+    }
+
+    const parsedMaxPeople = maxPeople ? Number(maxPeople) : undefined;
+    if (
+      parsedMaxPeople !== undefined &&
+      (!Number.isInteger(parsedMaxPeople) || parsedMaxPeople < 2 || parsedMaxPeople > 10)
+    ) {
+      setError('Max people should be a whole number between 2 and 10.');
+      return;
+    }
+
+    setError('');
 
     const selectedCategory = categories.find((item) => item.id === category);
     const event = createEvent({
       title,
-      description,
-      dateTime: new Date(`${date}T${time}`).toISOString(),
-      location,
-      maxPeople: maxPeople ? Number(maxPeople) : undefined,
+      description: description.slice(0, 200),
+      dateTime: parsedDate.toISOString(),
+      area,
+      timeSlot,
+      exactTime,
+      exactLocation,
+      location: exactLocation,
+      maxPeople: parsedMaxPeople,
       category,
       emoji: selectedCategory?.emoji ?? '✨',
       womenOnly,
@@ -71,14 +94,23 @@ export default function CreateEventScreen() {
       >
         <Pressable
           onPress={() => router.back()}
-          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.page,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </Pressable>
         <Text style={{ fontSize: 22, fontWeight: '900', color: colors.text }}>Create a Plan</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
+      >
         <View style={{ gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>What&apos;s the vibe?</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -109,23 +141,64 @@ export default function CreateEventScreen() {
           </View>
         </View>
 
-        <FormField label="Title" value={title} onChangeText={setTitle} placeholder="Dune night at PVR" />
+        <FormField label="Title" value={title} onChangeText={setTitle} placeholder="Movie night at City Centre" />
         <FormField
           label="Description"
           value={description}
           onChangeText={setDescription}
-          placeholder="What's the plan? Set the vibe."
+          placeholder="What is the hangout vibe?"
           multiline
         />
-        <FormField label="Date" value={date} onChangeText={setDate} placeholder="2026-04-15" />
-        <FormField label="Time" value={time} onChangeText={setTime} placeholder="19:30" />
-        <FormField label="Location" value={location} onChangeText={setLocation} placeholder="Where is it happening?" />
+        <FormField
+          label="Neighbourhood / Area"
+          value={area}
+          onChangeText={setArea}
+          placeholder="Zoo Road / Ganeshguri / Uzan Bazar"
+        />
+        <FormField label="Date" value={date} onChangeText={setDate} placeholder="2026-04-26" />
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Time of day</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((item) => {
+              const active = item === timeSlot;
+              return (
+                <Pressable
+                  key={item}
+                  onPress={() => setTimeSlot(item)}
+                  style={{
+                    backgroundColor: active ? '#FFF1D6' : '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor: active ? colors.primary : colors.border,
+                    borderRadius: 999,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text style={{ color: active ? '#B45309' : colors.text, fontWeight: '700' }}>{item}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         <FormField
           label="Max People"
           value={maxPeople}
           onChangeText={setMaxPeople}
           keyboardType="numeric"
-          placeholder="Leave empty for open"
+          placeholder="2 to 10"
+        />
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Private details</Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            Only approved members should see these.
+          </Text>
+        </View>
+        <FormField label="Exact meeting time" value={exactTime} onChangeText={setExactTime} placeholder="7:30 PM" />
+        <FormField
+          label="Exact address"
+          value={exactLocation}
+          onChangeText={setExactLocation}
+          placeholder="PVR City Centre lobby, Christian Basti"
         />
 
         {currentUser?.gender === 'woman' ? (

@@ -22,6 +22,10 @@ type CreateEventInput = {
   title: string;
   description: string;
   dateTime: string;
+  area: string;
+  timeSlot: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+  exactTime: string;
+  exactLocation: string;
   location: string;
   maxPeople?: number;
   category: EventCategory;
@@ -40,10 +44,12 @@ type AppContextValue = {
   messages: Record<string, Message[]>;
   ratings: Rating[];
   isOnboardingComplete: boolean;
+  shouldShowVerificationPrompt: boolean;
   categoryConfig: typeof CATEGORY_CONFIG;
   completeOnboarding: () => void;
   socialAuth: (provider: SocialProvider, mode: 'login' | 'signup') => void;
   logout: () => void;
+  dismissVerificationPrompt: () => void;
   createEvent: (data: CreateEventInput) => Event;
   requestToJoin: (eventId: string) => void;
   approveRequest: (eventId: string, userId: string) => void;
@@ -91,46 +97,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
 
   const socialAuth = (provider: SocialProvider, mode: 'login' | 'signup') => {
     if (provider === 'google') {
       const existing = users.find((item) => item.id === 'u2');
       if (existing) {
         setCurrentUser(existing);
+        setShouldShowVerificationPrompt(false);
         return;
       }
     }
 
     if (provider === 'apple') {
-      setCurrentUser({
+      const nextUser = {
         id: 'u6',
         name: 'Aisha Thomas',
         email: 'aisha@example.com',
         username: 'aishat',
         avatarColors: ['#A78BFA', '#38BDF8'],
         gender: 'woman',
+        age: 25,
+        city: 'Guwahati',
+        verified: true,
         bio: mode === 'signup' ? 'New here and ready for plans.' : 'Always down for one good plan.',
-      });
+      };
+      setCurrentUser(nextUser);
+      setShouldShowVerificationPrompt(false);
       return;
     }
 
-    setCurrentUser({
+    const nextUser = {
       id: 'u1',
       name: 'Aryan Shah',
       email: 'aryan@example.com',
       username: 'aryanshah',
       avatarColors: ['#8B5CF6', '#6366F1'],
       gender: 'man',
+      age: 23,
+      city: 'Guwahati',
+      verified: false,
       bio: 'Living for spontaneous plans.',
-    });
+    };
+    setCurrentUser(nextUser);
+    setShouldShowVerificationPrompt(!nextUser.verified);
   };
 
   const logout = () => {
     setCurrentUser(null);
+    setShouldShowVerificationPrompt(false);
   };
 
   const completeOnboarding = () => {
     setIsOnboardingComplete(true);
+  };
+
+  const dismissVerificationPrompt = () => {
+    setShouldShowVerificationPrompt(false);
   };
 
   const createEvent = (data: CreateEventInput) => {
@@ -159,6 +182,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const event = events.find((item) => item.id === eventId);
     if (event?.womenOnly && currentUser.gender !== 'woman') {
+      return;
+    }
+
+    if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
       return;
     }
 
@@ -494,10 +521,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         messages,
         ratings,
         isOnboardingComplete,
+        shouldShowVerificationPrompt,
         categoryConfig: CATEGORY_CONFIG,
         completeOnboarding,
         socialAuth,
         logout,
+        dismissVerificationPrompt,
         createEvent,
         requestToJoin,
         approveRequest,
