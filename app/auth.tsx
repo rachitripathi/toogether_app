@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GradientButton } from '@/components/GradientButton';
-import { gradients } from '@/lib/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, gradients } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,8 +23,8 @@ export default function AuthScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
         <View style={{ paddingHorizontal: 24, paddingTop: insets.top + 22, paddingBottom: 28 }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 34, fontWeight: '900' }}>Toogether</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.84)', marginTop: 8, fontSize: 15 }}>
+          <Text style={{ color: colors.text, fontSize: 34, fontWeight: '900' }}>Toogether</Text>
+          <Text style={{ color: colors.skyDark, marginTop: 8, fontSize: 15, fontWeight: '700' }}>
             Your next plan is one tap away.
           </Text>
         </View>
@@ -32,7 +32,7 @@ export default function AuthScreen() {
         <ScrollView
           style={{
             flex: 1,
-            backgroundColor: '#F6F7FB',
+            backgroundColor: colors.page,
             borderTopLeftRadius: 32,
             borderTopRightRadius: 32,
           }}
@@ -75,7 +75,26 @@ export default function AuthScreen() {
               : 'Create your account using Google or Apple. We do not show generic signup anymore.'}
           </Text>
 
-          <GradientButton label="Continue with Google" onPress={() => handleSocialAuth('google')} fullWidth />
+          <Pressable
+            onPress={() => handleSocialAuth('google')}
+            style={{
+              minHeight: 56,
+              borderRadius: 24,
+              backgroundColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 10,
+              borderWidth: 1,
+              borderColor: '#E5E7EB',
+            }}
+          >
+            <Ionicons name="logo-google" size={18} color="#EA4335" />
+            <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '800' }}>
+              {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+            </Text>
+          </Pressable>
+
           <Pressable
             onPress={() => handleSocialAuth('apple')}
             style={{
@@ -84,15 +103,19 @@ export default function AuthScreen() {
               backgroundColor: '#111827',
               alignItems: 'center',
               justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 10,
             }}
           >
+            <Ionicons name="logo-apple" size={18} color="#FFFFFF" />
             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800' }}>
               {mode === 'login' ? 'Continue with Apple' : 'Sign up with Apple'}
             </Text>
           </Pressable>
 
           <Text style={{ color: '#98A2B3', fontSize: 12, textAlign: 'center' }}>
-            Google and Apple usually do not provide reliable gender data. For women-only plans, the app should use a profile field you confirm after sign-in.
+            Google and Apple usually do not provide reliable gender data. For women-only plans, the app should use a
+            profile field you confirm after sign-in.
           </Text>
         </ScrollView>
       </LinearGradient>

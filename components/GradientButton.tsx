@@ -1,6 +1,6 @@
 import { Pressable, Text, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients } from '@/lib/theme';
+import { colors, gradients, shadow } from '@/lib/theme';
 import type { ReactNode } from 'react';
 
 type GradientButtonProps = {
@@ -23,26 +23,22 @@ export function GradientButton({
   return (
     <Pressable disabled={disabled} onPress={onPress} style={[{ width: fullWidth ? '100%' : undefined }, style]}>
       <LinearGradient
-        colors={disabled ? ['#CBD5E1', '#CBD5E1'] : [...gradients.hero]}
+        colors={disabled ? ['#CBD5E1', '#CBD5E1'] : [...gradients.amber]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
           minHeight: 56,
-          borderRadius: 24,
+          borderRadius: 28,
           paddingHorizontal: 20,
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
           gap: 10,
-          shadowColor: colors.primary,
-          shadowOpacity: disabled ? 0 : 0.18,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: disabled ? 0 : 6,
+          ...(disabled ? {} : shadow.lift),
         }}
       >
         {icon}
-        <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color: disabled ? '#FFFFFF' : colors.text, fontSize: 16, fontWeight: '900' }}>{label}</Text>
       </LinearGradient>
     </Pressable>
   );

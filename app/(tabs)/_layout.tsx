@@ -1,11 +1,12 @@
 import { Pressable, Text, View } from 'react-native';
-import { Tabs, router } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '@/providers/AppProvider';
-import { colors } from '@/lib/theme';
+import { colors, shadow } from '@/lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function CustomTabBar({ state, descriptors, navigation }: any) {
+function CustomTabBar({ state, navigation }: any) {
   const { currentUser, requests, events } = useApp();
   const insets = useSafeAreaInsets();
   const pendingCount = requests.filter((request) => {
@@ -13,108 +14,99 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     return request.status === 'pending' && event?.creatorId === currentUser?.id;
   }).length;
 
-  const renderTab = (route: any, index: number) => {
-    const isFocused = state.index === index;
-    const options = descriptors[route.key].options;
-    const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
-      home: 'home',
-      people: 'people',
-      activity: 'notifications',
-      profile: 'person',
-    };
-    const iconName = iconMap[route.name] ?? 'ellipse';
-    const label = options.title ?? route.name;
-    const badge = route.name === 'activity' ? pendingCount : 0;
+  const items = [
+    { key: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+    { key: 'people', label: 'People', icon: 'people-outline', activeIcon: 'people' },
+    { key: 'activity', label: 'Activity', icon: 'notifications-outline', activeIcon: 'notifications' },
+    { key: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  ] as const;
 
-    return (
-      <Pressable
-        key={route.key}
-        onPress={() => navigation.navigate(route.name)}
-        style={{ flex: 1, alignItems: 'center', gap: 4 }}
-      >
-        <View>
-          <Ionicons
-            name={iconName}
-            size={22}
-            color={isFocused ? colors.primary : '#98A2B3'}
-          />
-          {badge > 0 ? (
-            <View
-              style={{
-                position: 'absolute',
-                top: -6,
-                right: -10,
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor: colors.danger,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>{badge}</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={{ color: isFocused ? colors.primary : '#98A2B3', fontSize: 11, fontWeight: '700' }}>
-          {label}
-        </Text>
-      </Pressable>
-    );
-  };
-
-  const leftRoutes = state.routes.slice(0, 2);
-  const rightRoutes = state.routes.slice(2);
+  const currentRoute = state.routes[state.index]?.name;
 
   return (
     <View
       style={{
-        backgroundColor: '#FFFFFF',
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        paddingHorizontal: 12,
-        paddingTop: 14,
-        paddingBottom: Math.max(insets.bottom, 14),
-        flexDirection: 'row',
-        alignItems: 'center',
+        backgroundColor: 'transparent',
+        paddingHorizontal: 18,
+        paddingBottom: Math.max(insets.bottom, 12),
         minHeight: 92 + insets.bottom,
+        justifyContent: 'flex-end',
       }}
     >
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-        {leftRoutes.map((route: any, index: number) => renderTab(route, index))}
-      </View>
-
-      <View style={{ width: 76 }} />
-
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-        {rightRoutes.map((route: any, index: number) => renderTab(route, index + 2))}
-      </View>
-
-      <Pressable
-        onPress={() => router.push('/create-event')}
+      <LinearGradient
+        colors={['rgba(244,247,246,0)', 'rgba(244,247,246,0.92)', colors.page]}
+        pointerEvents="none"
         style={{
           position: 'absolute',
-          alignSelf: 'center',
-          bottom: Math.max(insets.bottom, 14) + 18,
-          left: '50%',
-          marginLeft: -31,
-          width: 62,
-          height: 62,
-          borderRadius: 31,
-          backgroundColor: colors.primary,
+          left: 0,
+          right: 0,
+          top: -14,
+          height: 24,
+        }}
+      />
+
+      <View
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 34,
+          borderWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: 10,
+          paddingVertical: 10,
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-          borderWidth: 4,
-          borderColor: '#FFFFFF',
-          shadowColor: colors.primary,
-          shadowOpacity: 0.22,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: 8,
+          gap: 6,
+          ...shadow.lift,
         }}
       >
-        <Ionicons name="add" size={30} color="#FFFFFF" />
-      </Pressable>
+        {items.map((item) => {
+          const isActive = item.key === currentRoute;
+          const iconName = isActive ? item.activeIcon : item.icon;
+
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => {
+                navigation.navigate(item.key);
+              }}
+              style={{
+                flex: isActive ? 1.35 : 1,
+                minHeight: 48,
+                borderRadius: 24,
+                backgroundColor: isActive ? '#EFF6FF' : 'transparent',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: isActive ? 6 : 0,
+              }}
+            >
+              <View>
+                <Ionicons
+                  name={iconName}
+                  size={20}
+                  color={isActive ? colors.skyDark : '#B9C4CF'}
+                />
+                {item.key === 'activity' && pendingCount > 0 ? (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -3,
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: colors.danger,
+                    }}
+                  />
+                ) : null}
+              </View>
+              {isActive ? (
+                <Text style={{ color: colors.skyDark, fontSize: 13, fontWeight: '800' }}>{item.label}</Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

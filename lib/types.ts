@@ -5,6 +5,9 @@ export interface User {
   username: string;
   avatarColors: [string, string];
   gender: 'woman' | 'man' | 'other';
+  age: number;
+  city: string;
+  verified?: boolean;
   bio?: string;
 }
 
@@ -23,6 +26,10 @@ export interface Event {
   title: string;
   description: string;
   dateTime: string;
+  area: string;
+  timeSlot: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+  exactTime: string;
+  exactLocation: string;
   location: string;
   creatorId: string;
   maxPeople?: number;
@@ -31,6 +38,7 @@ export interface Event {
   category: EventCategory;
   emoji: string;
   womenOnly?: boolean;
+  pinned?: boolean;
 }
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
