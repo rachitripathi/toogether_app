@@ -1,4 +1,3 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
 import {
   CATEGORY_CONFIG,
   MOCK_EVENTS,
@@ -6,7 +5,7 @@ import {
   MOCK_RATINGS,
   MOCK_REQUESTS,
   MOCK_USERS,
-} from '@/lib/mockData';
+} from "@/lib/mockData";
 import type {
   CrewRequest,
   Event,
@@ -16,7 +15,15 @@ import type {
   Rating,
   RequestStatus,
   User,
-} from '@/lib/types';
+} from "@/lib/types";
+import { supabase } from "@/utils/supabase";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 type CreateEventInput = {
   title: string;
@@ -29,7 +36,7 @@ type CreateEventInput = {
   womenOnly?: boolean;
 };
 
-type SocialProvider = 'google' | 'apple';
+type SocialProvider = "google" | "apple";
 
 type AppContextValue = {
   currentUser: User | null;
@@ -42,9 +49,9 @@ type AppContextValue = {
   isOnboardingComplete: boolean;
   categoryConfig: typeof CATEGORY_CONFIG;
   completeOnboarding: () => void;
-  socialAuth: (provider: SocialProvider, mode: 'login' | 'signup') => void;
+  socialAuth: (provider: SocialProvider, mode: "login" | "signup") => void;
   logout: () => void;
-  createEvent: (data: CreateEventInput) => Event;
+  createEvent: (data: CreateEventInput) => Promise<Event>;
   requestToJoin: (eventId: string) => void;
   approveRequest: (eventId: string, userId: string) => void;
   rejectRequest: (eventId: string, userId: string) => void;
@@ -53,13 +60,15 @@ type AppContextValue = {
   sendCrewRequest: (userId: string) => void;
   acceptCrewRequest: (requestId: string) => void;
   rejectCrewRequest: (requestId: string) => void;
-  getCrewStatus: (userId: string) => 'none' | 'pending_incoming' | 'pending_outgoing' | 'connected';
+  getCrewStatus: (
+    userId: string,
+  ) => "none" | "pending_incoming" | "pending_outgoing" | "connected";
   getCrewMembers: () => User[];
   sendMessage: (eventId: string, text: string) => void;
   rateUser: (toUserId: string, eventId: string, stars: number) => void;
   getUserAverageRating: (userId: string) => number | null;
   getMyRatingForUser: (toUserId: string, eventId?: string) => number | null;
-  getUserById: (id: string) => User | undefined;
+  getUserById: (id: string) => User | undefined | null;
   getEventById: (id: string) => Event | undefined;
   getEventsImPartOf: () => Event[];
   getInteractedUsers: () => User[];
@@ -73,17 +82,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [requests, setRequests] = useState(MOCK_REQUESTS);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
     {
-      id: 'c1',
-      fromUserId: 'u2',
-      toUserId: 'u1',
-      status: 'accepted',
+      id: "c1",
+      fromUserId: "u2",
+      toUserId: "u1",
+      status: "accepted",
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     },
     {
-      id: 'c2',
-      fromUserId: 'u4',
-      toUserId: 'u1',
-      status: 'pending',
+      id: "c2",
+      fromUserId: "u4",
+      toUserId: "u1",
+      status: "pending",
       createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     },
   ]);
@@ -92,36 +101,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
 
-  const socialAuth = (provider: SocialProvider, mode: 'login' | 'signup') => {
-    if (provider === 'google') {
-      const existing = users.find((item) => item.id === 'u2');
+  // Fetch events from Supabase on mount
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("events")
+          .select("*")
+          .order("dateTime", { ascending: false });
+
+        if (error) {
+          console.log("No events found or table not set up, using mock data");
+        } else if (data && data.length > 0) {
+          setEvents(data as Event[]);
+        }
+      } catch (error) {
+        console.log("Using mock data");
+      }
+    };
+
+    fetchEvents();
+  }, []);
+
+  const socialAuth = (provider: SocialProvider, mode: "login" | "signup") => {
+    if (provider === "google") {
+      const existing = users.find((item) => item.id === "u2");
       if (existing) {
         setCurrentUser(existing);
         return;
       }
     }
 
-    if (provider === 'apple') {
+    if (provider === "apple") {
       setCurrentUser({
-        id: 'u6',
-        name: 'Aisha Thomas',
-        email: 'aisha@example.com',
-        username: 'aishat',
-        avatarColors: ['#A78BFA', '#38BDF8'],
-        gender: 'woman',
-        bio: mode === 'signup' ? 'New here and ready for plans.' : 'Always down for one good plan.',
+        id: "u6",
+        name: "Aisha Thomas",
+        email: "aisha@example.com",
+        username: "aishat",
+        avatarColors: ["#A78BFA", "#38BDF8"],
+        gender: "woman",
+        bio:
+          mode === "signup"
+            ? "New here and ready for plans."
+            : "Always down for one good plan.",
       });
       return;
     }
 
     setCurrentUser({
-      id: 'u1',
-      name: 'Aryan Shah',
-      email: 'aryan@example.com',
-      username: 'aryanshah',
-      avatarColors: ['#8B5CF6', '#6366F1'],
-      gender: 'man',
-      bio: 'Living for spontaneous plans.',
+      id: "u1",
+      name: "Aryan Shah",
+      email: "aryan@example.com",
+      username: "aryanshah",
+      avatarColors: ["#8B5CF6", "#6366F1"],
+      gender: "man",
+      bio: "Living for spontaneous plans.",
     });
   };
 
@@ -133,15 +167,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsOnboardingComplete(true);
   };
 
-  const createEvent = (data: CreateEventInput) => {
+  const createEvent = async (data: CreateEventInput) => {
+    console.log("createEvent called with:", data);
+    console.log("currentUser:", currentUser);
+
     const event: Event = {
       id: `e${Date.now()}`,
-      creatorId: currentUser?.id ?? 'u1',
+      creatorId: currentUser?.id ?? "u1",
       approvedUserIds: [],
       requestUserIds: [],
       ...data,
     };
-    setEvents((prev) => [event, ...prev]);
+
+    console.log("Created event object:", JSON.stringify(event, null, 2));
+
+    // Save to local state immediately
+    setEvents((prev) => {
+      const updated = [event, ...prev];
+      console.log("Updated events state, total events:", updated.length);
+      return updated;
+    });
+
+    // Attempt to save to Supabase (non-blocking)
+    try {
+      const { error } = await supabase.from("events").insert([
+        {
+          id: event.id,
+          creator_id: event.creatorId,
+          title: event.title,
+          description: event.description,
+          date_time: event.dateTime,
+          location: event.location,
+          max_people: event.maxPeople,
+          category: event.category,
+          emoji: event.emoji,
+          women_only: event.womenOnly ?? false,
+          approved_user_ids: event.approvedUserIds,
+          request_user_ids: event.requestUserIds,
+        },
+      ]);
+
+      if (error) {
+        console.log("Could not save to Supabase:", error.message);
+      } else {
+        console.log("Event saved to Supabase successfully");
+      }
+    } catch (error) {
+      console.log("Error saving to Supabase:", error);
+    }
+
+    console.log("Returning event:", JSON.stringify(event, null, 2));
     return event;
   };
 
@@ -151,14 +226,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const existing = requests.find(
-      (request) => request.eventId === eventId && request.userId === currentUser.id
+      (request) =>
+        request.eventId === eventId && request.userId === currentUser.id,
     );
     if (existing) {
       return;
     }
 
     const event = events.find((item) => item.id === eventId);
-    if (event?.womenOnly && currentUser.gender !== 'woman') {
+    if (event?.womenOnly && currentUser.gender !== "woman") {
       return;
     }
 
@@ -166,7 +242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: `r${Date.now()}`,
       userId: currentUser.id,
       eventId,
-      status: 'pending',
+      status: "pending",
       createdAt: new Date().toISOString(),
     };
 
@@ -174,9 +250,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEvents((prev) =>
       prev.map((event) =>
         event.id === eventId
-          ? { ...event, requestUserIds: [...event.requestUserIds, currentUser.id] }
-          : event
-      )
+          ? {
+              ...event,
+              requestUserIds: [...event.requestUserIds, currentUser.id],
+            }
+          : event,
+      ),
     );
   };
 
@@ -184,20 +263,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRequests((prev) =>
       prev.map((request) =>
         request.eventId === eventId && request.userId === userId
-          ? { ...request, status: 'approved' }
-          : request
-      )
+          ? { ...request, status: "approved" }
+          : request,
+      ),
     );
     setEvents((prev) =>
       prev.map((event) =>
         event.id === eventId
           ? {
               ...event,
-              requestUserIds: event.requestUserIds.filter((id) => id !== userId),
+              requestUserIds: event.requestUserIds.filter(
+                (id) => id !== userId,
+              ),
               approvedUserIds: [...event.approvedUserIds, userId],
             }
-          : event
-      )
+          : event,
+      ),
     );
   };
 
@@ -205,16 +286,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRequests((prev) =>
       prev.map((request) =>
         request.eventId === eventId && request.userId === userId
-          ? { ...request, status: 'rejected' }
-          : request
-      )
+          ? { ...request, status: "rejected" }
+          : request,
+      ),
     );
     setEvents((prev) =>
       prev.map((event) =>
         event.id === eventId
-          ? { ...event, requestUserIds: event.requestUserIds.filter((id) => id !== userId) }
-          : event
-      )
+          ? {
+              ...event,
+              requestUserIds: event.requestUserIds.filter(
+                (id) => id !== userId,
+              ),
+            }
+          : event,
+      ),
     );
   };
 
@@ -224,7 +310,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (event.approvedUserIds.includes(userId) || event.requestUserIds.includes(userId)) {
+    if (
+      event.approvedUserIds.includes(userId) ||
+      event.requestUserIds.includes(userId)
+    ) {
       return;
     }
 
@@ -233,8 +322,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((item) =>
           item.id === eventId
             ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] }
-            : item
-        )
+            : item,
+        ),
       );
       setRequests((prev) => [
         ...prev,
@@ -242,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           id: `r${Date.now()}`,
           eventId,
           userId,
-          status: 'approved',
+          status: "approved",
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -255,14 +344,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: `r${Date.now()}`,
         eventId,
         userId,
-        status: 'pending',
+        status: "pending",
         createdAt: new Date().toISOString(),
       },
     ]);
     setEvents((prev) =>
       prev.map((item) =>
-        item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, userId] } : item
-      )
+        item.id === eventId
+          ? { ...item, requestUserIds: [...item.requestUserIds, userId] }
+          : item,
+      ),
     );
   };
 
@@ -271,8 +362,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return null;
     }
     return (
-      requests.find((request) => request.eventId === eventId && request.userId === currentUser.id)
-        ?.status ?? null
+      requests.find(
+        (request) =>
+          request.eventId === eventId && request.userId === currentUser.id,
+      )?.status ?? null
     );
   };
 
@@ -283,9 +376,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const existing = crewRequests.find(
       (request) =>
-        ((request.fromUserId === currentUser.id && request.toUserId === userId) ||
-          (request.fromUserId === userId && request.toUserId === currentUser.id)) &&
-        request.status !== 'rejected'
+        ((request.fromUserId === currentUser.id &&
+          request.toUserId === userId) ||
+          (request.fromUserId === userId &&
+            request.toUserId === currentUser.id)) &&
+        request.status !== "rejected",
     );
 
     if (existing) {
@@ -298,7 +393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: `c${Date.now()}`,
         fromUserId: currentUser.id,
         toUserId: userId,
-        status: 'pending',
+        status: "pending",
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -307,43 +402,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const acceptCrewRequest = (requestId: string) => {
     setCrewRequests((prev) =>
       prev.map((request) =>
-        request.id === requestId ? { ...request, status: 'accepted' } : request
-      )
+        request.id === requestId ? { ...request, status: "accepted" } : request,
+      ),
     );
   };
 
   const rejectCrewRequest = (requestId: string) => {
     setCrewRequests((prev) =>
       prev.map((request) =>
-        request.id === requestId ? { ...request, status: 'rejected' } : request
-      )
+        request.id === requestId ? { ...request, status: "rejected" } : request,
+      ),
     );
   };
 
   const getCrewStatus = (userId: string) => {
     if (!currentUser) {
-      return 'none';
+      return "none";
     }
 
     const existing = crewRequests.find(
       (request) =>
-        (request.fromUserId === currentUser.id && request.toUserId === userId) ||
-        (request.fromUserId === userId && request.toUserId === currentUser.id)
+        (request.fromUserId === currentUser.id &&
+          request.toUserId === userId) ||
+        (request.fromUserId === userId && request.toUserId === currentUser.id),
     );
 
     if (!existing) {
-      return 'none';
+      return "none";
     }
 
-    if (existing.status === 'accepted') {
-      return 'connected';
+    if (existing.status === "accepted") {
+      return "connected";
     }
 
     if (existing.toUserId === currentUser.id) {
-      return 'pending_incoming';
+      return "pending_incoming";
     }
 
-    return 'pending_outgoing';
+    return "pending_outgoing";
   };
 
   const getCrewMembers = () => {
@@ -354,11 +450,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const ids = crewRequests
       .filter(
         (request) =>
-          request.status === 'accepted' &&
-          (request.fromUserId === currentUser.id || request.toUserId === currentUser.id)
+          request.status === "accepted" &&
+          (request.fromUserId === currentUser.id ||
+            request.toUserId === currentUser.id),
       )
       .map((request) =>
-        request.fromUserId === currentUser.id ? request.toUserId : request.fromUserId
+        request.fromUserId === currentUser.id
+          ? request.toUserId
+          : request.fromUserId,
       );
 
     return ids
@@ -395,7 +494,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (rating) =>
           rating.fromUserId === currentUser.id &&
           rating.toUserId === toUserId &&
-          rating.eventId === eventId
+          rating.eventId === eventId,
       );
 
       const nextRating: Rating = {
@@ -422,7 +521,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!userRatings.length) {
       return null;
     }
-    return userRatings.reduce((sum, rating) => sum + rating.stars, 0) / userRatings.length;
+    return (
+      userRatings.reduce((sum, rating) => sum + rating.stars, 0) /
+      userRatings.length
+    );
   };
 
   const getMyRatingForUser = (toUserId: string, eventId?: string) => {
@@ -434,13 +536,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (rating) =>
           rating.fromUserId === currentUser.id &&
           rating.toUserId === toUserId &&
-          (!eventId || rating.eventId === eventId)
+          (!eventId || rating.eventId === eventId),
       )?.stars ?? null
     );
   };
 
   const getUserById = (id: string) => {
-    return [...users, currentUser].filter(Boolean).find((user) => user?.id === id);
+    return [...users, currentUser]
+      .filter(Boolean)
+      .find((user) => user?.id === id);
   };
 
   const getEventById = (id: string) => {
@@ -452,11 +556,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return [];
     }
     return events.filter((event) => {
-      if (event.womenOnly && currentUser.gender !== 'woman') {
+      if (event.womenOnly && currentUser.gender !== "woman") {
         return false;
       }
 
-      return event.creatorId === currentUser.id || event.approvedUserIds.includes(currentUser.id);
+      return (
+        event.creatorId === currentUser.id ||
+        event.approvedUserIds.includes(currentUser.id)
+      );
     });
   };
 
@@ -527,7 +634,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within AppProvider');
+    throw new Error("useApp must be used within AppProvider");
   }
   return context;
 }
