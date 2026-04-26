@@ -20,9 +20,8 @@ import { supabase } from "@/utils/supabase";
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
-  type ReactNode,
+  type ReactNode
 } from "react";
 
 type CreateEventInput = {
@@ -165,11 +164,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsOnboardingComplete(true);
   };
 
-  const dismissVerificasync ationPrompt = () => {
+  const dismissVerificationPrompt = () => {
     setShouldShowVerificationPrompt(false);
   };
 
-  const createEvent = (data: CreateEventInput) => {
+  const createEvent = async (data: CreateEventInput) => {
     const event: Event = {
       id: `e${Date.now()}`,
       creatorId: currentUser?.id ?? "u1",

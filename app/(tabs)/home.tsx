@@ -1,6 +1,8 @@
 import { AvatarBubble } from "@/components/AvatarBubble";
 import { EventCard } from "@/components/EventCard";
 import { HeaderHero } from "@/components/HeaderHero";
+import { EventCardSkeleton } from "@/components/SkeletonLoaders/EventCardSkeleton";
+import { useCreateEvent, useFeed } from "@/hooks/useEvents";
 import { colors, shadow } from "@/lib/theme";
 import type { EventCategory } from "@/lib/types";
 import { useApp } from "@/providers/AppProvider";
@@ -89,6 +91,16 @@ export default function HomeScreen() {
       event.creatorId === currentUser?.id;
     return matchesCategory && matchesSearch && matchesVisibility;
   });
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <EventCardSkeleton />
+        <EventCardSkeleton />
+        <EventCardSkeleton />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -191,7 +203,7 @@ export default function HomeScreen() {
             <Text
               style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}
             >
-              {filtered.length} {filtered.length === 1 ? "plan" : "plans"}{" "}
+              {filtered?.length} {filtered?.length === 1 ? "plan" : "plans"}{" "}
               happening
             </Text>
             <Text style={{ color: colors.muted }}>
@@ -202,8 +214,8 @@ export default function HomeScreen() {
           </View>
 
           <View style={{ gap: 14 }}>
-            {filtered.length ? (
-              filtered.map((event) => (
+            {filtered?.length ? (
+              filtered?.map((event) => (
                 <EventCard key={event.id} event={event} />
               ))
             ) : (

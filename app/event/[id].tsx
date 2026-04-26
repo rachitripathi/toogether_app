@@ -1,13 +1,13 @@
 import { AvatarBubble } from "@/components/AvatarBubble";
 import { GradientButton } from "@/components/GradientButton";
-import { useJoinRequest } from "@/hooks/useEvents";
+import { EventDetailSkeleton } from "@/components/SkeletonLoaders/EventDetailSkeleton";
+import { useEvent, useJoinRequest } from "@/hooks/useEvents";
 import { colors } from "@/lib/theme";
 import { useApp } from "@/providers/AppProvider";
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { useEvent } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function InfoRow({
@@ -66,6 +66,10 @@ export default function EventDetailScreen() {
     );
   }
 
+  if (isLoading) {
+    return <EventDetailSkeleton />;
+  }
+
   const creator = getUserById(event.creatorId);
   const isCreator = currentUser?.id === event.creatorId;
   const requestStatus = getRequestStatus(event.id);
@@ -78,7 +82,7 @@ export default function EventDetailScreen() {
     !event.womenOnly || currentUser?.gender === "woman" || isCreator;
   const canViewPrivateLayer = isCreator || requestStatus === "approved";
   const creatorRating = creator ? getUserAverageRating(creator.id) : null;
-  const attendeeCount = event.approvedUserIds.length + 1;
+  const attendeeCount = event.approvedUserIds?.length + 1;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
 
   if (!canViewWomenOnly) {
