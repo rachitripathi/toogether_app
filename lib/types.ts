@@ -3,8 +3,8 @@ export interface User {
   name: string;
   email: string;
   username: string;
-  avatarColors: [string, string];
-  gender: 'woman' | 'man' | 'other';
+  avatarColors: string[];
+  gender: "woman" | "man" | "other" | string;
   age: number;
   city: string;
   verified?: boolean;
@@ -12,14 +12,14 @@ export interface User {
 }
 
 export type EventCategory =
-  | 'movies'
-  | 'chill'
-  | 'music'
-  | 'sports'
-  | 'food'
-  | 'travel'
-  | 'gaming'
-  | 'other';
+  | "movies"
+  | "chill"
+  | "music"
+  | "sports"
+  | "food"
+  | "travel"
+  | "gaming"
+  | "other";
 
 export interface Event {
   id: string;
@@ -27,7 +27,7 @@ export interface Event {
   description: string;
   dateTime: string;
   area: string;
-  timeSlot: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+  timeSlot: "Morning" | "Afternoon" | "Evening" | "Night";
   exactTime: string;
   exactLocation: string;
   location: string;
@@ -41,7 +41,7 @@ export interface Event {
   pinned?: boolean;
 }
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type RequestStatus = "pending" | "approved" | "rejected";
 
 export interface JoinRequest {
   id: string;
@@ -72,7 +72,7 @@ export interface CrewRequest {
   id: string;
   fromUserId: string;
   toUserId: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: "pending" | "accepted" | "rejected";
   createdAt: string;
 }
 
