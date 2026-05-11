@@ -1,14 +1,15 @@
 import { AvatarBubble } from "@/components/AvatarBubble";
-import { GradientButton } from "@/components/GradientButton";
 import { EventDetailSkeleton } from "@/components/SkeletonLoaders/EventDetailSkeleton";
 import { useEvent, useJoinRequest } from "@/hooks/useEvents";
 import { colors } from "@/lib/theme";
+import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from "@/lib/categoryVisuals";
 import { useApp } from "@/providers/AppProvider";
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ImageBackground, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCollapsibleHeader } from "@/hooks/useCollapsibleHeader";
 
 function InfoRow({
   icon,
@@ -29,8 +30,41 @@ function InfoRow({
   );
 }
 
+function ThemedActionButton({
+  label,
+  onPress,
+  visual,
+}: {
+  label: string;
+  onPress: () => void;
+  visual: CategoryVisualTheme;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        minHeight: 56,
+        borderRadius: 28,
+        backgroundColor: visual.buttonBackground,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: visual.buttonShadow,
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 7 },
+        elevation: 4,
+      }}
+    >
+      <Text style={{ color: visual.buttonText, fontSize: 16, fontWeight: "900", fontFamily: categoryFontFamily }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
+  const { collapsed, onScroll } = useCollapsibleHeader();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: event, isLoading } = useEvent(id as string);
   const { mutate: sendJoinRequest, isPending } = useJoinRequest();
@@ -48,8 +82,11 @@ export default function EventDetailScreen() {
     categoryConfig,
   } = useApp();
 
-  //const event = getEventById(id ?? '');
-  if (!isLoading && !event) {
+  // Use Supabase event data if available, fallback to context
+  const contextEvent = getEventById(id ?? '');
+  const displayEvent = event || contextEvent;
+
+  if (!isLoading && !displayEvent) {
     return (
       <View
         style={{
@@ -70,20 +107,26 @@ export default function EventDetailScreen() {
     return <EventDetailSkeleton />;
   }
 
-  const creator = getUserById(event.creatorId);
-  const isCreator = currentUser?.id === event.creatorId;
-  const requestStatus = getRequestStatus(event.id);
+  const creator = getUserById(displayEvent.creatorId);
+  const isCreator = currentUser?.id === displayEvent.creatorId;
+  const requestStatus = getRequestStatus(displayEvent.id);
   const pendingRequests = requests.filter(
-    (request) => request.eventId === event.id && request.status === "pending",
+    (request) => request.eventId === displayEvent.id && request.status === "pending",
   );
-  const config = categoryConfig[event.category] ?? categoryConfig.other;
-  const date = new Date(event.dateTime);
+  const config = categoryConfig[displayEvent.category] ?? categoryConfig.other;
+  const visual = categoryVisuals[displayEvent.category] ?? categoryVisuals.other;
+  const date = new Date(displayEvent.dateTime);
   const canViewWomenOnly =
-    !event.womenOnly || currentUser?.gender === "woman" || isCreator;
+    !displayEvent.womenOnly || currentUser?.gender === "woman" || isCreator;
   const canViewPrivateLayer = isCreator || requestStatus === "approved";
+  const mapUrl =
+    displayEvent.mapUrl ??
+    (displayEvent.latitude && displayEvent.longitude
+      ? `https://www.google.com/maps/search/?api=1&query=${displayEvent.latitude},${displayEvent.longitude}`
+      : undefined);
   const creatorRating = creator ? getUserAverageRating(creator.id) : null;
-  const attendeeCount = event.approvedUserIds?.length + 1;
-  const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
+  const attendeeCount = displayEvent.approvedUserIds?.length + 1;
+  const isFull = displayEvent.maxPeople ? attendeeCount >= displayEvent.maxPeople : false;
 
   if (!canViewWomenOnly) {
     return (
@@ -96,7 +139,6 @@ export default function EventDetailScreen() {
           padding: 24,
         }}
       >
-        <Text style={{ fontSize: 48 }}>🔒</Text>
         <Text
           style={{
             color: colors.text,
@@ -118,30 +160,31 @@ export default function EventDetailScreen() {
 
   const statusTone =
     requestStatus === "approved"
-      ? { bg: "#DCFCE7", text: "#15803D", label: "Approved member" }
+      ? { bg: "#DCFCE7", text: "#15803D", label: "Approved member", shadow: "#84CC96" }
       : requestStatus === "pending"
-        ? { bg: "#FFF1D6", text: "#B45309", label: "Approval pending" }
+        ? { bg: "#FFBE3D", text: "#5B3A00", label: "Approval pending", shadow: "#D4860F" }
         : requestStatus === "rejected"
-          ? { bg: "#E5E7EB", text: "#6B7280", label: "Request declined" }
+          ? { bg: "#E5E7EB", text: "#6B7280", label: "Request declined", shadow: "#B8C0CC" }
           : isCreator
-            ? { bg: "#E0F2FE", text: colors.skyDark, label: "You are hosting" }
-            : {
-                bg: "#EEF2FF",
-                text: colors.skyDark,
-                label: "Open for requests",
-              };
+            ? { bg: visual.buttonBackground, text: visual.buttonText, label: "You are hosting", shadow: visual.buttonShadow }
+            : { bg: visual.buttonBackground, text: visual.buttonText, label: "Open for requests", shadow: visual.buttonShadow };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <View
-        style={{
-          backgroundColor: config.iconBackground,
-          paddingTop: insets.top + 16,
-          paddingHorizontal: 20,
-          paddingBottom: 24,
+      <ImageBackground
+        source={visual.background}
+        resizeMode="cover"
+        imageStyle={{
           borderBottomLeftRadius: 28,
           borderBottomRightRadius: 28,
-          gap: 18,
+        }}
+        style={{
+          paddingTop: insets.top + 16,
+          paddingHorizontal: 20,
+          paddingBottom: collapsed ? 16 : 24,
+          borderBottomLeftRadius: 28,
+          borderBottomRightRadius: 28,
+          gap: collapsed ? 12 : 18,
         }}
       >
         <View
@@ -166,57 +209,46 @@ export default function EventDetailScreen() {
           </Pressable>
           {isCreator || requestStatus === "approved" ? (
             <Pressable
-              onPress={() => router.push(`/chat/${event.id}`)}
+              onPress={() => router.push(`/chat/${displayEvent.id}`)}
               style={{
-                backgroundColor: "#FFF1D6",
+                backgroundColor: visual.buttonBackground,
                 borderRadius: 999,
                 paddingHorizontal: 14,
                 paddingVertical: 10,
+                shadowColor: visual.buttonShadow,
+                shadowOpacity: 0.26,
+                shadowRadius: 9,
+                shadowOffset: { width: 0, height: 5 },
+                elevation: 3,
               }}
             >
-              <Text style={{ color: "#B45309", fontWeight: "800" }}>
-                Open Chat
-              </Text>
+              <Text style={{ color: visual.buttonText, fontWeight: "900", fontFamily: categoryFontFamily }}>Open Chat</Text>
             </Pressable>
           ) : null}
         </View>
 
         <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
-          <Text style={{ fontSize: 54 }}>{event.emoji}</Text>
+          <Text style={{ fontSize: collapsed ? 38 : 54 }}>{displayEvent.emoji}</Text>
           <View style={{ flex: 1, gap: 8 }}>
-            <View
-              style={{
-                alignSelf: "flex-start",
-                backgroundColor: "#FFFFFF",
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                flexDirection: "row",
-                gap: 6,
-              }}
-            >
-              <Text
+            {!collapsed ? (
+              <View
                 style={{
-                  color: config.chipText,
-                  fontSize: 12,
-                  fontWeight: "700",
+                  alignSelf: "flex-start",
+                  backgroundColor: visual.chipBackground,
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  flexDirection: "row",
+                  gap: 6,
                 }}
               >
-                {config.label}
-              </Text>
-              {event.womenOnly ? (
-                <Text
-                  style={{ color: "#BE185D", fontSize: 12, fontWeight: "700" }}
-                >
-                  Women only
-                </Text>
-              ) : null}
-            </View>
-            <Text
-              style={{ fontSize: 28, fontWeight: "900", color: colors.text }}
-            >
-              {event.title}
-            </Text>
+                <Text style={{ color: visual.chipText, fontSize: 12, fontWeight: "800", fontFamily: categoryFontFamily }}>{config.label}</Text>
+                {displayEvent.womenOnly ? (
+                  <Text style={{ color: "#BE185D", fontSize: 12, fontWeight: "700" }}>Women only</Text>
+                ) : null}
+              </View>
+            ) : null}
+            <Text style={{ fontSize: collapsed ? 22 : 28, fontWeight: "900", color: visual.title, fontFamily: categoryFontFamily }}>{displayEvent.title}</Text>
             <View
               style={{
                 alignSelf: "flex-start",
@@ -224,23 +256,22 @@ export default function EventDetailScreen() {
                 borderRadius: 999,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
+                shadowColor: statusTone.shadow,
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
               }}
             >
-              <Text
-                style={{
-                  color: statusTone.text,
-                  fontSize: 12,
-                  fontWeight: "800",
-                }}
-              >
-                {statusTone.label}
-              </Text>
+              <Text style={{ color: statusTone.text, fontSize: 12, fontWeight: "900", fontFamily: categoryFontFamily }}>{statusTone.label}</Text>
             </View>
           </View>
         </View>
-      </View>
+      </ImageBackground>
 
       <ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 140 }}
       >
         <View style={{ flexDirection: "row", gap: 12 }}>
@@ -267,7 +298,7 @@ export default function EventDetailScreen() {
                 month: "short",
               })}
             </Text>
-            <Text style={{ color: colors.muted }}>{event.timeSlot}</Text>
+            <Text style={{ color: colors.muted }}>{displayEvent.timeSlot}</Text>
           </View>
           <View
             style={{
@@ -286,14 +317,14 @@ export default function EventDetailScreen() {
               Attendance
             </Text>
             <Text style={{ color: colors.text, fontWeight: "800" }}>
-              {event.maxPeople
-                ? `${attendeeCount}/${event.maxPeople}`
+              {displayEvent.maxPeople
+                ? `${attendeeCount}/${displayEvent.maxPeople}`
                 : attendeeCount}
             </Text>
             <Text style={{ color: colors.muted }}>
               {isFull
                 ? "Plan is full"
-                : event.maxPeople
+                : displayEvent.maxPeople
                   ? "Spots still open"
                   : "Open-size hangout"}
             </Text>
@@ -316,14 +347,17 @@ export default function EventDetailScreen() {
           <InfoRow
             icon="time-outline"
             iconColor={colors.primary}
-            label={`${date.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} • ${event.timeSlot}`}
+            label={`${date.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} • ${displayEvent.timeSlot}`}
           />
           <InfoRow
             icon="location-outline"
             iconColor={colors.secondary}
-            label={`${event.area}, Guwahati`}
+            label={`${displayEvent.area}, Guwahati`}
           />
-          {event.maxPeople ? (
+          {displayEvent.locationNote ? (
+            <InfoRow icon="information-circle-outline" iconColor="#16A34A" label={displayEvent.locationNote} />
+          ) : null}
+          {displayEvent.maxPeople ? (
             <InfoRow
               icon="people-outline"
               iconColor="#16A34A"
@@ -378,13 +412,34 @@ export default function EventDetailScreen() {
               <InfoRow
                 icon="time"
                 iconColor="#1D9E75"
-                label={`Exact meeting time: ${event.exactTime}`}
+                label={`Exact meeting time: ${displayEvent.exactTime}`}
               />
               <InfoRow
                 icon="navigate"
                 iconColor="#1D9E75"
-                label={event.exactLocation}
+                label={displayEvent.exactLocation}
               />
+              {mapUrl ? (
+                <Pressable
+                  onPress={() => Linking.openURL(mapUrl)}
+                  style={{
+                    backgroundColor: "#E0F2FE",
+                    borderRadius: 18,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                    <Ionicons name="map-outline" size={20} color={colors.skyDark} />
+                    <Text style={{ color: colors.skyDark, fontWeight: "800" }}>Open pinned location in Maps</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={18} color={colors.skyDark} />
+                </Pressable>
+              ) : null}
             </View>
           ) : (
             <View
@@ -408,7 +463,7 @@ export default function EventDetailScreen() {
           )}
         </View>
 
-        {event.description ? (
+        {displayEvent.description ? (
           <View
             style={{
               backgroundColor: "#FFFFFF",
@@ -425,7 +480,7 @@ export default function EventDetailScreen() {
               About
             </Text>
             <Text style={{ color: colors.muted, lineHeight: 22 }}>
-              {event.description}
+              {displayEvent.description}
             </Text>
           </View>
         ) : null}
@@ -467,7 +522,7 @@ export default function EventDetailScreen() {
           </View>
         ) : null}
 
-        {event.approvedUserIds?.length ? (
+        {displayEvent.approvedUserIds?.length ? (
           <View
             style={{
               backgroundColor: "#FFFFFF",
@@ -481,10 +536,10 @@ export default function EventDetailScreen() {
             <Text
               style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}
             >
-              Going ({event.approvedUserIds?.length})
+              Going ({displayEvent.approvedUserIds?.length})
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {event.approvedUserIds?.map((userId: any) => {
+              {displayEvent.approvedUserIds?.map((userId: any) => {
                 const user = getUserById(userId);
                 if (!user) return null;
                 return (
@@ -556,7 +611,7 @@ export default function EventDetailScreen() {
                       </Text>
                     </View>
                     <Pressable
-                      onPress={() => rejectRequest(event.id, user.id)}
+                      onPress={() => rejectRequest(displayEvent.id, user.id)}
                       style={{
                         width: 40,
                         height: 40,
@@ -569,7 +624,7 @@ export default function EventDetailScreen() {
                       <Ionicons name="close" size={18} color={colors.danger} />
                     </Pressable>
                     <Pressable
-                      onPress={() => approveRequest(event.id, user.id)}
+                      onPress={() => approveRequest(displayEvent.id, user.id)}
                       style={{
                         width: 40,
                         height: 40,
@@ -603,10 +658,10 @@ export default function EventDetailScreen() {
           }}
         >
           {requestStatus === "approved" ? (
-            <GradientButton
+            <ThemedActionButton
               label="Open Chat"
-              onPress={() => router.push(`/chat/${event.id}`)}
-              fullWidth
+              onPress={() => router.push(`/chat/${displayEvent.id}`)}
+              visual={visual}
             />
           ) : requestStatus === "pending" ? (
             <View
@@ -648,10 +703,10 @@ export default function EventDetailScreen() {
               </Text>
             </View>
           ) : (
-            <GradientButton
+            <ThemedActionButton
               label="Request to Join"
-              onPress={() => requestToJoin(event.id)}
-              fullWidth
+              onPress={() => requestToJoin(displayEvent.id)}
+              visual={visual}
             />
           )}
         </View>

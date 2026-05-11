@@ -3,8 +3,9 @@ export interface User {
   name: string;
   email: string;
   username: string;
-  avatarColors: string[];
-  gender: "woman" | "man" | "other" | string;
+  avatarColors: [string, string];
+  avatarUri?: string;
+  gender: 'woman' | 'man' | 'other';
   age: number;
   city: string;
   verified?: boolean;
@@ -30,6 +31,10 @@ export interface Event {
   timeSlot: "Morning" | "Afternoon" | "Evening" | "Night";
   exactTime: string;
   exactLocation: string;
+  locationNote?: string;
+  latitude?: number;
+  longitude?: number;
+  mapUrl?: string;
   location: string;
   creatorId: string;
   maxPeople?: number;

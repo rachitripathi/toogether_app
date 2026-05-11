@@ -84,7 +84,7 @@ function CustomTabBar({ state, navigation }: any) {
                 <Ionicons
                   name={iconName}
                   size={20}
-                  color={isActive ? colors.skyDark : '#B9C4CF'}
+                  color={isActive ? colors.primary : '#8C95A6'}
                 />
                 {item.key === 'activity' && pendingCount > 0 ? (
                   <View
@@ -101,7 +101,7 @@ function CustomTabBar({ state, navigation }: any) {
                 ) : null}
               </View>
               {isActive ? (
-                <Text style={{ color: colors.skyDark, fontSize: 13, fontWeight: '800' }}>{item.label}</Text>
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800' }}>{item.label}</Text>
               ) : null}
             </Pressable>
           );
