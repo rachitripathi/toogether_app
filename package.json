@@ -1,5 +1,5 @@
 {
-  "name": "toogether-expo",
+  "name": "toogether",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -12,13 +12,13 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
-        "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
-     "@shopify/flash-list": "2.0.2",
-    "@supabase/supabase-js": "^2.104.0",
+    "@shopify/flash-list": "2.0.2",
+    "@supabase/supabase-js": "^2.106.2",
     "@tanstack/react-query": "^5.100.5",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
@@ -30,6 +30,7 @@
     "expo-linking": "~8.0.11",
     "expo-location": "~19.0.8",
     "expo-router": "~6.0.23",
+    "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
@@ -47,7 +48,6 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
     "zustand": "^5.0.12"
-    
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

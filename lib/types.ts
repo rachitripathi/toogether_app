@@ -3,11 +3,11 @@ export interface User {
   name: string;
   email: string;
   username: string;
-  avatarColors: [string, string];
+  avatarColors: string[];
   avatarUri?: string;
-  gender: 'woman' | 'man' | 'other';
+  gender: "woman" | "man" | "other";
   age: number;
-  city: string;
+  city?: string;
   verified?: boolean;
   bio?: string;
 }
