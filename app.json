@@ -41,14 +41,6 @@
             "backgroundColor": "#000000"
           }
         }
-      ],
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": ""
-        }
       ]
     ],
     "experiments": {
