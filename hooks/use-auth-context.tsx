@@ -2,18 +2,18 @@ import { createContext, useContext } from "react";
 
 export type Profile = {
   id: string;
-  email: string;
-  username: string;
-  name: string;
+  email: string | null;
+  username: string | null;
+  name: string | null;
   bio: string | null;
   age: number | null;
-  gender: "man" | "woman" | "other";
-  city: string;
+  gender: "man" | "woman" | "other" | null;
+  city: string | null;
   avatar_uri: string | null;
-  avatar_colors: string[];
-  verified: boolean;
-  created_at: string;
-  updated_at: string;
+  avatar_colors: string[] | null;
+  verified: boolean | null;
+  created_at: string | null;
+  updated_at?: string | null;
 };
 
 export type AuthData = {
@@ -21,6 +21,7 @@ export type AuthData = {
   profile?: Profile | null;
   isLoading: boolean;
   isLoggedIn: boolean;
+  refreshProfile: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthData>({
@@ -28,6 +29,7 @@ export const AuthContext = createContext<AuthData>({
   profile: undefined,
   isLoading: true,
   isLoggedIn: false,
+  refreshProfile: async () => {},
 });
 
 export const useAuthContext = () => useContext(AuthContext);

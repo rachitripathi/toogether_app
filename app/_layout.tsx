@@ -1,6 +1,7 @@
 import { GradientButton } from "@/components/GradientButton";
 import { colors } from "@/lib/theme";
 import { AppProvider, useApp } from "@/providers/AppProvider";
+import AuthProvider from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -114,27 +115,32 @@ function VerificationPrompt() {
 export default function RootLayout() {
   return (
     <QueryProvider>
-      <AppProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: "#F6F7FB" },
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="create-event"
-            options={{ presentation: "modal" }}
-          />
-          <Stack.Screen name="event/[id]" />
-          <Stack.Screen name="chat/[id]" />
-          <Stack.Screen name="user/[id]" />
-        </Stack>
-        <StatusBar style="dark" />
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "#F6F7FB" },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="reset-password" />
+            <Stack.Screen name="edit-profile" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="create-event"
+              options={{ presentation: "modal" }}
+            />
+            <Stack.Screen name="event/[id]" />
+            <Stack.Screen name="chat/[id]" />
+            <Stack.Screen name="user/[id]" />
+          </Stack>
+          <VerificationPrompt />
+          <StatusBar style="dark" />
+        </AppProvider>
+      </AuthProvider>
     </QueryProvider>
   );
 }

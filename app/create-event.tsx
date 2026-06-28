@@ -64,6 +64,7 @@ export default function CreateEventScreen() {
       }
 
       setError("");
+      setIsLoading(true);
 
       const selectedCategory = categories.find((item) => item.id === category);
       const event = await createEvent({

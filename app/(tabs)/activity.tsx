@@ -21,7 +21,7 @@ export default function ActivityScreen() {
   const { currentUser, requests, crewRequests, getUserById, getEventById } = useApp();
 
   const activities: ActivityItem[] = [
-    ...requests.flatMap((request) => {
+    ...requests.flatMap<ActivityItem>((request) => {
       const actor = getUserById(request.userId);
       const event = getEventById(request.eventId);
       if (!actor || !event || !currentUser) {
@@ -75,7 +75,7 @@ export default function ActivityScreen() {
 
       return [];
     }),
-    ...crewRequests.flatMap((request) => {
+    ...crewRequests.flatMap<ActivityItem>((request) => {
       if (!currentUser) {
         return [];
       }

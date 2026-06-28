@@ -1,10 +1,10 @@
 import { AvatarBubble } from "@/components/AvatarBubble";
 import { EventDetailSkeleton } from "@/components/SkeletonLoaders/EventDetailSkeleton";
-import { useEvent, useJoinRequest } from "@/hooks/useEvents";
+import { useEvent } from "@/hooks/useEvents";
 import { colors } from "@/lib/theme";
 import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from "@/lib/categoryVisuals";
+import type { EventCategory } from "@/lib/types";
 import { useApp } from "@/providers/AppProvider";
-import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { ImageBackground, Linking, Pressable, ScrollView, Text, View } from "react-native";
@@ -62,13 +62,14 @@ function ThemedActionButton({
   );
 }
 
+const isEventCategory = (value: string): value is EventCategory =>
+  value in categoryVisuals;
+
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { collapsed, onScroll } = useCollapsibleHeader();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: event, isLoading } = useEvent(id as string);
-  const { mutate: sendJoinRequest, isPending } = useJoinRequest();
-  const user = useAuthStore((s) => s.user);
   const {
     currentUser,
     getEventById,
@@ -113,8 +114,12 @@ export default function EventDetailScreen() {
   const pendingRequests = requests.filter(
     (request) => request.eventId === displayEvent.id && request.status === "pending",
   );
-  const config = categoryConfig[displayEvent.category] ?? categoryConfig.other;
-  const visual = categoryVisuals[displayEvent.category] ?? categoryVisuals.other;
+  const categoryValue = String(displayEvent.category);
+  const displayCategory = isEventCategory(categoryValue)
+    ? categoryValue
+    : "other";
+  const config = categoryConfig[displayCategory] ?? categoryConfig.other;
+  const visual = categoryVisuals[displayCategory] ?? categoryVisuals.other;
   const date = new Date(displayEvent.dateTime);
   const canViewWomenOnly =
     !displayEvent.womenOnly || currentUser?.gender === "woman" || isCreator;

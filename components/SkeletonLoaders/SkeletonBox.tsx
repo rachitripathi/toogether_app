@@ -8,7 +8,7 @@ export function SkeletonBox({
   borderRadius = 8,
   style,
 }: {
-  width: number | string;
+  width: number | `${number}%`;
   height: number;
   borderRadius?: number;
   style?: ViewStyle;
@@ -30,7 +30,7 @@ export function SkeletonBox({
         }),
       ]),
     ).start();
-  }, []);
+  }, [opacity]);
 
   return (
     <Animated.View

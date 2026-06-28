@@ -1,12 +1,19 @@
 import { AvatarBubble } from "@/components/AvatarBubble";
 import { EventCard } from "@/components/EventCard";
 import { HeaderHero } from "@/components/HeaderHero";
+import { useFeed } from "@/hooks/useEvents";
 import { colors, shadow } from "@/lib/theme";
 import { useApp } from "@/providers/AppProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 
 type Section = "hosting" | "joined" | "past" | null;
 
@@ -67,13 +74,10 @@ function ProfileMetric({
 }
 
 export default function ProfileScreen() {
-  const {
-    currentUser,
-    events,
-    logout,
-    getUserAverageRating,
-    getInteractedUsers,
-  } = useApp();
+  const { currentUser, logout, getUserAverageRating, getInteractedUsers } =
+    useApp();
+  console.log(currentUser);
+  const { data: allEvents = [], isLoading } = useFeed();
   const [section, setSection] = useState<Section>("hosting");
 
   if (!currentUser) {
@@ -81,19 +85,19 @@ export default function ProfileScreen() {
   }
 
   const now = new Date();
-  const hosting = events.filter(
-    (event) =>
-      event.creatorId === currentUser.id && new Date(event.dateTime) >= now,
+  const hosting = allEvents.filter(
+    (event: any) =>
+      event.creator_id === currentUser.id && new Date(event.date_time) >= now,
   );
-  const past = events.filter(
-    (event) =>
-      event.creatorId === currentUser.id && new Date(event.dateTime) < now,
+  const past = allEvents.filter(
+    (event: any) =>
+      event.creator_id === currentUser.id && new Date(event.date_time) < now,
   );
-  const joined = events.filter(
-    (event) =>
-      event.approvedUserIds.includes(currentUser.id) &&
-      event.creatorId !== currentUser.id,
-  );
+
+  // For joined events, we'd need to fetch join_requests data
+  // For now, show empty array
+  const joined: any[] = [];
+
   const rating = getUserAverageRating(currentUser.id);
   const crew = getInteractedUsers().length;
   const totalPlans = hosting.length + joined.length + past.length;
@@ -101,7 +105,7 @@ export default function ProfileScreen() {
   const renderSection = (
     label: string,
     key: Section,
-    items: typeof hosting,
+    items: any[],
     emoji: string,
   ) => (
     <View style={{ gap: 10 }}>
@@ -135,7 +139,29 @@ export default function ProfileScreen() {
       </Pressable>
       {section === key ? (
         items.length ? (
-          items.map((event) => <EventCard key={event.id} event={event} />)
+          items.map((event: any) => {
+            // Convert Supabase event format to app format
+            const convertedEvent = {
+              id: event.id,
+              title: event.title,
+              description: event.description,
+              dateTime: event.date_time,
+              area: event.area,
+              timeSlot: event.time_slot,
+              exactTime: event.exact_time,
+              exactLocation: event.exact_location,
+              location: event.exact_location,
+              creatorId: event.creator_id,
+              maxPeople: event.max_people,
+              approvedUserIds: [],
+              requestUserIds: [],
+              category: event.category,
+              emoji: event.emoji,
+              womenOnly: event.women_only,
+              pinned: event.pinned,
+            };
+            return <EventCard key={event.id} event={convertedEvent} />;
+          })
         ) : (
           <View
             style={{
@@ -160,230 +186,257 @@ export default function ProfileScreen() {
         subtitle={`${currentUser.city} • @${currentUser.username}`}
       />
 
-      <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 110 }}
-      >
+      {isLoading ? (
         <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderRadius: 28,
-            borderWidth: 1,
-            borderColor: colors.border,
-            padding: 18,
-            gap: 16,
-            ...shadow.card,
-          }}
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-            <Pressable
-              onPress={() => router.push("/verification")}
-              style={{ position: "relative" }}
-            >
-              <AvatarBubble user={currentUser} size={72} />
-              <View
-                style={{
-                  position: "absolute",
-                  right: -2,
-                  bottom: -2,
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  borderWidth: 3,
-                  borderColor: "#FFFFFF",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
-              </View>
-            </Pressable>
-
-            <View style={{ flex: 1, gap: 6 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 24,
-                    fontWeight: "900",
-                  }}
-                >
-                  {currentUser.name}, {currentUser.age}
-                </Text>
-                {currentUser.verified ? (
-                  <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-                ) : null}
-              </View>
-              {currentUser.bio ? (
-                <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                  {currentUser.bio}
-                </Text>
-              ) : null}
-              <Pressable onPress={() => router.push("/verification")}>
-                <Text style={{ color: colors.skyDark, fontWeight: "800" }}>
-                  Edit photo and trust details
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <Text style={{ color: colors.skyDark, fontWeight: "700" }}>
-            {totalPlans} plans • {crew} crew connections •{" "}
-            {rating ? `${rating.toFixed(1)} karma` : "New karma"}
-          </Text>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
-
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <ProfileMetric label="Plans" value={totalPlans} />
-          <ProfileMetric label="Crew" value={crew} />
-          <ProfileMetric
-            label="Karma"
-            value={rating ? rating.toFixed(1) : "New"}
-          />
-        </View>
-
-        {!currentUser.verified ? (
-          <Pressable
-            onPress={() => router.push("/verification")}
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 110 }}
+        >
+          <View
             style={{
-              backgroundColor: "#EFF6FF",
-              borderRadius: 24,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 28,
               borderWidth: 1,
-              borderColor: "#D5E8FF",
+              borderColor: colors.border,
               padding: 18,
-              gap: 10,
+              gap: 16,
               ...shadow.card,
             }}
           >
-            <Text
-              style={{ color: colors.skyDark, fontSize: 16, fontWeight: "800" }}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 14 }}
             >
-              Verify to boost trust
-            </Text>
-            <Text style={{ color: colors.text, lineHeight: 22 }}>
-              Verified profiles feel safer to join, stand out better in
-              discovery, and usually get faster approvals from hosts.
-            </Text>
-          </Pressable>
-        ) : null}
+              <Pressable
+                onPress={() => router.push("/verification")}
+                style={{ position: "relative" }}
+              >
+                <AvatarBubble user={currentUser} size={72} />
+                <View
+                  style={{
+                    position: "absolute",
+                    right: -2,
+                    bottom: -2,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: colors.primary,
+                    borderWidth: 3,
+                    borderColor: "#FFFFFF",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+                </View>
+              </Pressable>
 
-        <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
-            padding: 18,
-            gap: 14,
-          }}
-        >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-            Trust signals
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            <TrustChip
-              icon="shield-checkmark-outline"
-              label={
-                currentUser.verified ? "ID verified" : "Verification pending"
-              }
-            />
-            <TrustChip
-              icon="sparkles-outline"
-              label={
-                past.length
-                  ? `${past.length} past hangouts`
-                  : "First hangout soon"
-              }
-            />
-            <TrustChip
-              icon="people-outline"
-              label={`${crew} crew connections`}
-            />
-            <TrustChip icon="location-outline" label={currentUser.city} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 24,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {currentUser.name}, {currentUser.age}
+                  </Text>
+                  {currentUser.verified ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color="#16A34A"
+                    />
+                  ) : null}
+                </View>
+                {currentUser.bio ? (
+                  <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                    {currentUser.bio}
+                  </Text>
+                ) : null}
+                <Pressable onPress={() => router.push("/edit-profile")}>
+                  <Text style={{ color: colors.skyDark, fontWeight: "800" }}>
+                    Complete or edit profile
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={{ color: colors.skyDark, fontWeight: "700" }}>
+              {totalPlans} plans • {crew} crew connections •{" "}
+              {rating ? `${rating.toFixed(1)} karma` : "New karma"}
+            </Text>
           </View>
-        </View>
 
-        {renderSection("Plans I'm Hosting", "hosting", hosting, "🎯")}
-        {renderSection("Plans I Joined", "joined", joined, "🤝")}
-        {renderSection("Past Plans", "past", past, "🗓️")}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <ProfileMetric label="Plans" value={totalPlans} />
+            <ProfileMetric label="Crew" value={crew} />
+            <ProfileMetric
+              label="Karma"
+              value={rating ? rating.toFixed(1) : "New"}
+            />
+          </View>
 
-        <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
-            overflow: "hidden",
-          }}
-        >
-          {[
-            {
-              label: "My Crew",
-              icon: "people-outline",
-              onPress: () => router.push("/(tabs)/people"),
-            },
-            {
-              label: "Notifications Inbox",
-              icon: "notifications-outline",
-              onPress: () => router.push("/(tabs)/activity"),
-            },
-            { label: "About Toogether", icon: "information-circle-outline" },
-          ].map((item, index) => (
+          {!currentUser.verified ? (
             <Pressable
-              key={item.label}
-              onPress={item.onPress}
+              onPress={() => router.push("/verification")}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                padding: 16,
-                borderBottomWidth: index === 2 ? 0 : 1,
-                borderBottomColor: colors.border,
+                backgroundColor: "#EFF6FF",
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: "#D5E8FF",
+                padding: 18,
+                gap: 10,
+                ...shadow.card,
               }}
             >
-              <Ionicons
-                name={item.icon as keyof typeof Ionicons.glyphMap}
-                size={18}
-                color={colors.primary}
-              />
-              <Text style={{ flex: 1, color: colors.text, fontWeight: "700" }}>
-                {item.label}
+              <Text
+                style={{
+                  color: colors.skyDark,
+                  fontSize: 16,
+                  fontWeight: "800",
+                }}
+              >
+                Verify to boost trust
               </Text>
-              <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+              <Text style={{ color: colors.text, lineHeight: 22 }}>
+                Verified profiles feel safer to join, stand out better in
+                discovery, and usually get faster approvals from hosts.
+              </Text>
             </Pressable>
-          ))}
-        </View>
+          ) : null}
 
-        <Pressable
-          onPress={() => {
-            logout();
-            router.replace("/auth");
-          }}
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: "#FFE4E6",
-            padding: 18,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-          <Text style={{ color: colors.danger, fontWeight: "800" }}>
-            Log Out
-          </Text>
-        </Pressable>
-      </ScrollView>
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 18,
+              gap: 14,
+            }}
+          >
+            <Text
+              style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}
+            >
+              Trust signals
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <TrustChip
+                icon="shield-checkmark-outline"
+                label={
+                  currentUser.verified ? "ID verified" : "Verification pending"
+                }
+              />
+              <TrustChip
+                icon="sparkles-outline"
+                label={
+                  past.length
+                    ? `${past.length} past hangouts`
+                    : "First hangout soon"
+                }
+              />
+              <TrustChip
+                icon="people-outline"
+                label={`${crew} crew connections`}
+              />
+              <TrustChip icon="location-outline" label={currentUser.city} />
+            </View>
+          </View>
+
+          {renderSection("Plans I'm Hosting", "hosting", hosting, "🎯")}
+          {renderSection("Plans I Joined", "joined", joined, "🤝")}
+          {renderSection("Past Plans", "past", past, "🗓️")}
+
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: colors.border,
+              overflow: "hidden",
+            }}
+          >
+            {[
+              {
+                label: "Edit Profile",
+                icon: "create-outline",
+                onPress: () => router.push("/edit-profile"),
+              },
+              {
+                label: "My Crew",
+                icon: "people-outline",
+                onPress: () => router.push("/(tabs)/people"),
+              },
+              {
+                label: "Notifications Inbox",
+                icon: "notifications-outline",
+                onPress: () => router.push("/(tabs)/activity"),
+              },
+              { label: "About Toogether", icon: "information-circle-outline" },
+            ].map((item, index) => (
+              <Pressable
+                key={item.label}
+                onPress={item.onPress}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: 16,
+                  borderBottomWidth: index === 3 ? 0 : 1,
+                  borderBottomColor: colors.border,
+                }}
+              >
+                <Ionicons
+                  name={item.icon as keyof typeof Ionicons.glyphMap}
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{ flex: 1, color: colors.text, fontWeight: "700" }}
+                >
+                  {item.label}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            onPress={() => {
+              logout();
+              router.replace("/auth");
+            }}
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: "#FFE4E6",
+              padding: 18,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+            <Text style={{ color: colors.danger, fontWeight: "800" }}>
+              Log Out
+            </Text>
+          </Pressable>
+        </ScrollView>
+      )}
     </View>
   );
 }

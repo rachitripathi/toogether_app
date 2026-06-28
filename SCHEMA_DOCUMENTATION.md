@@ -32,43 +32,53 @@ The Toogether application manages **social events** and **user connections**. Th
 
 ## Core Tables
 
-### 1. **users** (Authentication + Profile)
+### 1. **profiles** (Authentication + Profile)
 
 **Purpose:** Store user profile information and authentication details
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
+  email TEXT,
+  name TEXT,
+  username TEXT UNIQUE,
+  gender TEXT,
+  age INTEGER,
+  city TEXT,
   bio TEXT,
-  age INT CHECK (age >= 13 AND age <= 120),
-  gender VARCHAR(50) NOT NULL DEFAULT 'other'
-    CHECK (gender IN ('man', 'woman', 'other')),
-  city VARCHAR(255) NOT NULL,
-  avatar_uri TEXT,
-  avatar_colors JSONB NOT NULL DEFAULT '["#8B5CF6", "#6366F1"]',
+  avatar_colors TEXT[] DEFAULT ARRAY['#8B5CF6', '#6366F1'],
   verified BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 **Key Fields:**
 
 - `id`: UUID from Supabase auth
-- `username`: Handle for the app (@username)
-- `avatar_colors`: Two-color gradient for avatar UI
+- `username`: Handle for the app (@username) - UNIQUE constraint
+- `avatar_colors`: Two-color gradient array for avatar UI (TEXT array)
 - `verified`: Email verification status
-- `avatar_uri`: Optional custom avatar image
+- `gender`: One of 'man', 'woman', 'other'
+- `age`: User's age
 
 **Indexes:**
 
 ```sql
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_city ON users(city);
-CREATE INDEX idx_users_verified ON users(verified);
+CREATE INDEX idx_profiles_username ON public.profiles(username);
+CREATE INDEX idx_profiles_city ON public.profiles(city);
+CREATE INDEX idx_profiles_verified ON public.profiles(verified);
+```
+
+**RLS Policies:**
+
+```sql
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE
+  USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
 ```
 
 ---
@@ -82,7 +92,7 @@ CREATE TABLE events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
   description TEXT NOT NULL,
-  creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   category VARCHAR(50) NOT NULL
     CHECK (category IN ('movies', 'chill', 'music', 'sports',
                         'food', 'travel', 'gaming', 'other')),
@@ -107,7 +117,7 @@ CREATE TABLE events (
 
 **Key Fields:**
 
-- `creator_id`: Foreign key to users table (event organizer)
+- `creator_id`: Foreign key to profiles table (event organizer)
 - `category`: Event type classification
 - `date_time`: ISO datetime for the event
 - `latitude/longitude`: GPS coordinates for location-based queries
@@ -133,7 +143,7 @@ CREATE INDEX idx_events_geo ON events(latitude, longitude);
 ```sql
 CREATE TABLE join_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   status VARCHAR(50) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'rejected')),
@@ -167,7 +177,7 @@ CREATE INDEX idx_join_requests_status ON join_requests(status);
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   text TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
@@ -198,8 +208,8 @@ CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 ```sql
 CREATE TABLE ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  to_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   stars INT NOT NULL CHECK (stars >= 1 AND stars <= 5),
   comment TEXT,
@@ -233,8 +243,8 @@ CREATE INDEX idx_ratings_event ON ratings(event_id);
 ```sql
 CREATE TABLE crew_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  from_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  to_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  to_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   status VARCHAR(50) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
@@ -263,10 +273,10 @@ CREATE INDEX idx_crew_requests_status ON crew_requests(status);
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                          users                                  │
+│                       profiles                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │ id (PK) | email | username | name | age | gender | city │   │
-│  │ avatar_uri | avatar_colors | verified | created_at     │   │
+│  │ avatar_colors | bio | verified | created_at            │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
          ▲                    ▲                        ▲

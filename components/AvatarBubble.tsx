@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Text, View } from 'react-native';
+import { Text, View, type ColorValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { User } from '@/lib/types';
 
@@ -9,6 +9,10 @@ type AvatarBubbleProps = {
 };
 
 export function AvatarBubble({ user, size = 44 }: AvatarBubbleProps) {
+  const avatarColors =
+    user.avatarColors.length >= 2
+      ? (user.avatarColors as [ColorValue, ColorValue, ...ColorValue[]])
+      : (['#8B5CF6', '#6366F1'] as const);
   const initials = user.name
     .split(' ')
     .slice(0, 2)
@@ -34,7 +38,7 @@ export function AvatarBubble({ user, size = 44 }: AvatarBubbleProps) {
 
   return (
     <LinearGradient
-      colors={user.avatarColors}
+      colors={avatarColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{

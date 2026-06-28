@@ -22,6 +22,7 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { socialAuth, login, signup } = useApp();
@@ -154,23 +155,60 @@ export default function AuthScreen() {
           />
 
           {/* Password input */}
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="#9CA3AF"
-            secureTextEntry
+          <View
             style={{
               backgroundColor: "#F9FAFB",
               borderRadius: 16,
               borderWidth: 1,
               borderColor: "#E5E7EB",
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-              fontSize: 15,
-              color: "#1F2937",
+              flexDirection: "row",
+              alignItems: "center",
+              paddingRight: 12,
             }}
-          />
+          >
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry={!showPassword}
+              style={{
+                flex: 1,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 15,
+                color: "#1F2937",
+              }}
+            />
+            <Pressable
+              onPress={() => setShowPassword((value) => !value)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#7A8093"
+              />
+            </Pressable>
+          </View>
+
+          {mode === "login" ? (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/reset-password",
+                  params: email.trim() ? { email: email.trim() } : undefined,
+                })
+              }
+              style={{ alignSelf: "flex-end", paddingVertical: 2 }}
+            >
+              <Text style={{ color: colors.skyDark, fontWeight: "800" }}>
+                Forgot password?
+              </Text>
+            </Pressable>
+          ) : null}
 
           {/* Error message */}
           {error && (
@@ -214,6 +252,7 @@ export default function AuthScreen() {
           {/* Google — stub for now */}
           <Pressable
             onPress={() => handleSocialAuth("google")}
+            disabled
             style={{
               minHeight: 56,
               borderRadius: 24,
@@ -238,6 +277,7 @@ export default function AuthScreen() {
           {/* Apple — stub for now */}
           <Pressable
             onPress={() => handleSocialAuth("apple")}
+            disabled
             style={{
               minHeight: 56,
               borderRadius: 24,

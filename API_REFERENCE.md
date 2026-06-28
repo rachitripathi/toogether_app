@@ -38,9 +38,9 @@ const signupUser = async (
 
   if (authError) throw authError;
 
-  // 2. Create profile in users table
+  // 2. Create profile in profiles table
   const { data, error } = await supabase
-    .from("users")
+    .from("profiles")
     .insert([
       {
         id: authData.user!.id,
@@ -67,7 +67,7 @@ const signupUser = async (
 // Get single user by ID
 const getUserProfile = async (userId: string) => {
   const { data, error } = await supabase
-    .from("users")
+    .from("profiles")
     .select("*")
     .eq("id", userId)
     .single();
@@ -78,7 +78,7 @@ const getUserProfile = async (userId: string) => {
 // Get user with rating stats
 const getUserProfileWithStats = async (userId: string) => {
   const [user, { data: ratings }] = await Promise.all([
-    supabase.from("users").select("*").eq("id", userId).single(),
+    supabase.from("profiles").select("*").eq("id", userId).single(),
     supabase.from("ratings").select("stars").eq("to_user_id", userId),
   ]);
 
@@ -102,7 +102,7 @@ const getUserProfileWithStats = async (userId: string) => {
 ```typescript
 const updateUserProfile = async (userId: string, updates: Partial<User>) => {
   const { data, error } = await supabase
-    .from("users")
+    .from("profiles")
     .update({
       name: updates.name,
       bio: updates.bio,
@@ -126,7 +126,7 @@ const updateUserProfile = async (userId: string, updates: Partial<User>) => {
 // Search by username or city
 const searchUsers = async (query: string) => {
   const { data, error } = await supabase
-    .from("users")
+    .from("profiles")
     .select("*")
     .or(`username.ilike.%${query}%,name.ilike.%${query}%`)
     .limit(20);
@@ -136,7 +136,7 @@ const searchUsers = async (query: string) => {
 
 // Get users in same city
 const getUsersInCity = async (city: string, excludeId?: string) => {
-  let query = supabase.from("users").select("*").eq("city", city).limit(50);
+  let query = supabase.from("profiles").select("*").eq("city", city).limit(50);
 
   if (excludeId) query = query.neq("id", excludeId);
 
@@ -784,7 +784,7 @@ const getCrewConnections = async (userId: string) => {
 const getPersonalizedEventFeed = async (userId: string, limit = 20) => {
   // Get user's city and interests
   const { data: user } = await supabase
-    .from("users")
+    .from("profiles")
     .select("city, age")
     .eq("id", userId)
     .single();

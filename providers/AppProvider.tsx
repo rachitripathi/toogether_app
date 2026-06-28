@@ -42,8 +42,10 @@ type AppContextValue = {
   messages: Record<string, Message[]>;
   ratings: Rating[];
   isOnboardingComplete: boolean;
+  shouldShowVerificationPrompt: boolean;
   categoryConfig: typeof CATEGORY_CONFIG;
   completeOnboarding: () => void;
+  dismissVerificationPrompt: () => void;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   signup: (
     email: string,
@@ -77,23 +79,27 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+const getEmailName = (email: string) => email.split("@")[0] || "New user";
+const getDefaultUsername = (email: string, userId: string) =>
+  `${getEmailName(email).toLowerCase()}-${userId.slice(0, 8)}`;
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { profile } = useAuthContext();
+  const { profile, refreshProfile } = useAuthContext();
 
   // Map Supabase profile → User shape
   const currentUser: User | null = profile
     ? {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        username: profile.username,
-        avatarColors: profile.avatar_colors ?? ["#8B5CF6", "#6366F1"],
-        gender: profile.gender,
-        age: profile.age ?? 0,
-        city: profile.city,
-        verified: profile.verified,
-        bio: profile.bio ?? "",
-      }
+      id: profile.id,
+      email: profile.email ?? "",
+      name: profile.name ?? profile.email?.split("@")[0] ?? "New user",
+      username: profile.username ?? profile.email?.split("@")[0] ?? "",
+      avatarColors: profile.avatar_colors ?? ["#8B5CF6", "#6366F1"],
+      gender: profile.gender ?? "other",
+      age: profile.age ?? 0,
+      city: profile.city ?? "",
+      verified: profile.verified ?? false,
+      bio: profile.bio ?? "",
+    }
     : null;
 
   const [events, setEvents] = useState(MOCK_EVENTS);
@@ -102,6 +108,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState(MOCK_MESSAGES);
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] =
+    useState(true);
 
   const socialAuth = (
     _provider: "google" | "apple",
@@ -119,9 +127,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    console.log(error);
-    return { error: error?.message ?? null };
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.log(error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    // Email confirmation enabled
+    if (!data.session) {
+      return {
+        success: true,
+        requiresVerification: true,
+        error: null,
+      };
+    }
+
+    const userEmail = data.user?.email ?? email;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: data.user!.id,
+        email: userEmail,
+        name: getEmailName(userEmail),
+        username: getDefaultUsername(userEmail, data.user!.id),
+      });
+
+    if (profileError) {
+      console.error("Profile creation failed:", profileError);
+
+      return {
+        success: false,
+        accountCreated: true,
+        error:
+          "Your account was created, but profile setup failed. Please log in and try again.",
+      };
+    }
+
+    return {
+      success: true,
+      error: null,
+    };
   };
 
   const logout = async () => {
@@ -144,15 +197,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         verified: data.verified,
       })
       .eq("id", currentUser.id);
+    if (!error) await refreshProfile();
     return { error: error?.message ?? null };
   };
 
   const completeOnboarding = () => setIsOnboardingComplete(true);
+  const dismissVerificationPrompt = () =>
+    setShouldShowVerificationPrompt(false);
 
   const createEvent = async (data: CreateEventInput): Promise<Event> => {
+    if (!currentUser?.id) {
+      throw new Error("User not authenticated");
+    }
+
     const event: Event = {
-      id: `e${Date.now()}`,
-      creatorId: currentUser?.id ?? "",
+      id: crypto.randomUUID(),
+      creatorId: currentUser.id,
       approvedUserIds: [],
       requestUserIds: [],
       ...data,
@@ -161,31 +221,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEvents((prev) => [event, ...prev]);
 
     try {
-      const { error } = await supabase.from("events").insert([
-        {
-          id: event.id,
-          creator_id: event.creatorId,
-          title: event.title,
-          description: event.description,
-          date_time: event.dateTime,
-          location: event.location,
-          max_people: event.maxPeople,
-          category: event.category,
-          emoji: event.emoji,
-          women_only: event.womenOnly ?? false,
-          approved_user_ids: event.approvedUserIds,
-          request_user_ids: event.requestUserIds,
-        },
-      ]);
-      if (error) console.log("Supabase insert error:", error.message);
+      const { data: insertedEvent, error } = await supabase
+        .from("events")
+        .insert([
+          {
+            id: event.id,
+            creator_id: event.creatorId,
+            title: event.title,
+            description: event.description,
+            date_time: event.dateTime,
+            area: event.area,
+            exact_time: event.exactTime,
+            exact_location: event.exactLocation,
+            time_slot: event.timeSlot,
+            category: event.category,
+            emoji: event.emoji,
+            max_people: event.maxPeople || null,
+            women_only: event.womenOnly ?? false,
+            pinned: false,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+        // Remove from optimistic state on failure
+        setEvents((prev) => prev.filter((e) => e.id !== event.id));
+        throw new Error(error.message);
+      }
+
+      // Update optimistic state with server response
+      if (insertedEvent) {
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === event.id ? { ...event, ...insertedEvent } : e,
+          ),
+        );
+      }
     } catch (err) {
-      console.log("Error saving event:", err);
+      console.error("Error saving event:", err);
+      // Remove from optimistic state on failure
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      throw err;
     }
 
     return event;
   };
 
-  const requestToJoin = (eventId: string) => {
+  const requestToJoin = async (eventId: string) => {
     if (!currentUser) return;
     const existing = requests.find(
       (r) => r.eventId === eventId && r.userId === currentUser.id,
@@ -197,12 +281,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
 
     const nextRequest: JoinRequest = {
-      id: `r${Date.now()}`,
+      id: crypto.randomUUID(),
       userId: currentUser.id,
       eventId,
       status: "pending",
       createdAt: new Date().toISOString(),
     };
+
     setRequests((prev) => [...prev, nextRequest]);
     setEvents((prev) =>
       prev.map((e) =>
@@ -211,9 +296,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : e,
       ),
     );
+
+    try {
+      const { error } = await supabase.from("join_requests").insert([
+        {
+          id: nextRequest.id,
+          user_id: currentUser.id,
+          event_id: eventId,
+          status: "pending",
+        },
+      ]);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error creating join request:", err);
+      // Rollback optimistic update
+      setRequests((prev) => prev.filter((r) => r.id !== nextRequest.id));
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+              ...e,
+              requestUserIds: e.requestUserIds.filter(
+                (id) => id !== currentUser.id,
+              ),
+            }
+            : e,
+        ),
+      );
+    }
   };
 
-  const approveRequest = (eventId: string, userId: string) => {
+  const approveRequest = async (eventId: string, userId: string) => {
     setRequests((prev) =>
       prev.map((r) =>
         r.eventId === eventId && r.userId === userId
@@ -225,16 +338,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((e) =>
         e.id === eventId
           ? {
-              ...e,
-              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
-              approvedUserIds: [...e.approvedUserIds, userId],
-            }
+            ...e,
+            requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+            approvedUserIds: [...e.approvedUserIds, userId],
+          }
           : e,
       ),
     );
+
+    try {
+      const { error } = await supabase
+        .from("join_requests")
+        .update({ status: "approved" })
+        .eq("user_id", userId)
+        .eq("event_id", eventId);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error approving request:", err);
+      // Rollback optimistic update
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.eventId === eventId && r.userId === userId
+            ? { ...r, status: "pending" }
+            : r,
+        ),
+      );
+    }
   };
 
-  const rejectRequest = (eventId: string, userId: string) => {
+  const rejectRequest = async (eventId: string, userId: string) => {
     setRequests((prev) =>
       prev.map((r) =>
         r.eventId === eventId && r.userId === userId
@@ -246,15 +378,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((e) =>
         e.id === eventId
           ? {
-              ...e,
-              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
-            }
+            ...e,
+            requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+          }
           : e,
       ),
     );
+
+    try {
+      const { error } = await supabase
+        .from("join_requests")
+        .update({ status: "rejected" })
+        .eq("user_id", userId)
+        .eq("event_id", eventId);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error rejecting request:", err);
+      // Rollback optimistic update
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.eventId === eventId && r.userId === userId
+            ? { ...r, status: "pending" }
+            : r,
+        ),
+      );
+    }
   };
 
-  const inviteToEvent = (eventId: string, userId: string) => {
+  const inviteToEvent = async (eventId: string, userId: string) => {
     const event = events.find((e) => e.id === eventId);
     if (!event || !currentUser) return;
     if (
@@ -263,7 +414,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
       return;
 
+    const inviteId = crypto.randomUUID();
+
     if (event.creatorId === currentUser.id) {
+      // Creator directly approves
       setEvents((prev) =>
         prev.map((e) =>
           e.id === eventId
@@ -274,20 +428,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRequests((prev) => [
         ...prev,
         {
-          id: `r${Date.now()}`,
+          id: inviteId,
           eventId,
           userId,
           status: "approved",
           createdAt: new Date().toISOString(),
         },
       ]);
+
+      try {
+        const { error } = await supabase.from("join_requests").insert([
+          {
+            id: inviteId,
+            user_id: userId,
+            event_id: eventId,
+            status: "approved",
+          },
+        ]);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error creating approved invite:", err);
+        // Rollback
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId
+              ? {
+                ...e,
+                approvedUserIds: e.approvedUserIds.filter(
+                  (id) => id !== userId,
+                ),
+              }
+              : e,
+          ),
+        );
+        setRequests((prev) => prev.filter((r) => r.id !== inviteId));
+      }
       return;
     }
 
+    // Non-creator sends pending invite
     setRequests((prev) => [
       ...prev,
       {
-        id: `r${Date.now()}`,
+        id: inviteId,
         eventId,
         userId,
         status: "pending",
@@ -301,6 +484,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : e,
       ),
     );
+
+    try {
+      const { error } = await supabase.from("join_requests").insert([
+        {
+          id: inviteId,
+          user_id: userId,
+          event_id: eventId,
+          status: "pending",
+        },
+      ]);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error creating pending invite:", err);
+      // Rollback
+      setRequests((prev) => prev.filter((r) => r.id !== inviteId));
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+              ...e,
+              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+            }
+            : e,
+        ),
+      );
+    }
   };
 
   const getRequestStatus = (eventId: string): RequestStatus | null => {
@@ -458,8 +667,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         messages,
         ratings,
         isOnboardingComplete,
+        shouldShowVerificationPrompt,
         categoryConfig: CATEGORY_CONFIG,
         completeOnboarding,
+        dismissVerificationPrompt,
         socialAuth,
         login,
         signup,

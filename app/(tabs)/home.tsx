@@ -4,7 +4,7 @@ import { EventCard } from "@/components/EventCard";
 import { HeaderHero } from "@/components/HeaderHero";
 import { PinMark } from "@/components/PinMark";
 import { EventCardSkeleton } from "@/components/SkeletonLoaders/EventCardSkeleton";
-import { useCreateEvent, useFeed } from "@/hooks/useEvents";
+import { useFeed } from "@/hooks/useEvents";
 import { colors, shadow } from "@/lib/theme";
 import type { EventCategory } from "@/lib/types";
 import { useApp } from "@/providers/AppProvider";
@@ -86,8 +86,7 @@ function SearchBar({
 
 export default function HomeScreen() {
   const { currentUser, events } = useApp();
-  const { data: supabaseEvents, isLoading } = useFeed();
-  const { mutate: createEvent, isPending } = useCreateEvent();
+  const { data: supabaseEvents, isLoading, error } = useFeed();
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<EventCategory | "all">(
     "all",
