@@ -81,7 +81,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const getEmailName = (email: string) => email.split("@")[0] || "New user";
 const getDefaultUsername = (email: string, userId: string) =>
-  `${getEmailName(email).toLowerCase()}-${userId.slice(0, 8)}`;
+  `${getEmailName(email).toLowerCase()}-${userId.slice(0, 4)}`;
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { profile, refreshProfile } = useAuthContext();
@@ -89,17 +89,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Map Supabase profile → User shape
   const currentUser: User | null = profile
     ? {
-      id: profile.id,
-      email: profile.email ?? "",
-      name: profile.name ?? profile.email?.split("@")[0] ?? "New user",
-      username: profile.username ?? profile.email?.split("@")[0] ?? "",
-      avatarColors: profile.avatar_colors ?? ["#8B5CF6", "#6366F1"],
-      gender: profile.gender ?? "other",
-      age: profile.age ?? 0,
-      city: profile.city ?? "",
-      verified: profile.verified ?? false,
-      bio: profile.bio ?? "",
-    }
+        id: profile.id,
+        email: profile.email ?? "",
+        name: profile.name ?? profile.email?.split("@")[0] ?? "New user",
+        username: profile.username ?? profile.email?.split("@")[0] ?? "",
+        avatarColors: profile.avatar_colors ?? ["#8B5CF6", "#6366F1"],
+        gender: profile.gender ?? "other",
+        age: profile.age ?? 0,
+        city: profile.city ?? "",
+        verified: profile.verified ?? false,
+        bio: profile.bio ?? "",
+      }
     : null;
 
   const [events, setEvents] = useState(MOCK_EVENTS);
@@ -127,42 +127,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
       console.log(error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
 
-    // Email confirmation enabled
-    if (!data.session) {
-      return {
-        success: true,
-        requiresVerification: true,
-        error: null,
-      };
-    }
-
+    // Always create the profile regardless of email confirmation
     const userEmail = data.user?.email ?? email;
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: data.user!.id,
-        email: userEmail,
-        name: getEmailName(userEmail),
-        username: getDefaultUsername(userEmail, data.user!.id),
-      });
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: data.user!.id,
+      email: userEmail,
+      name: getEmailName(userEmail),
+      username: getDefaultUsername(userEmail, data.user!.id),
+    });
 
     if (profileError) {
       console.error("Profile creation failed:", profileError);
-
       return {
         success: false,
         accountCreated: true,
@@ -171,10 +152,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    return {
-      success: true,
-      error: null,
-    };
+    if (!data.session) {
+      return { success: true, requiresVerification: true, error: null };
+    }
+
+    return { success: true, error: null };
   };
 
   const logout = async () => {
@@ -315,11 +297,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((e) =>
           e.id === eventId
             ? {
-              ...e,
-              requestUserIds: e.requestUserIds.filter(
-                (id) => id !== currentUser.id,
-              ),
-            }
+                ...e,
+                requestUserIds: e.requestUserIds.filter(
+                  (id) => id !== currentUser.id,
+                ),
+              }
             : e,
         ),
       );
@@ -338,10 +320,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((e) =>
         e.id === eventId
           ? {
-            ...e,
-            requestUserIds: e.requestUserIds.filter((id) => id !== userId),
-            approvedUserIds: [...e.approvedUserIds, userId],
-          }
+              ...e,
+              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+              approvedUserIds: [...e.approvedUserIds, userId],
+            }
           : e,
       ),
     );
@@ -378,9 +360,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((e) =>
         e.id === eventId
           ? {
-            ...e,
-            requestUserIds: e.requestUserIds.filter((id) => id !== userId),
-          }
+              ...e,
+              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+            }
           : e,
       ),
     );
@@ -453,11 +435,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           prev.map((e) =>
             e.id === eventId
               ? {
-                ...e,
-                approvedUserIds: e.approvedUserIds.filter(
-                  (id) => id !== userId,
-                ),
-              }
+                  ...e,
+                  approvedUserIds: e.approvedUserIds.filter(
+                    (id) => id !== userId,
+                  ),
+                }
               : e,
           ),
         );
@@ -503,9 +485,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((e) =>
           e.id === eventId
             ? {
-              ...e,
-              requestUserIds: e.requestUserIds.filter((id) => id !== userId),
-            }
+                ...e,
+                requestUserIds: e.requestUserIds.filter((id) => id !== userId),
+              }
             : e,
         ),
       );
