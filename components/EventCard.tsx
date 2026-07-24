@@ -5,6 +5,7 @@ import { useApp } from '@/providers/AppProvider';
 import type { Event } from '@/lib/types';
 import { categoryFontFamily, categoryVisuals } from '@/lib/categoryVisuals';
 import { AvatarBubble } from './AvatarBubble';
+import { PinMark } from './PinMark';
 
 type EventCardProps = {
   event: Event;
@@ -27,7 +28,7 @@ export function EventCard({ event }: EventCardProps) {
   const theme = categoryVisuals[event.category] ?? categoryVisuals.other;
   const date = new Date(event.dateTime);
   const dateLabel = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  const attendeeCount = event.approvedUserIds.length + 1;
+  const attendeeCount = event.approvedUserIds?.length + 1;
   const spotsLeft = event.maxPeople ? Math.max(event.maxPeople - attendeeCount, 0) : null;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
   const averageRating = creator ? getUserAverageRating(creator.id) : null;
@@ -122,6 +123,12 @@ export function EventCard({ event }: EventCardProps) {
               <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: '800', fontFamily: categoryFontFamily }}>Women only</Text>
             ) : null}
           </View>
+
+          {event.pinned ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <PinMark color={theme.meta} />
+            </View>
+          ) : null}
 
           {spotsLeft !== null ? (
             <View

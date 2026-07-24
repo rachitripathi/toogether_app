@@ -1,15 +1,51 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AvatarBubble } from '@/components/AvatarBubble';
+import { EventCard } from '@/components/EventCard';
 import { colors, gradients } from '@/lib/theme';
 import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function ProfileMetric({ label, value }: { label: string; value: string | number }) {
+type Section = 'hosting' | 'joined' | 'past' | null;
+
+function TrustChip({
+  icon,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string | undefined;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: '#F8FAFC',
+      }}
+    >
+      <Ionicons name={icon} size={14} color={colors.skyDark} />
+      <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function ProfileMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
     <View
       style={{
@@ -22,8 +58,12 @@ function ProfileMetric({ label, value }: { label: string; value: string | number
         alignItems: 'center',
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>{value}</Text>
-      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
+        {value}
+      </Text>
+      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -68,6 +108,7 @@ function RowLink({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [section, setSection] = useState<Section>('hosting');
   const { currentUser, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
 
   if (!currentUser) {
@@ -75,11 +116,10 @@ export default function ProfileScreen() {
   }
 
   const now = new Date();
-  const hosting = events.filter((event) => event.creatorId === currentUser.id && new Date(event.dateTime) >= now);
-  const past = events.filter((event) => event.creatorId === currentUser.id && new Date(event.dateTime) < now);
-  const joined = events.filter(
-    (event) => event.approvedUserIds.includes(currentUser.id) && event.creatorId !== currentUser.id
-  );
+  const hosting = events.filter(e => e.creatorId === currentUser.id && new Date(e.dateTime) >= now);
+  const joined = events.filter(e => e.approvedUserIds.includes(currentUser.id) && e.creatorId !== currentUser.id && new Date(e.dateTime) >= now);
+  const past = events.filter(e => (e.creatorId === currentUser.id || e.approvedUserIds.includes(currentUser.id)) && new Date(e.dateTime) < now);
+
   const rating = getUserAverageRating(currentUser.id);
   const crew = getCrewMembers().length;
   const totalPlans = hosting.length + joined.length + past.length;
@@ -97,6 +137,59 @@ export default function ProfileScreen() {
     extrapolate: 'clamp',
   });
 
+  const renderSection = (
+    label: string,
+    key: Section,
+    items: typeof events,
+    emoji: string,
+  ) => (
+    <View style={{ gap: 10 }}>
+      <Pressable
+        onPress={() => setSection(section === key ? null : key)}
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 22,
+          borderWidth: 1,
+          borderColor: colors.border,
+          padding: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ fontSize: 22 }}>{emoji}</Text>
+          <View>
+            <Text style={{ color: colors.text, fontWeight: '800' }}>{label}</Text>
+            <Text style={{ color: colors.muted }}>{items.length} plans</Text>
+          </View>
+        </View>
+        <Ionicons
+          name={section === key ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={colors.muted}
+        />
+      </Pressable>
+      {section === key ? (
+        items.length ? (
+          items.map((event) => <EventCard key={event.id} event={event} />)
+        ) : (
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 18,
+            }}
+          >
+            <Text style={{ color: colors.muted }}>Nothing here yet.</Text>
+          </View>
+        )
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <LinearGradient colors={[...gradients.profile]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
@@ -110,7 +203,7 @@ export default function ProfileScreen() {
                 {currentUser.name.split(' ')[0]}, {currentUser.age}
               </Text>
               <Animated.Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, opacity: subtitleOpacity }}>
-                {currentUser.city} · @{currentUser.username}
+                {currentUser.city ?? 'Guwahati'} · @{currentUser.username}
               </Animated.Text>
             </View>
             <Pressable
@@ -132,6 +225,54 @@ export default function ProfileScreen() {
           <ProfileMetric label="Plans" value={totalPlans} />
           <ProfileMetric label="Crew" value={crew} />
           <ProfileMetric label="Karma" value={rating ? rating.toFixed(1) : 'New'} />
+        </View>
+
+        {!currentUser.verified ? (
+          <Pressable
+            onPress={() => router.push('/verification')}
+            style={{
+              backgroundColor: '#EFF6FF',
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: '#D5E8FF',
+              padding: 18,
+              gap: 10,
+            }}
+          >
+            <Text style={{ color: colors.skyDark, fontSize: 16, fontWeight: '800' }}>
+              Verify to boost trust
+            </Text>
+            <Text style={{ color: colors.text, lineHeight: 22 }}>
+              Verified profiles feel safer to join, stand out better in discovery, and usually get faster approvals from hosts.
+            </Text>
+          </Pressable>
+        ) : null}
+
+        <View
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: 18,
+            gap: 14,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
+            Trust signals
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <TrustChip
+              icon="shield-checkmark-outline"
+              label={currentUser.verified ? 'ID verified' : 'Verification pending'}
+            />
+            <TrustChip
+              icon="sparkles-outline"
+              label={past.length ? `${past.length} past hangouts` : 'First hangout soon'}
+            />
+            <TrustChip icon="people-outline" label={`${crew} crew connections`} />
+            <TrustChip icon="location-outline" label={currentUser.city ?? 'Guwahati'} />
+          </View>
         </View>
 
         {usage.monetisationEnabled ? (
@@ -194,24 +335,9 @@ export default function ProfileScreen() {
 
         <View style={{ gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>My plans</Text>
-          <RowLink
-            label="Plans I'm hosting"
-            helper={`${hosting.length} active plans`}
-            icon="calendar-outline"
-            onPress={() => router.push({ pathname: '/profile-plans/[section]', params: { section: 'hosting' } })}
-          />
-          <RowLink
-            label="Plans I joined"
-            helper={`${joined.length} plans joined`}
-            icon="people-outline"
-            onPress={() => router.push({ pathname: '/profile-plans/[section]', params: { section: 'joined' } })}
-          />
-          <RowLink
-            label="Past plans"
-            helper={`${past.length} completed plans`}
-            icon="time-outline"
-            onPress={() => router.push({ pathname: '/profile-plans/[section]', params: { section: 'past' } })}
-          />
+          {renderSection("Plans I'm Hosting", 'hosting', hosting, '🎯')}
+          {renderSection('Plans I Joined', 'joined', joined, '🤝')}
+          {renderSection('Past Plans', 'past', past, '🗓️')}
         </View>
 
         <View style={{ gap: 12 }}>
