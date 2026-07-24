@@ -10,7 +10,6 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-<<<<<<< HEAD
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans."
       }
@@ -20,13 +19,11 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
       ],
-=======
       "bundleIdentifier": "com.toogether.app"
     },
     "android": {
       "package": "com.toogether.app",
       "googleServicesFile": "./google-services.json",
->>>>>>> dbe84cd414615c4c17ed090fd35b12eb74d71dc9
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
