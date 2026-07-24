@@ -1,9 +1,12 @@
 import { useLocalSearchParams, router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Animated, ImageBackground, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { colors } from '@/lib/theme';
+import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,8 +27,57 @@ function InfoRow({
   );
 }
 
+function ThemedActionButton({
+  label,
+  onPress,
+  visual,
+}: {
+  label: string;
+  onPress: () => void;
+  visual: CategoryVisualTheme;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        minHeight: 56,
+        borderRadius: 28,
+        backgroundColor: visual.buttonBackground,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: visual.buttonShadow,
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 7 },
+        elevation: 4,
+      }}
+    >
+      <Text style={{ color: visual.buttonText, fontSize: 16, fontWeight: '900', fontFamily: categoryFontFamily }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerPaddingBottom = scrollY.interpolate({ inputRange: [0, 80], outputRange: [24, 10], extrapolate: 'clamp' });
+  const emojiFontSize = scrollY.interpolate({ inputRange: [0, 80], outputRange: [54, 38], extrapolate: 'clamp' });
+  const titleFontSize = scrollY.interpolate({ inputRange: [0, 80], outputRange: [28, 22], extrapolate: 'clamp' });
+  const chipOpacity = scrollY.interpolate({ inputRange: [0, 50], outputRange: [1, 0], extrapolate: 'clamp' });
+  const chipMaxHeight = scrollY.interpolate({ inputRange: [0, 60], outputRange: [40, 0], extrapolate: 'clamp' });
+  const [joinError, setJoinError] = useState('');
+  const [showEdit, setShowEdit] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editArea, setEditArea] = useState('');
+  const [editLocationNote, setEditLocationNote] = useState('');
+  const [editExactTime, setEditExactTime] = useState('');
+  const [editTimeSlot, setEditTimeSlot] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night'>('Evening');
+  const [editMaxPeople, setEditMaxPeople] = useState('');
+  const [editError, setEditError] = useState('');
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     currentUser,
@@ -36,8 +88,14 @@ export default function EventDetailScreen() {
     getRequestStatus,
     approveRequest,
     rejectRequest,
+    updateEvent,
+    deleteEvent,
     requests,
     categoryConfig,
+    shouldShowPaywallForJoin,
+    monetisationEnabled,
+    isAttendeesUnlocked,
+    unlockAttendees,
   } = useApp();
 
   const event = getEventById(id ?? '');
@@ -54,20 +112,81 @@ export default function EventDetailScreen() {
   const requestStatus = getRequestStatus(event.id);
   const pendingRequests = requests.filter((request) => request.eventId === event.id && request.status === 'pending');
   const config = categoryConfig[event.category] ?? categoryConfig.other;
+  const visual = categoryVisuals[event.category] ?? categoryVisuals.other;
   const date = new Date(event.dateTime);
   const canViewWomenOnly = !event.womenOnly || currentUser?.gender === 'woman' || isCreator;
   const canViewPrivateLayer = isCreator || requestStatus === 'approved';
+  const mapUrl =
+    event.mapUrl ??
+    (event.latitude && event.longitude
+      ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
+      : undefined);
   const creatorRating = creator ? getUserAverageRating(creator.id) : null;
   const attendeeCount = event.approvedUserIds.length + 1;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
+  const attendeesUnlocked = isAttendeesUnlocked(event.id);
+
+  const openEdit = () => {
+    setEditTitle(event.title);
+    setEditDescription(event.description ?? '');
+    setEditArea(event.area);
+    setEditLocationNote(event.locationNote ?? '');
+    setEditExactTime(event.exactTime);
+    setEditTimeSlot(event.timeSlot);
+    setEditMaxPeople(event.maxPeople?.toString() ?? '');
+    setEditError('');
+    setShowEdit(true);
+  };
+
+  const saveEdit = () => {
+    if (!editTitle.trim()) {
+      setEditError('Title cannot be empty.');
+      return;
+    }
+    const parsedMax = editMaxPeople ? Number(editMaxPeople) : undefined;
+    if (parsedMax !== undefined && (!Number.isInteger(parsedMax) || parsedMax < 2 || parsedMax > 10)) {
+      setEditError('Max people must be a whole number between 2 and 10.');
+      return;
+    }
+    const minMax = event.approvedUserIds.length + 1;
+    if (parsedMax !== undefined && parsedMax < minMax) {
+      setEditError(`Can't set max below current attendance (${minMax}).`);
+      return;
+    }
+    updateEvent(event.id, {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      area: editArea.trim() || event.area,
+      locationNote: editLocationNote.trim(),
+      exactTime: editExactTime.trim() || event.exactTime,
+      timeSlot: editTimeSlot,
+      maxPeople: parsedMax,
+    });
+    setShowEdit(false);
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Cancel this plan?',
+      'This will remove the plan and notify everyone who joined. This cannot be undone.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Yes, cancel plan',
+          style: 'destructive',
+          onPress: () => {
+            deleteEvent(event.id);
+            router.replace('/(tabs)/home');
+          },
+        },
+      ]
+    );
+  };
 
   if (!canViewWomenOnly) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.page, padding: 24 }}>
-        <Text style={{ fontSize: 48 }}>🔒</Text>
-        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginTop: 12 }}>
-          Women-only plan
-        </Text>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginTop: 12 }}>Women-only plan</Text>
         <Text style={{ color: colors.muted, textAlign: 'center', marginTop: 8 }}>
           This plan is only visible to women participants.
         </Text>
@@ -77,28 +196,24 @@ export default function EventDetailScreen() {
 
   const statusTone =
     requestStatus === 'approved'
-      ? { bg: '#DCFCE7', text: '#15803D', label: 'Approved member' }
+      ? { bg: '#DCFCE7', text: '#15803D', label: 'Approved member', shadow: '#84CC96' }
       : requestStatus === 'pending'
-        ? { bg: '#FFF1D6', text: '#B45309', label: 'Approval pending' }
+        ? { bg: '#FFBE3D', text: '#5B3A00', label: 'Approval pending', shadow: '#D4860F' }
         : requestStatus === 'rejected'
-          ? { bg: '#E5E7EB', text: '#6B7280', label: 'Request declined' }
+          ? { bg: '#E5E7EB', text: '#6B7280', label: 'Request declined', shadow: '#B8C0CC' }
           : isCreator
-            ? { bg: '#E0F2FE', text: colors.skyDark, label: 'You are hosting' }
-            : { bg: '#EEF2FF', text: colors.skyDark, label: 'Open for requests' };
+            ? { bg: visual.buttonBackground, text: visual.buttonText, label: 'You are hosting', shadow: visual.buttonShadow }
+            : { bg: visual.buttonBackground, text: visual.buttonText, label: 'Open for requests', shadow: visual.buttonShadow };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <View
-        style={{
-          backgroundColor: config.iconBackground,
-          paddingTop: insets.top + 16,
-          paddingHorizontal: 20,
-          paddingBottom: 24,
-          borderBottomLeftRadius: 28,
-          borderBottomRightRadius: 28,
-          gap: 18,
-        }}
+      <ImageBackground
+        source={visual.background}
+        resizeMode="cover"
+        imageStyle={{ borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}
+        style={{ borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}
       >
+        <Animated.View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Pressable
             onPress={() => router.back()}
@@ -113,36 +228,80 @@ export default function EventDetailScreen() {
           >
             <Ionicons name="arrow-back" size={18} color={colors.text} />
           </Pressable>
-          {(isCreator || requestStatus === 'approved') ? (
-            <Pressable
-              onPress={() => router.push(`/chat/${event.id}`)}
-              style={{ backgroundColor: '#FFF1D6', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 }}
-            >
-              <Text style={{ color: '#B45309', fontWeight: '800' }}>Open Chat</Text>
-            </Pressable>
-          ) : null}
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            {isCreator ? (
+              <>
+                <Pressable
+                  onPress={openEdit}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: 'rgba(255,255,255,0.75)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  onPress={handleDelete}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: 'rgba(255,80,80,0.15)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                </Pressable>
+              </>
+            ) : null}
+            {(isCreator || requestStatus === 'approved') ? (
+              <Pressable
+                onPress={() => router.push(`/chat/${event.id}`)}
+                style={{
+                  backgroundColor: visual.buttonBackground,
+                  borderRadius: 999,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  shadowColor: visual.buttonShadow,
+                  shadowOpacity: 0.26,
+                  shadowRadius: 9,
+                  shadowOffset: { width: 0, height: 5 },
+                  elevation: 3,
+                }}
+              >
+                <Text style={{ color: visual.buttonText, fontWeight: '900', fontFamily: categoryFontFamily }}>Open Chat</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
-          <Text style={{ fontSize: 54 }}>{event.emoji}</Text>
+          <Animated.Text style={{ fontSize: emojiFontSize }}>{event.emoji}</Animated.Text>
           <View style={{ flex: 1, gap: 8 }}>
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                backgroundColor: '#FFFFFF',
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                flexDirection: 'row',
-                gap: 6,
-              }}
-            >
-              <Text style={{ color: config.chipText, fontSize: 12, fontWeight: '700' }}>{config.label}</Text>
-              {event.womenOnly ? (
-                <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: '700' }}>Women only</Text>
-              ) : null}
-            </View>
-            <Text style={{ fontSize: 28, fontWeight: '900', color: colors.text }}>{event.title}</Text>
+            <Animated.View style={{ opacity: chipOpacity, maxHeight: chipMaxHeight, overflow: 'hidden' }}>
+              <View
+                style={{
+                  alignSelf: 'flex-start',
+                  backgroundColor: visual.chipBackground,
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  flexDirection: 'row',
+                  gap: 6,
+                }}
+              >
+                <Text style={{ color: visual.chipText, fontSize: 12, fontWeight: '800', fontFamily: categoryFontFamily }}>{config.label}</Text>
+                {event.womenOnly ? (
+                  <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: '700' }}>Women only</Text>
+                ) : null}
+              </View>
+            </Animated.View>
+            <Animated.Text style={{ fontSize: titleFontSize, fontWeight: '900', color: visual.title, fontFamily: categoryFontFamily }}>{event.title}</Animated.Text>
             <View
               style={{
                 alignSelf: 'flex-start',
@@ -150,15 +309,28 @@ export default function EventDetailScreen() {
                 borderRadius: 999,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
+                shadowColor: statusTone.shadow,
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
               }}
             >
-              <Text style={{ color: statusTone.text, fontSize: 12, fontWeight: '800' }}>{statusTone.label}</Text>
+              <Text style={{ color: statusTone.text, fontSize: 12, fontWeight: '900', fontFamily: categoryFontFamily }}>{statusTone.label}</Text>
             </View>
           </View>
         </View>
-      </View>
+        </Animated.View>
+      </ImageBackground>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 140 }}>
+      <ScrollView
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 140 }}
+      >
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View
             style={{
@@ -203,12 +375,13 @@ export default function EventDetailScreen() {
           <InfoRow
             icon="time-outline"
             iconColor={colors.primary}
-            label={`${date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} • ${event.timeSlot}`}
+            label={`${date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · ${event.timeSlot}`}
           />
           <InfoRow icon="location-outline" iconColor={colors.secondary} label={`${event.area}, Guwahati`} />
-          {event.maxPeople ? (
-            <InfoRow icon="people-outline" iconColor="#16A34A" label={`${attendeeCount} going so far`} />
+          {event.locationNote ? (
+            <InfoRow icon="information-circle-outline" iconColor="#16A34A" label={event.locationNote} />
           ) : null}
+          {event.maxPeople ? <InfoRow icon="people-outline" iconColor="#16A34A" label={`${attendeeCount} going so far`} /> : null}
         </View>
 
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
@@ -231,6 +404,27 @@ export default function EventDetailScreen() {
             <View style={{ gap: 10 }}>
               <InfoRow icon="time" iconColor="#1D9E75" label={`Exact meeting time: ${event.exactTime}`} />
               <InfoRow icon="navigate" iconColor="#1D9E75" label={event.exactLocation} />
+              {mapUrl ? (
+                <Pressable
+                  onPress={() => Linking.openURL(mapUrl)}
+                  style={{
+                    backgroundColor: '#E0F2FE',
+                    borderRadius: 18,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <Ionicons name="map-outline" size={20} color={colors.skyDark} />
+                    <Text style={{ color: colors.skyDark, fontWeight: '800' }}>Open pinned location in Maps</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={18} color={colors.skyDark} />
+                </Pressable>
+              ) : null}
             </View>
           ) : (
             <View
@@ -268,8 +462,8 @@ export default function EventDetailScreen() {
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{creator.name}</Text>
                 <Text style={{ color: colors.muted }}>@{creator.username}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {creator.age} • {creatorRating ? `${creatorRating.toFixed(1)}★ karma` : 'New'}
-                  {creator.verified ? ' • Verified' : ''}
+                  {creator.age} · {creatorRating ? `${creatorRating.toFixed(1)}★ karma` : 'New'}
+                  {creator.verified ? ' · Verified' : ''}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
@@ -282,30 +476,57 @@ export default function EventDetailScreen() {
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
               Going ({event.approvedUserIds.length})
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {event.approvedUserIds.map((userId) => {
-                const user = getUserById(userId);
-                if (!user) return null;
-                return (
-                  <Pressable
-                    key={userId}
-                    onPress={() => router.push(`/user/${userId}`)}
-                    style={{
-                      backgroundColor: colors.page,
-                      borderRadius: 999,
-                      padding: 8,
-                      paddingRight: 12,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <AvatarBubble user={user} size={28} />
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{user.name.split(' ')[0]}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {!monetisationEnabled ? (
+              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 18, padding: 14 }}>
+                <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} confirmed so far</Text>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>
+                  Full attendee details unlock after you are part of the plan.
+                </Text>
+              </View>
+            ) : !attendeesUnlocked ? (
+              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 18, padding: 14, gap: 10 }}>
+                <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} people are going</Text>
+                <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                  Phase 2 preview: unlock the attendee list for 1 credit.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    const unlocked = unlockAttendees(event.id);
+                    if (!unlocked) {
+                      router.push('/paywall');
+                    }
+                  }}
+                  style={{ backgroundColor: visual.buttonBackground, borderRadius: 999, paddingVertical: 11, alignItems: 'center' }}
+                >
+                  <Text style={{ color: visual.buttonText, fontWeight: '900' }}>Unlock for 1 credit</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {event.approvedUserIds.map((userId) => {
+                  const user = getUserById(userId);
+                  if (!user) return null;
+                  return (
+                    <Pressable
+                      key={userId}
+                      onPress={() => router.push(`/user/${userId}`)}
+                      style={{
+                        backgroundColor: colors.page,
+                        borderRadius: 999,
+                        padding: 8,
+                        paddingRight: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <AvatarBubble user={user} size={28} />
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>{user.name.split(' ')[0]}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -334,7 +555,7 @@ export default function EventDetailScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: colors.text, fontWeight: '800' }}>{user.name}</Text>
                       <Text style={{ color: colors.muted }}>
-                        @{user.username} • {user.verified ? 'Verified' : 'Unverified'}
+                        @{user.username} · {user.verified ? 'Verified' : 'Unverified'}
                       </Text>
                     </View>
                     <Pressable
@@ -360,9 +581,27 @@ export default function EventDetailScreen() {
       </ScrollView>
 
       {!isCreator ? (
-        <View style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(insets.bottom, 16) + 12 }}>
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(insets.bottom, 16) + 12, gap: 8 }}>
+          {joinError ? (
+            <View
+              style={{
+                backgroundColor: '#FFF7E8',
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: '#FDE7B3',
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <Ionicons name="warning-outline" size={16} color="#B45309" />
+              <Text style={{ color: '#B45309', fontWeight: '700', flex: 1, fontSize: 13 }}>{joinError}</Text>
+            </View>
+          ) : null}
           {requestStatus === 'approved' ? (
-            <GradientButton label="Open Chat" onPress={() => router.push(`/chat/${event.id}`)} fullWidth />
+            <ThemedActionButton label="Open Chat" onPress={() => router.push(`/chat/${event.id}`)} visual={visual} />
           ) : requestStatus === 'pending' ? (
             <View style={{ backgroundColor: '#FEF3C7', borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
               <Text style={{ color: '#B45309', fontWeight: '800' }}>Request Pending</Text>
@@ -376,10 +615,104 @@ export default function EventDetailScreen() {
               <Text style={{ color: '#6B7280', fontWeight: '800' }}>This plan is full</Text>
             </View>
           ) : (
-            <GradientButton label="Request to Join" onPress={() => requestToJoin(event.id)} fullWidth />
+            <ThemedActionButton
+              label="Request to Join"
+              onPress={() => {
+                setJoinError('');
+                if (shouldShowPaywallForJoin()) {
+                  router.push('/paywall');
+                  return;
+                }
+                if (event.womenOnly && currentUser?.gender !== 'woman') {
+                  setJoinError('This is a women-only plan.');
+                  return;
+                }
+                requestToJoin(event.id);
+              }}
+              visual={visual}
+            />
           )}
         </View>
       ) : null}
+
+      <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
+        <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              padding: 24,
+              gap: 16,
+              maxHeight: '90%',
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Edit plan</Text>
+              <Pressable onPress={() => setShowEdit(false)}>
+                <Ionicons name="close" size={22} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 8 }}>
+              <FormField label="Title" value={editTitle} onChangeText={setEditTitle} placeholder="Event title" />
+              <FormField
+                label="Description"
+                value={editDescription}
+                onChangeText={setEditDescription}
+                placeholder="What's the vibe?"
+                multiline
+              />
+              <FormField label="Locality shown publicly" value={editArea} onChangeText={setEditArea} placeholder="Area" />
+              <FormField label="Exact time" value={editExactTime} onChangeText={setEditExactTime} placeholder="7:00 PM" />
+              <FormField
+                label="Location note"
+                value={editLocationNote}
+                onChangeText={setEditLocationNote}
+                placeholder="Near main entrance, easy parking"
+              />
+              <FormField
+                label="Max people"
+                value={editMaxPeople}
+                onChangeText={setEditMaxPeople}
+                keyboardType="numeric"
+                placeholder="2 to 10"
+              />
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Time of day</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((slot) => {
+                    const active = slot === editTimeSlot;
+                    return (
+                      <Pressable
+                        key={slot}
+                        onPress={() => setEditTimeSlot(slot)}
+                        style={{
+                          backgroundColor: active ? '#FFF1D6' : '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: active ? colors.primary : colors.border,
+                          borderRadius: 999,
+                          paddingHorizontal: 16,
+                          paddingVertical: 10,
+                        }}
+                      >
+                        <Text style={{ color: active ? '#B45309' : colors.text, fontWeight: '700' }}>{slot}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {editError ? (
+                <Text style={{ color: colors.danger, fontWeight: '700' }}>{editError}</Text>
+              ) : null}
+
+              <GradientButton label="Save changes" onPress={saveEdit} fullWidth />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

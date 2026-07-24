@@ -87,9 +87,14 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="auth" />
+        <Stack.Screen name="new-user-profile" />
+        <Stack.Screen name="new-user-verification" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="create-event" options={{ presentation: 'modal' }} />
         <Stack.Screen name="verification" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="profile-plans/[section]" />
         <Stack.Screen name="event/[id]" />
         <Stack.Screen name="chat/[id]" />
         <Stack.Screen name="user/[id]" />

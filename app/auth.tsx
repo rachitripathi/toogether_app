@@ -5,17 +5,29 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, gradients } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
+import { getSelectableAppModes, type DevAppMode } from '@/lib/monetisation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Mode = 'login' | 'signup';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
-  const { socialAuth } = useApp();
+  const { socialAuth, devAppMode, setDevAppMode } = useApp();
   const insets = useSafeAreaInsets();
+  const appModeCopy: Record<DevAppMode, { label: string; helper: string }> = {
+    free: { label: 'Free version', helper: 'No credits or paywall UI' },
+    paid: { label: 'Paid version', helper: 'Credits enabled after free limits' },
+    'limit-hit': { label: 'Paywall demo', helper: 'Starts at limits with 0 credits' },
+    'new-user': { label: 'New user demo', helper: 'Profile setup and verification prompts' },
+  };
+  const appModes = getSelectableAppModes().map((id) => ({ id, ...appModeCopy[id] }));
 
   const handleSocialAuth = (provider: 'google' | 'apple') => {
     socialAuth(provider, mode);
+    if (devAppMode === 'new-user') {
+      router.replace('/new-user-profile');
+      return;
+    }
     router.replace('/(tabs)/home');
   };
 
@@ -74,6 +86,58 @@ export default function AuthScreen() {
               ? 'Continue with the account provider you want to use in the app.'
               : 'Create your account using Google or Apple. We do not show generic signup anymore.'}
           </Text>
+
+          {appModes.length ? (
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 14,
+                gap: 10,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="construct-outline" size={18} color={colors.primary} />
+                <Text style={{ color: colors.text, fontWeight: '900' }}>Choose app version</Text>
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                Temporary login switch for reviewing the hidden paid flow before launch.
+              </Text>
+              <View style={{ gap: 8 }}>
+                {appModes.map((item) => {
+                  const active = item.id === devAppMode;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setDevAppMode(item.id)}
+                      style={{
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: active ? colors.primary : colors.border,
+                        backgroundColor: active ? '#E8F4FF' : '#FFFFFF',
+                        padding: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <Ionicons
+                        name={active ? 'radio-button-on' : 'radio-button-off'}
+                        size={18}
+                        color={active ? colors.primary : colors.muted}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontWeight: '800' }}>{item.label}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>{item.helper}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
 
           <Pressable
             onPress={() => handleSocialAuth('google')}

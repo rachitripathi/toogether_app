@@ -57,8 +57,7 @@ function InviteToEventModal({
 }
 
 function TrustPill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'accent' | 'warm' }) {
-  const backgroundColor =
-    tone === 'accent' ? '#E0F2FE' : tone === 'warm' ? '#FFF1D6' : '#F8FAFC';
+  const backgroundColor = tone === 'accent' ? '#E0F2FE' : tone === 'warm' ? '#FFF1D6' : '#F8FAFC';
   const color = tone === 'accent' ? colors.skyDark : tone === 'warm' ? '#B45309' : colors.text;
 
   return (
@@ -84,8 +83,36 @@ export default function UserProfileScreen() {
   } = useApp();
   const user = getUserById(id ?? '');
 
-  if (!user || !currentUser) {
+  if (!currentUser) {
     return null;
+  }
+
+  if (!user) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
+        <View
+          style={{
+            paddingTop: insets.top + 16,
+            paddingHorizontal: 20,
+            paddingBottom: 24,
+          }}
+        >
+          <Pressable
+            onPress={() => router.back()}
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="arrow-back" size={18} color={colors.text} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
+          <Text style={{ fontSize: 40 }}>🤔</Text>
+          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>Profile not found</Text>
+          <Text style={{ color: colors.muted, textAlign: 'center' }}>
+            This user may have removed their account or the link is no longer valid.
+          </Text>
+        </View>
+      </View>
+    );
   }
 
   const isSelf = currentUser.id === user.id;
@@ -131,7 +158,7 @@ export default function UserProfileScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={{ color: colors.muted }}>@{user.username} • {user.city}</Text>
+            <Text style={{ color: colors.muted }}>@{user.username} · {user.city}</Text>
             {user.bio ? <Text style={{ color: colors.muted }}>{user.bio}</Text> : null}
           </View>
         </View>
@@ -190,7 +217,7 @@ export default function UserProfileScreen() {
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
-                  <Text style={{ color: colors.muted }}>{event.area}, Guwahati • {event.timeSlot}</Text>
+                  <Text style={{ color: colors.muted }}>{event.area}, Guwahati · {event.timeSlot}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
               </Pressable>
@@ -212,7 +239,7 @@ export default function UserProfileScreen() {
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
-                  <Text style={{ color: colors.muted }}>{event.area}, Guwahati • {event.timeSlot}</Text>
+                  <Text style={{ color: colors.muted }}>{event.area}, Guwahati · {event.timeSlot}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
               </Pressable>

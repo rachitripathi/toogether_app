@@ -1,4 +1,5 @@
-import { Text } from 'react-native';
+import { Image } from 'expo-image';
+import { Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { User } from '@/lib/types';
 
@@ -14,6 +15,22 @@ export function AvatarBubble({ user, size = 44 }: AvatarBubbleProps) {
     .map((part) => part[0])
     .join('')
     .toUpperCase();
+
+  if (user.avatarUri) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          overflow: 'hidden',
+          backgroundColor: '#E5E7EB',
+        }}
+      >
+        <Image source={user.avatarUri} style={{ width: size, height: size }} contentFit="cover" />
+      </View>
+    );
+  }
 
   return (
     <LinearGradient

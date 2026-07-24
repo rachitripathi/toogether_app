@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { HeaderHero } from '@/components/HeaderHero';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { colors, gradients } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@/lib/types';
 
 function RateModal({ user, visible, onClose }: { user: User | null; visible: boolean; onClose: () => void }) {
@@ -67,20 +68,15 @@ function RateModal({ user, visible, onClose }: { user: User | null; visible: boo
 
 function StatPill({ label }: { label: string }) {
   return (
-    <View
-      style={{
-        backgroundColor: '#F4F7F6',
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-      }}
-    >
+    <View style={{ backgroundColor: '#F4F7F6', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>{label}</Text>
     </View>
   );
 }
 
 export default function PeopleScreen() {
+  const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
   const {
     currentUser,
     crewRequests,
@@ -94,19 +90,81 @@ export default function PeopleScreen() {
     rejectCrewRequest,
   } = useApp();
   const [ratingTarget, setRatingTarget] = useState<User | null>(null);
+  const [query, setQuery] = useState('');
   const crewMap = new Map<string, User>();
   [...getCrewMembers(), ...getInteractedUsers()].forEach((user) => crewMap.set(user.id, user));
-  const crew = [...crewMap.values()];
+  const allCrew = [...crewMap.values()];
+  const crew = query
+    ? allCrew.filter(
+        (user) =>
+          user.name.toLowerCase().includes(query.toLowerCase()) ||
+          user.username.toLowerCase().includes(query.toLowerCase())
+      )
+    : allCrew;
   const myEvents = getEventsImPartOf();
   const incomingRequests = crewRequests.filter(
     (request) => request.toUserId === currentUser?.id && request.status === 'pending'
   );
 
+  const subtitleOpacity = scrollY.interpolate({
+    inputRange: [0, 55],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const headerPaddingBottom = scrollY.interpolate({
+    inputRange: [0, 60],
+    outputRange: [22, 10],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <HeaderHero title="My Crew" subtitle={`${crew.length} people you've vibed with`} />
+      <LinearGradient colors={[...gradients.crew]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <Animated.View style={{ paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>My Crew</Text>
+          <Animated.Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, opacity: subtitleOpacity }}>
+            {allCrew.length} {allCrew.length === 1 ? 'person' : 'people'} you've connected with
+          </Animated.Text>
+        </Animated.View>
+      </LinearGradient>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 110 }}>
+      {allCrew.length > 0 ? (
+        <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
+          <View
+            style={{
+              backgroundColor: colors.page,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 14,
+              gap: 8,
+            }}
+          >
+            <Ionicons name="search" size={16} color="#9C9AA4" />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search by name or username"
+              placeholderTextColor="#A6A2A8"
+              style={{ flex: 1, minHeight: 44, color: colors.text, fontSize: 14, fontWeight: '600' }}
+            />
+            {query ? (
+              <Pressable onPress={() => setQuery('')}>
+                <Ionicons name="close-circle" size={16} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <ScrollView
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 110 }}
+      >
         {incomingRequests.length ? (
           <View style={{ gap: 12 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Crew Requests</Text>
@@ -242,6 +300,14 @@ export default function PeopleScreen() {
               </View>
             );
           })
+        ) : query ? (
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 48 }}>🔍</Text>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>No match</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center' }}>
+              No one in your crew matches "{query}".
+            </Text>
+          </View>
         ) : (
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
             <Text style={{ fontSize: 48 }}>🌱</Text>

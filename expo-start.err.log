@@ -1,0 +1,12 @@
+Error: GetEnv.NoBoolean: 1  is not a boolean.
+Error: GetEnv.NoBoolean: 1  is not a boolean.
+    at Object.boolish (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\getenv\index.js:70:15)
+    at C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\getenv\index.js:84:27
+    at get CI (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\env.js:60:38)
+    at isInteractive (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\interactive.js:13:22)
+    at prompt (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\prompts.js:67:41)
+    at confirmAsync (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\prompts.js:92:29)
+    at choosePortAsync (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\port.js:169:30)
+    at async resolvePortAsync (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\utils\port.js:194:26)
+    at async resolvePortsAsync (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\start\resolveOptions.js:161:27)
+    at async getMultiBundlerStartOptions (C:\Users\Rachit Tripathi\Documents\Playground\toogether-expo\node_modules\expo\node_modules\@expo\cli\build\src\start\startAsync.js:99:34)

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/lib/theme';
@@ -12,11 +12,6 @@ function formatMessageTime(value: string) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function formatPublicSchedule(value: string, slot: string) {
-  const date = new Date(value);
-  return `${date.toLocaleDateString([], { day: 'numeric', month: 'short' })} • ${slot}`;
-}
-
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -24,8 +19,6 @@ export default function ChatScreen() {
   const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage } = useApp();
   const [text, setText] = useState('');
   const event = getEventById(id ?? '');
-
-  const host = useMemo(() => (event ? getUserById(event.creatorId) : undefined), [event, getUserById]);
 
   if (!event) {
     return null;
@@ -43,10 +36,9 @@ export default function ChatScreen() {
     >
       <View
         style={{
-          paddingTop: insets.top + 16,
-          paddingHorizontal: 20,
-          paddingBottom: 20,
-          gap: 16,
+          paddingTop: insets.top + 10,
+          paddingHorizontal: 16,
+          paddingBottom: 12,
           backgroundColor: '#FFFFFF',
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
@@ -55,59 +47,32 @@ export default function ChatScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Pressable
             onPress={() => router.back()}
-            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: colors.page,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <Ionicons name="arrow-back" size={18} color={colors.text} />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>{event.emoji} Event Chat</Text>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>{event.title}</Text>
-          </View>
-        </View>
 
-        <View
-          style={{
-            backgroundColor: '#F8FBFF',
-            borderRadius: 22,
-            borderWidth: 1,
-            borderColor: '#D9ECFF',
-            padding: 16,
-            gap: 10,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Ionicons name="globe-outline" size={16} color={colors.skyDark} />
-            <Text style={{ color: colors.skyDark, fontSize: 12, fontWeight: '800' }}>Public plan details</Text>
-          </View>
-          <Text style={{ color: colors.text, fontWeight: '800' }}>{event.area}, Guwahati</Text>
-          <Text style={{ color: colors.muted }}>{formatPublicSchedule(event.dateTime, event.timeSlot)}</Text>
-          {host ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <AvatarBubble user={host} size={26} />
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Hosted by {host.name.split(' ')[0]}, {host.age}
-                {host.verified ? ' • Verified' : ''}
+          <Pressable
+            onPress={() => router.push(`/event/${event.id}`)}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 }}
+          >
+            <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text numberOfLines={1} style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
+                {event.title}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+                {event.approvedUserIds.length + 1} member{event.approvedUserIds.length + 1 !== 1 ? 's' : ''} · Tap to view event
               </Text>
             </View>
-          ) : null}
-        </View>
-
-        <View
-          style={{
-            backgroundColor: canChat ? '#FFF7E8' : '#F4F6F8',
-            borderRadius: 22,
-            padding: 16,
-            gap: 6,
-          }}
-        >
-          <Text style={{ color: canChat ? '#C26A00' : colors.muted, fontSize: 12, fontWeight: '800' }}>
-            {canChat ? 'Private details unlocked' : 'Private details locked'}
-          </Text>
-          <Text style={{ color: colors.text, fontWeight: '700' }}>
-            {canChat
-              ? `${event.exactTime} • ${event.exactLocation}`
-              : 'Exact time and address unlock after your join request is approved.'}
-          </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -126,12 +91,12 @@ export default function ChatScreen() {
                 key={message.id}
                 style={{ flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}
               >
-                {!isMe && user ? <AvatarBubble user={user} size={30} /> : <View style={{ width: 24 }} />}
-                <View style={{ maxWidth: '86%', gap: 4 }}>
+                {user ? <AvatarBubble user={user} size={30} /> : <View style={{ width: 30 }} />}
+                <View style={{ maxWidth: '80%', gap: 4 }}>
                   {!isMe && user ? (
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>
                       {user.name.split(' ')[0]}, {user.age}
-                      {user.verified ? ' • Verified' : ''}
+                      {user.verified ? ' · Verified' : ''}
                     </Text>
                   ) : null}
                   <View
@@ -148,13 +113,7 @@ export default function ChatScreen() {
                   >
                     <Text style={{ color: isMe ? '#FFFFFF' : colors.text, lineHeight: 20 }}>{message.text}</Text>
                   </View>
-                  <Text
-                    style={{
-                      color: colors.muted,
-                      fontSize: 11,
-                      textAlign: isMe ? 'right' : 'left',
-                    }}
-                  >
+                  <Text style={{ color: colors.muted, fontSize: 11, textAlign: isMe ? 'right' : 'left' }}>
                     {formatMessageTime(message.createdAt)}
                   </Text>
                 </View>
@@ -162,7 +121,16 @@ export default function ChatScreen() {
             );
           })
         ) : (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 24, gap: 8 }}>
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 24,
+              gap: 8,
+            }}
+          >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>No messages yet</Text>
             <Text style={{ color: colors.muted }}>
               {canChat
@@ -194,7 +162,18 @@ export default function ChatScreen() {
             </Text>
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 16 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              backgroundColor: '#FFFFFF',
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 999,
+              paddingHorizontal: 16,
+            }}
+          >
             <TextInput
               value={text}
               onChangeText={setText}

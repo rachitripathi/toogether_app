@@ -4,10 +4,18 @@ export interface User {
   email: string;
   username: string;
   avatarColors: [string, string];
+  avatarUri?: string;
   gender: 'woman' | 'man' | 'other';
   age: number;
+  dob?: string;
   city: string;
   verified?: boolean;
+  credits?: number;
+  joinRequestsThisMonth?: number;
+  plansCreatedThisMonth?: number;
+  totalCreditsEarned?: number;
+  totalCreditsSpent?: number;
+  verificationBonusGranted?: boolean;
   bio?: string;
 }
 
@@ -30,6 +38,10 @@ export interface Event {
   timeSlot: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
   exactTime: string;
   exactLocation: string;
+  locationNote?: string;
+  latitude?: number;
+  longitude?: number;
+  mapUrl?: string;
   location: string;
   creatorId: string;
   maxPeople?: number;

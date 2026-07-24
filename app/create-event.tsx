@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
+import { LocationMapPicker, type MapCoordinate, type MapRegion } from '@/components/LocationMapPicker';
 import { colors } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
@@ -17,33 +20,134 @@ const categories: { id: EventCategory; label: string; emoji: string }[] = [
   { id: 'food', label: 'Food', emoji: '🍕' },
   { id: 'travel', label: 'Travel', emoji: '🚗' },
   { id: 'gaming', label: 'Gaming', emoji: '🎮' },
-  { id: 'other', label: 'Other', emoji: '✨' },
+  { id: 'other', label: 'Other', emoji: '🎲' },
 ];
 
+const defaultRegion: MapRegion = {
+  latitude: 26.1445,
+  longitude: 91.7362,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
+};
+
+function formatDate(value: Date | null) {
+  return value ? value.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Select date';
+}
+
+function formatTime(value: Date | null) {
+  return value ? value.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Select exact time';
+}
+
+function combineDateAndTime(date: Date, time: Date) {
+  const next = new Date(date);
+  next.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  return next;
+}
+
+function googleMapsUrl(latitude: number, longitude: number) {
+  return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+}
+
 export default function CreateEventScreen() {
-  const { createEvent, currentUser } = useApp();
+  const { createEvent, currentUser, getUsageSummary, shouldShowPaywallForCreate } = useApp();
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
+  const [eventDate, setEventDate] = useState<Date | null>(null);
+  const [eventTime, setEventTime] = useState<Date | null>(null);
   const [timeSlot, setTimeSlot] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night'>('Evening');
   const [area, setArea] = useState('');
-  const [exactTime, setExactTime] = useState('');
   const [exactLocation, setExactLocation] = useState('');
+  const [locationNote, setLocationNote] = useState('');
+  const [coordinate, setCoordinate] = useState<MapCoordinate | null>(null);
+  const [mapRegion, setMapRegion] = useState<MapRegion>(defaultRegion);
+  const [showMap, setShowMap] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [maxPeople, setMaxPeople] = useState('');
   const [category, setCategory] = useState<EventCategory>('chill');
   const [womenOnly, setWomenOnly] = useState(false);
   const [error, setError] = useState('');
+  const usage = getUsageSummary();
 
-  const handleCreate = () => {
-    if (!title || !date || !area || !exactTime || !exactLocation) {
-      setError('Add title, area, date, exact time, and exact location.');
+  const applyCoordinate = async (nextCoordinate: MapCoordinate) => {
+    setCoordinate(nextCoordinate);
+    setMapRegion((prev) => ({ ...prev, ...nextCoordinate }));
+
+    try {
+      const [place] = await Location.reverseGeocodeAsync(nextCoordinate);
+      const locality = place?.district || place?.subregion || place?.city || place?.region || '';
+      const exactParts = [
+        place?.name,
+        place?.street,
+        place?.district,
+        place?.city,
+        place?.region,
+      ].filter(Boolean);
+      const exactAddress = [...new Set(exactParts)].join(', ');
+
+      if (locality) {
+        setArea(locality);
+      }
+      if (exactAddress) {
+        setExactLocation(exactAddress);
+      }
+    } catch {
+      setExactLocation(`Pinned location: ${nextCoordinate.latitude.toFixed(5)}, ${nextCoordinate.longitude.toFixed(5)}`);
+    }
+  };
+
+  const useCurrentLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setError('Location permission is needed to use your current location.');
       return;
     }
 
-    const parsedDate = new Date(`${date}T12:00`);
-    if (Number.isNaN(parsedDate.getTime())) {
-      setError('Use a valid date in YYYY-MM-DD format.');
+    const current = await Location.getCurrentPositionAsync({});
+    await applyCoordinate({
+      latitude: current.coords.latitude,
+      longitude: current.coords.longitude,
+    });
+  };
+
+  const openDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: eventDate ?? new Date(),
+        mode: 'date',
+        minimumDate: new Date(),
+        onChange: (_event, selectedDate) => {
+          if (selectedDate) setEventDate(selectedDate);
+        },
+      });
+      return;
+    }
+    setShowDatePicker(true);
+  };
+
+  const openTimePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: eventTime ?? new Date(),
+        mode: 'time',
+        onChange: (_event, selectedTime) => {
+          if (selectedTime) setEventTime(selectedTime);
+        },
+      });
+      return;
+    }
+    setShowTimePicker(true);
+  };
+
+  const handleCreate = () => {
+    if (shouldShowPaywallForCreate()) {
+      router.push('/paywall');
+      return;
+    }
+
+    if (!title || !eventDate || !eventTime || !area || !exactLocation) {
+      setError('Add title, locality, date, exact time, and exact location.');
       return;
     }
 
@@ -59,20 +163,31 @@ export default function CreateEventScreen() {
     setError('');
 
     const selectedCategory = categories.find((item) => item.id === category);
-    const event = createEvent({
+    const dateTime = combineDateAndTime(eventDate, eventTime);
+    let event;
+    try {
+      event = createEvent({
       title,
       description: description.slice(0, 200),
-      dateTime: parsedDate.toISOString(),
+      dateTime: dateTime.toISOString(),
       area,
       timeSlot,
-      exactTime,
+      exactTime: formatTime(eventTime),
       exactLocation,
+      locationNote: locationNote.slice(0, 90),
+      latitude: coordinate?.latitude,
+      longitude: coordinate?.longitude,
+      mapUrl: coordinate ? googleMapsUrl(coordinate.latitude, coordinate.longitude) : undefined,
       location: exactLocation,
       maxPeople: parsedMaxPeople,
       category,
       emoji: selectedCategory?.emoji ?? '✨',
-      womenOnly,
-    });
+        womenOnly,
+      });
+    } catch {
+      router.push('/paywall');
+      return;
+    }
 
     router.replace(`/event/${event.id}`);
   };
@@ -111,8 +226,35 @@ export default function CreateEventScreen() {
       <ScrollView
         contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
       >
+        {usage.monetisationEnabled ? (
+          <Pressable
+            onPress={usage.createLimitReached ? () => router.push('/paywall') : undefined}
+            style={{
+              backgroundColor: usage.createLimitReached ? '#FFF7E8' : '#FFFFFF',
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: usage.createLimitReached ? '#FDE7B3' : colors.border,
+              padding: 14,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="calendar-outline" size={18} color={usage.createLimitReached ? '#B45309' : colors.primary} />
+              <Text style={{ color: colors.text, fontWeight: '800', flex: 1 }}>
+                {usage.createUsed}/{usage.createLimit} plans created this month
+              </Text>
+              <Text style={{ color: colors.muted, fontWeight: '800' }}>{usage.credits} credits</Text>
+            </View>
+            {usage.createLimitReached ? (
+              <Text style={{ color: '#B45309', fontSize: 12, fontWeight: '700' }}>
+                Limit reached. Tap here to get more credits and keep creating plans.
+              </Text>
+            ) : null}
+          </Pressable>
+        ) : null}
+
         <View style={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>What&apos;s the vibe?</Text>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>What is the vibe?</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {categories.map((item) => {
               const active = item.id === category;
@@ -149,15 +291,47 @@ export default function CreateEventScreen() {
           placeholder="What is the hangout vibe?"
           multiline
         />
-        <FormField
-          label="Neighbourhood / Area"
-          value={area}
-          onChangeText={setArea}
-          placeholder="Zoo Road / Ganeshguri / Uzan Bazar"
-        />
-        <FormField label="Date" value={date} onChangeText={setDate} placeholder="2026-04-26" />
+
         <View style={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Time of day</Text>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Public date and shift</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={openDatePicker}
+              style={{
+                flex: 1,
+                minHeight: 54,
+                borderRadius: 18,
+                backgroundColor: '#FFFFFF',
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+              <Text style={{ color: eventDate ? colors.text : colors.muted, fontWeight: '700' }}>{formatDate(eventDate)}</Text>
+            </Pressable>
+            <Pressable
+              onPress={openTimePicker}
+              style={{
+                flex: 1,
+                minHeight: 54,
+                borderRadius: 18,
+                backgroundColor: '#FFFFFF',
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <Ionicons name="time-outline" size={18} color={colors.primary} />
+              <Text style={{ color: eventTime ? colors.text : colors.muted, fontWeight: '700' }}>{formatTime(eventTime)}</Text>
+            </Pressable>
+          </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((item) => {
               const active = item === timeSlot;
@@ -180,25 +354,70 @@ export default function CreateEventScreen() {
             })}
           </View>
         </View>
+
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Location</Text>
+          <Pressable
+            onPress={() => setShowMap(true)}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 16,
+              gap: 12,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: '#E0F2FE',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="map-outline" size={20} color={colors.skyDark} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '800' }}>
+                  {coordinate ? 'Map pin selected' : 'Pin exact location on map'}
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  {area ? `${area} shown publicly` : 'Only locality is visible before approval'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </View>
+          </Pressable>
+        </View>
+
+        <FormField
+          label="Locality shown publicly"
+          value={area}
+          onChangeText={setArea}
+          placeholder="Zoo Road / Ganeshguri / Uzan Bazar"
+        />
+        <FormField
+          label="One line about the location"
+          value={locationNote}
+          onChangeText={setLocationNote}
+          placeholder="Near the main entrance, easy parking"
+        />
+        <FormField
+          label="Private exact address"
+          value={exactLocation}
+          onChangeText={setExactLocation}
+          placeholder="PVR City Centre lobby, Christian Basti"
+        />
         <FormField
           label="Max People"
           value={maxPeople}
           onChangeText={setMaxPeople}
           keyboardType="numeric"
           placeholder="2 to 10"
-        />
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Private details</Text>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Only approved members should see these.
-          </Text>
-        </View>
-        <FormField label="Exact meeting time" value={exactTime} onChangeText={setExactTime} placeholder="7:30 PM" />
-        <FormField
-          label="Exact address"
-          value={exactLocation}
-          onChangeText={setExactLocation}
-          placeholder="PVR City Centre lobby, Christian Basti"
         />
 
         {currentUser?.gender === 'woman' ? (
@@ -215,7 +434,7 @@ export default function CreateEventScreen() {
               justifyContent: 'space-between',
             }}
           >
-            <View style={{ gap: 4 }}>
+            <View style={{ gap: 4, flex: 1 }}>
               <Text style={{ color: colors.text, fontWeight: '800' }}>Women only</Text>
               <Text style={{ color: colors.muted }}>
                 Only women should be able to view and request this plan.
@@ -233,6 +452,55 @@ export default function CreateEventScreen() {
 
         <GradientButton label="Drop the Plan" onPress={handleCreate} fullWidth />
       </ScrollView>
+
+      <LocationMapPicker
+        visible={showMap}
+        topInset={insets.top}
+        coordinate={coordinate}
+        mapRegion={mapRegion}
+        exactLocation={exactLocation}
+        onClose={() => setShowMap(false)}
+        onUseCurrentLocation={useCurrentLocation}
+        onApplyCoordinate={applyCoordinate}
+        onRegionChangeComplete={setMapRegion}
+      />
+
+      {Platform.OS !== 'android' && showDatePicker ? (
+        <Modal transparent animationType="fade" visible={showDatePicker}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
+            <View style={{ backgroundColor: '#FFFFFF', padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+              <DateTimePicker
+                value={eventDate ?? new Date()}
+                mode="date"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={(_event, selectedDate) => {
+                  if (selectedDate) setEventDate(selectedDate);
+                }}
+              />
+              <GradientButton label="Done" onPress={() => setShowDatePicker(false)} fullWidth />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
+      {Platform.OS !== 'android' && showTimePicker ? (
+        <Modal transparent animationType="fade" visible={showTimePicker}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
+            <View style={{ backgroundColor: '#FFFFFF', padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+              <DateTimePicker
+                value={eventTime ?? new Date()}
+                mode="time"
+                display="spinner"
+                onChange={(_event, selectedTime) => {
+                  if (selectedTime) setEventTime(selectedTime);
+                }}
+              />
+              <GradientButton label="Done" onPress={() => setShowTimePicker(false)} fullWidth />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }

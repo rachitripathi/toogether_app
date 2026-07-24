@@ -17,6 +17,16 @@ import type {
   RequestStatus,
   User,
 } from '@/lib/types';
+import {
+  CREDIT_PACKS,
+  FREE_CREATE_LIMIT,
+  FREE_JOIN_LIMIT,
+  VERIFIED_JOIN_BONUS,
+  getDefaultAppMode,
+  type CreditPackId,
+  type DevAppMode,
+  isMonetisationEnabled,
+} from '@/lib/monetisation';
 
 type CreateEventInput = {
   title: string;
@@ -26,6 +36,10 @@ type CreateEventInput = {
   timeSlot: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
   exactTime: string;
   exactLocation: string;
+  locationNote?: string;
+  latitude?: number;
+  longitude?: number;
+  mapUrl?: string;
   location: string;
   maxPeople?: number;
   category: EventCategory;
@@ -34,6 +48,18 @@ type CreateEventInput = {
 };
 
 type SocialProvider = 'google' | 'apple';
+
+type UsageSummary = {
+  mode: DevAppMode;
+  monetisationEnabled: boolean;
+  credits: number;
+  joinUsed: number;
+  joinLimit: number;
+  createUsed: number;
+  createLimit: number;
+  joinLimitReached: boolean;
+  createLimitReached: boolean;
+};
 
 type AppContextValue = {
   currentUser: User | null;
@@ -46,11 +72,28 @@ type AppContextValue = {
   isOnboardingComplete: boolean;
   shouldShowVerificationPrompt: boolean;
   categoryConfig: typeof CATEGORY_CONFIG;
+  devAppMode: DevAppMode;
+  monetisationEnabled: boolean;
+  setDevAppMode: (mode: DevAppMode) => void;
+  getUsageSummary: () => UsageSummary;
+  buyCreditPack: (packId: CreditPackId) => void;
+  shouldShowPaywallForJoin: () => boolean;
+  shouldShowPaywallForCreate: () => boolean;
+  isAttendeesUnlocked: (eventId: string) => boolean;
+  unlockAttendees: (eventId: string) => boolean;
   completeOnboarding: () => void;
   socialAuth: (provider: SocialProvider, mode: 'login' | 'signup') => void;
   logout: () => void;
   dismissVerificationPrompt: () => void;
+  updateCurrentUser: (
+    data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
+  ) => void;
   createEvent: (data: CreateEventInput) => Event;
+  updateEvent: (
+    eventId: string,
+    data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
+  ) => void;
+  deleteEvent: (eventId: string) => void;
   requestToJoin: (eventId: string) => void;
   approveRequest: (eventId: string, userId: string) => void;
   rejectRequest: (eventId: string, userId: string) => void;
@@ -74,7 +117,7 @@ type AppContextValue = {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [users] = useState(MOCK_USERS);
+  const [users, setUsers] = useState(MOCK_USERS);
   const [events, setEvents] = useState(MOCK_EVENTS);
   const [requests, setRequests] = useState(MOCK_REQUESTS);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
@@ -98,19 +141,91 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
+  const [devAppMode, setDevAppMode] = useState<DevAppMode>(getDefaultAppMode);
+  const [unlockedAttendeeEventIds, setUnlockedAttendeeEventIds] = useState<string[]>([]);
+  const monetisationEnabled = isMonetisationEnabled(devAppMode);
+
+  const withDevUsage = (user: User): User => {
+    if (devAppMode === 'free' || devAppMode === 'new-user') {
+      return {
+        ...user,
+        credits: user.credits ?? 0,
+        joinRequestsThisMonth: user.joinRequestsThisMonth ?? 1,
+        plansCreatedThisMonth: user.plansCreatedThisMonth ?? 1,
+      };
+    }
+
+    if (devAppMode === 'limit-hit') {
+      return {
+        ...user,
+        credits: 0,
+        joinRequestsThisMonth: user.verified ? FREE_JOIN_LIMIT + VERIFIED_JOIN_BONUS : FREE_JOIN_LIMIT,
+        plansCreatedThisMonth: FREE_CREATE_LIMIT,
+      };
+    }
+
+    return {
+      ...user,
+      credits: user.credits ?? 2,
+      joinRequestsThisMonth: user.joinRequestsThisMonth ?? 2,
+      plansCreatedThisMonth: user.plansCreatedThisMonth ?? 1,
+    };
+  };
+
+  const updateCurrentUserUsage = (updater: (user: User) => User) => {
+    setCurrentUser((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const next = updater(prev);
+      setUsers((usersPrev) => usersPrev.map((user) => (user.id === next.id ? next : user)));
+      return next;
+    });
+  };
+
+  const getUsageSummaryForUser = (user: User | null): UsageSummary => {
+    const joinLimit = FREE_JOIN_LIMIT + (user?.verified ? VERIFIED_JOIN_BONUS : 0);
+    const credits = user?.credits ?? 0;
+    const joinUsed = user?.joinRequestsThisMonth ?? 0;
+    const createUsed = user?.plansCreatedThisMonth ?? 0;
+
+    return {
+      mode: devAppMode,
+      monetisationEnabled,
+      credits,
+      joinUsed,
+      joinLimit,
+      createUsed,
+      createLimit: FREE_CREATE_LIMIT,
+      joinLimitReached: joinUsed >= joinLimit && credits <= 0,
+      createLimitReached: createUsed >= FREE_CREATE_LIMIT && credits <= 0,
+    };
+  };
+
+  const getUsageSummary = () => getUsageSummaryForUser(currentUser);
+
+  const shouldShowPaywallForJoin = () => {
+    const usage = getUsageSummary();
+    return usage.monetisationEnabled && usage.joinLimitReached;
+  };
+
+  const shouldShowPaywallForCreate = () => {
+    const usage = getUsageSummary();
+    return usage.monetisationEnabled && usage.createLimitReached;
+  };
 
   const socialAuth = (provider: SocialProvider, mode: 'login' | 'signup') => {
     if (provider === 'google') {
       const existing = users.find((item) => item.id === 'u2');
       if (existing) {
-        setCurrentUser(existing);
+        setCurrentUser(withDevUsage(existing));
         setShouldShowVerificationPrompt(false);
         return;
       }
     }
 
     if (provider === 'apple') {
-      const nextUser = {
+      const nextUser: User = {
         id: 'u6',
         name: 'Aisha Thomas',
         email: 'aisha@example.com',
@@ -122,12 +237,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         verified: true,
         bio: mode === 'signup' ? 'New here and ready for plans.' : 'Always down for one good plan.',
       };
-      setCurrentUser(nextUser);
+      setCurrentUser(withDevUsage(nextUser));
       setShouldShowVerificationPrompt(false);
       return;
     }
 
-    const nextUser = {
+    const nextUser: User = {
       id: 'u1',
       name: 'Aryan Shah',
       email: 'aryan@example.com',
@@ -139,7 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       verified: false,
       bio: 'Living for spontaneous plans.',
     };
-    setCurrentUser(nextUser);
+    setCurrentUser(withDevUsage(nextUser));
     setShouldShowVerificationPrompt(!nextUser.verified);
   };
 
@@ -156,16 +271,67 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShouldShowVerificationPrompt(false);
   };
 
+  const updateCurrentUser = (
+    data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
+  ) => {
+    setCurrentUser((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const next = { ...prev, ...data };
+      setUsers((usersPrev) => usersPrev.map((user) => (user.id === next.id ? next : user)));
+      return next;
+    });
+  };
+
   const createEvent = (data: CreateEventInput) => {
+    if (!currentUser) {
+      throw new Error('createEvent requires a signed-in user');
+    }
+
+    const usage = getUsageSummaryForUser(currentUser);
+    if (usage.monetisationEnabled && usage.createLimitReached) {
+      throw new Error('Plan creation limit reached');
+    }
+
     const event: Event = {
       id: `e${Date.now()}`,
-      creatorId: currentUser?.id ?? 'u1',
+      creatorId: currentUser.id,
       approvedUserIds: [],
       requestUserIds: [],
       ...data,
     };
     setEvents((prev) => [event, ...prev]);
+    updateCurrentUserUsage((user) => {
+      const shouldSpendCredit = usage.monetisationEnabled && (user.plansCreatedThisMonth ?? 0) >= FREE_CREATE_LIMIT;
+      return {
+        ...user,
+        plansCreatedThisMonth: (user.plansCreatedThisMonth ?? 0) + 1,
+        credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
+        totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
+      };
+    });
     return event;
+  };
+
+  const updateEvent = (
+    eventId: string,
+    data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
+  ) => {
+    setEvents((prev) =>
+      prev.map((event) => (event.id === eventId ? { ...event, ...data } : event))
+    );
+  };
+
+  const deleteEvent = (eventId: string) => {
+    setEvents((prev) => prev.filter((event) => event.id !== eventId));
+    setRequests((prev) => prev.filter((request) => request.eventId !== eventId));
+    setMessages((prev) => {
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
+    });
   };
 
   const requestToJoin = (eventId: string) => {
@@ -189,6 +355,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const usage = getUsageSummaryForUser(currentUser);
+    if (usage.monetisationEnabled && usage.joinLimitReached) {
+      return;
+    }
+
     const nextRequest: JoinRequest = {
       id: `r${Date.now()}`,
       userId: currentUser.id,
@@ -205,6 +376,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : event
       )
     );
+    updateCurrentUserUsage((user) => {
+      const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
+      const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
+      const shouldSpendCredit = usage.monetisationEnabled && (user.joinRequestsThisMonth ?? 0) >= freeJoinLimit;
+
+      return {
+        ...user,
+        joinRequestsThisMonth: nextUsed,
+        credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
+        totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
+      };
+    });
+  };
+
+  const buyCreditPack = (packId: CreditPackId) => {
+    const pack = CREDIT_PACKS.find((item) => item.id === packId);
+    if (!pack) {
+      return;
+    }
+
+    updateCurrentUserUsage((user) => ({
+      ...user,
+      credits: (user.credits ?? 0) + pack.credits,
+      totalCreditsEarned: (user.totalCreditsEarned ?? 0) + pack.credits,
+    }));
+  };
+
+  const isAttendeesUnlocked = (eventId: string) => {
+    return !monetisationEnabled || unlockedAttendeeEventIds.includes(eventId);
+  };
+
+  const unlockAttendees = (eventId: string) => {
+    if (!monetisationEnabled || unlockedAttendeeEventIds.includes(eventId)) {
+      return true;
+    }
+
+    if (!currentUser || (currentUser.credits ?? 0) < 1) {
+      return false;
+    }
+
+    setUnlockedAttendeeEventIds((prev) => [...prev, eventId]);
+    updateCurrentUserUsage((user) => ({
+      ...user,
+      credits: Math.max((user.credits ?? 0) - 1, 0),
+      totalCreditsSpent: (user.totalCreditsSpent ?? 0) + 1,
+    }));
+    return true;
   };
 
   const approveRequest = (eventId: string, userId: string) => {
@@ -467,7 +685,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const getUserById = (id: string) => {
-    return [...users, currentUser].filter(Boolean).find((user) => user?.id === id);
+    return users.find((user) => user.id === id) ?? (currentUser?.id === id ? currentUser : undefined);
   };
 
   const getEventById = (id: string) => {
@@ -523,11 +741,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isOnboardingComplete,
         shouldShowVerificationPrompt,
         categoryConfig: CATEGORY_CONFIG,
+        devAppMode,
+        monetisationEnabled,
+        setDevAppMode,
+        getUsageSummary,
+        buyCreditPack,
+        shouldShowPaywallForJoin,
+        shouldShowPaywallForCreate,
+        isAttendeesUnlocked,
+        unlockAttendees,
         completeOnboarding,
         socialAuth,
         logout,
         dismissVerificationPrompt,
+        updateCurrentUser,
         createEvent,
+        updateEvent,
+        deleteEvent,
         requestToJoin,
         approveRequest,
         rejectRequest,

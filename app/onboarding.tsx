@@ -1,11 +1,13 @@
-import { Pressable, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
 import { GradientButton } from '@/components/GradientButton';
 import { gradients } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const slides = [
   {
@@ -27,19 +29,32 @@ const slides = [
 
 export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
   const { completeOnboarding } = useApp();
   const insets = useSafeAreaInsets();
-  const slide = slides[index];
 
   const finish = () => {
     completeOnboarding();
     router.replace('/auth');
   };
 
+  const goToSlide = (nextIndex: number) => {
+    scrollRef.current?.scrollTo({ x: nextIndex * SCREEN_WIDTH, animated: true });
+    setIndex(nextIndex);
+  };
+
+  const handleNext = () => {
+    if (index === slides.length - 1) {
+      finish();
+    } else {
+      goToSlide(index + 1);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#F6F7FB' }}>
       <LinearGradient colors={[...gradients.hero]} style={{ flex: 1, paddingTop: insets.top + 20 }}>
-        <View style={{ paddingHorizontal: 24, alignItems: 'flex-end' }}>
+        <View style={{ paddingHorizontal: 24, alignItems: 'flex-end', minHeight: 40 }}>
           {index < slides.length - 1 ? (
             <Pressable
               onPress={finish}
@@ -55,20 +70,39 @@ export default function OnboardingScreen() {
           ) : null}
         </View>
 
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
-          <View
-            style={{
-              width: 220,
-              height: 220,
-              borderRadius: 110,
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 88 }}>{slide.emoji}</Text>
-          </View>
-        </View>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={(e) => {
+            const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            setIndex(newIndex);
+          }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ alignItems: 'center' }}
+        >
+          {slides.map((slide) => (
+            <View
+              key={slide.emoji}
+              style={{ width: SCREEN_WIDTH, flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}
+            >
+              <View
+                style={{
+                  width: 220,
+                  height: 220,
+                  borderRadius: 110,
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 88 }}>{slide.emoji}</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
 
         <View
           style={{
@@ -82,35 +116,30 @@ export default function OnboardingScreen() {
           }}
         >
           <Text style={{ fontSize: 31, fontWeight: '900', color: '#1A1A2E', lineHeight: 38 }}>
-            {slide.title}
+            {slides[index].title}
           </Text>
           <Text style={{ fontSize: 16, color: '#667085', marginTop: 12, lineHeight: 24 }}>
-            {slide.subtitle}
+            {slides[index].subtitle}
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 28, marginBottom: 28 }}>
             {slides.map((_, dotIndex) => (
-              <View
-                key={dotIndex}
-                style={{
-                  width: dotIndex === index ? 28 : 8,
-                  height: 8,
-                  borderRadius: 999,
-                  backgroundColor: dotIndex === index ? '#F5A623' : '#D0D5DD',
-                }}
-              />
+              <Pressable key={dotIndex} onPress={() => goToSlide(dotIndex)}>
+                <View
+                  style={{
+                    width: dotIndex === index ? 28 : 8,
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: dotIndex === index ? '#F5A623' : '#D0D5DD',
+                  }}
+                />
+              </Pressable>
             ))}
           </View>
 
           <GradientButton
             label={index === slides.length - 1 ? 'Get Started' : 'Next'}
-            onPress={() => {
-              if (index === slides.length - 1) {
-                finish();
-                return;
-              }
-              setIndex((value) => value + 1);
-            }}
+            onPress={handleNext}
             fullWidth
           />
         </View>

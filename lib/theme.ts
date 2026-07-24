@@ -1,10 +1,10 @@
 export const colors = {
-  page: '#F4F7F6',
+  page: '#F4F6FC',
   card: '#FFFFFF',
-  text: '#222832',
-  muted: '#737D8C',
-  border: '#E6ECEF',
-  primary: '#5BC4FF',
+  text: '#1A1D2E',
+  muted: '#6B7490',
+  border: '#E2E8F5',
+  primary: '#5D7FFF',
   secondary: '#F5A623',
   sky: '#B4E5FF',
   skyDark: '#1C4E6E',
@@ -12,16 +12,20 @@ export const colors = {
   lavender: '#EDE6FF',
   peach: '#FFE2C7',
   butter: '#FFE6A7',
-  success: '#16A34A',
+  success: '#10B981',
   warning: '#F59E0B',
   danger: '#FB7185',
-  overlay: 'rgba(12, 18, 38, 0.45)',
+  overlay: 'rgba(12, 18, 38, 0.52)',
 };
 
 export const gradients = {
-  hero: ['#FFFFFF', '#F1FBFC'] as const,
+  hero: ['#FFFFFF', '#EFF6FF'] as const,
   softHero: ['#FFFFFF', '#F6FCFF'] as const,
-  amber: ['#8BD7FF', '#5BC4FF'] as const,
+  amber: ['#7BBFFF', '#4F8EFF'] as const,
+  crew: ['#6D28D9', '#5D7FFF'] as const,
+  activity: ['#EA580C', '#FBBF24'] as const,
+  profile: ['#0369A1', '#5D7FFF'] as const,
+  verified: ['#065F46', '#10B981'] as const,
 };
 
 export const spacing = {
@@ -38,17 +42,24 @@ export const radius = {
 
 export const shadow = {
   card: {
-    shadowColor: '#C9D8DE',
+    shadowColor: '#C7D3F0',
     shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 3,
   },
   lift: {
-    shadowColor: '#B7CBD4',
-    shadowOpacity: 0.22,
+    shadowColor: '#9AACDF',
+    shadowOpacity: 0.26,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 12 },
-    elevation: 5,
+    elevation: 6,
+  },
+  compact: {
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
 };
