@@ -18,8 +18,11 @@ const ExpoWebSecureStoreAdapter = {
   },
 };
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY!;
+// const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+// const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY!;
+
+const supabaseUrl = "https://najyegewtbeyigppuufy.supabase.co";
+const supabaseKey = "sb_publishable_pDw3N9foURXtQxbiTXt2aQ_Ylwziwcs";
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error("Missing Supabase env vars — check your .env file");
