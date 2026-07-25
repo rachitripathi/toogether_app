@@ -1,13 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { supabase } from '@/utils/supabase';
-import {
-  CATEGORY_CONFIG,
-  MOCK_EVENTS,
-  MOCK_MESSAGES,
-  MOCK_RATINGS,
-  MOCK_REQUESTS,
-} from '@/lib/mockData';
+import { CATEGORY_CONFIG, MOCK_MESSAGES, MOCK_RATINGS } from '@/lib/mockData';
 import type {
   CrewRequest,
   Event,
@@ -68,6 +62,8 @@ type AppContextValue = {
   currentUser: User | null;
   users: User[];
   events: Event[];
+  isLoadingEvents: boolean;
+  refreshFeed: () => void;
   requests: JoinRequest[];
   crewRequests: CrewRequest[];
   messages: Record<string, Message[]>;
@@ -185,8 +181,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { profile, isLoggedIn, refreshProfile } = useAuthContext();
 
   const [users, setUsers] = useState<User[]>([]);
-  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
-  const [requests, setRequests] = useState<JoinRequest[]>(MOCK_REQUESTS);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [refreshFeedToken, setRefreshFeedToken] = useState(0);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
     {
       id: 'c1',
@@ -264,16 +262,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const fetchEventsAndRequests = async () => {
+      setIsLoadingEvents(true);
       const [eventsRes, requestsRes] = await Promise.all([
         supabase.from('events').select('*').order('created_at', { ascending: false }),
         supabase.from('join_requests').select('*'),
       ]);
 
-      if (!cancelled && !eventsRes.error && !requestsRes.error && eventsRes.data && requestsRes.data) {
+      if (cancelled) {
+        return;
+      }
+
+      if (!eventsRes.error && !requestsRes.error && eventsRes.data && requestsRes.data) {
         const mappedRequests = requestsRes.data.map(mapRequestRow);
         setRequests(mappedRequests);
         setEvents(hydrateEvents(eventsRes.data.map(mapEventRow), mappedRequests));
+      } else {
+        if (eventsRes.error) console.error('Error fetching events:', eventsRes.error);
+        if (requestsRes.error) console.error('Error fetching join requests:', requestsRes.error);
       }
+      setIsLoadingEvents(false);
     };
 
     fetchUsers();
@@ -282,7 +289,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, refreshFeedToken]);
+
+  const refreshFeed = () => setRefreshFeedToken((token) => token + 1);
 
   const updateCurrentUserUsage = (updater: (user: User) => User) => {
     if (!currentUser) return;
@@ -1017,6 +1026,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentUser,
         users,
         events,
+        isLoadingEvents,
+        refreshFeed,
         requests,
         crewRequests,
         messages,

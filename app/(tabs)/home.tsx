@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { EventCard } from '@/components/EventCard';
 import { HeaderHero } from '@/components/HeaderHero';
 import { PinMark } from '@/components/PinMark';
+import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleton';
 import { colors, shadow } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
@@ -66,10 +67,22 @@ function SearchBar({ query, setQuery }: { query: string; setQuery: (value: strin
 }
 
 export default function HomeScreen() {
-  const { currentUser, events, getUsageSummary } = useApp();
+  const { currentUser, events, isLoadingEvents, refreshFeed, getUsageSummary } = useApp();
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<EventCategory | 'all'>('all');
   const [query, setQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    refreshFeed();
+  };
+
+  useEffect(() => {
+    if (!isLoadingEvents) {
+      setRefreshing(false);
+    }
+  }, [isLoadingEvents]);
 
   const filtered = events.filter((event) => {
     const normalizedQuery = query.toLowerCase();
@@ -93,6 +106,9 @@ export default function HomeScreen() {
         stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: 154 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
       >
         <HeaderHero
           eyebrow={`Hey ${currentUser?.name?.split(' ')[0] ?? 'there'} 👋`}
@@ -224,7 +240,13 @@ export default function HomeScreen() {
           ) : null}
 
           <View style={{ gap: 16 }}>
-            {filtered.length ? (
+            {isLoadingEvents && !events.length ? (
+              <>
+                <EventCardSkeleton />
+                <EventCardSkeleton />
+                <EventCardSkeleton />
+              </>
+            ) : filtered.length ? (
               filtered.map((event) => <EventCard key={event.id} event={event} />)
             ) : (
               <View
