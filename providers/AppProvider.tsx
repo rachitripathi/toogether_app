@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { supabase } from '@/utils/supabase';
-import { CATEGORY_CONFIG, MOCK_MESSAGES, MOCK_RATINGS } from '@/lib/mockData';
+import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
 import { randomUUID } from '@/lib/uuid';
 import type {
   CrewRequest,
@@ -106,7 +106,7 @@ type AppContextValue = {
   rejectCrewRequest: (requestId: string) => void;
   getCrewStatus: (userId: string) => 'none' | 'pending_incoming' | 'pending_outgoing' | 'connected';
   getCrewMembers: () => User[];
-  sendMessage: (eventId: string, text: string) => void;
+  sendMessage: (eventId: string, text: string) => Promise<void>;
   rateUser: (toUserId: string, eventId: string, stars: number) => void;
   getUserAverageRating: (userId: string) => number | null;
   getMyRatingForUser: (toUserId: string, eventId?: string) => number | null;
@@ -164,6 +164,22 @@ const mapRequestRow = (row: any): JoinRequest => ({
   createdAt: row.created_at,
 });
 
+const mapMessageRow = (row: any): Message => ({
+  id: row.id,
+  eventId: row.event_id,
+  userId: row.user_id,
+  text: row.text,
+  createdAt: row.created_at,
+});
+
+const groupMessagesByEvent = (rows: Message[]): Record<string, Message[]> => {
+  const grouped: Record<string, Message[]> = {};
+  for (const message of rows) {
+    grouped[message.eventId] = [...(grouped[message.eventId] ?? []), message];
+  }
+  return grouped;
+};
+
 const hydrateEvents = (
   rawEvents: Omit<Event, 'approvedUserIds' | 'requestUserIds'>[],
   rawRequests: JoinRequest[]
@@ -202,7 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     },
   ]);
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
@@ -262,6 +278,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const fetchMessages = async () => {
+      const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
+      if (!cancelled && !error && data) {
+        setMessages(groupMessagesByEvent(data.map(mapMessageRow)));
+      } else if (error) {
+        console.error('Error fetching messages:', error);
+      }
+    };
+
     const fetchEventsAndRequests = async () => {
       setIsLoadingEvents(true);
       const [eventsRes, requestsRes] = await Promise.all([
@@ -286,6 +311,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     fetchUsers();
     fetchEventsAndRequests();
+    fetchMessages();
 
     return () => {
       cancelled = true;
@@ -293,6 +319,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isLoggedIn, refreshFeedToken]);
 
   const refreshFeed = () => setRefreshFeedToken((token) => token + 1);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    const channel = supabase
+      .channel('messages-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const message = mapMessageRow(payload.new);
+          setMessages((prev) => {
+            const existing = prev[message.eventId] ?? [];
+            if (existing.some((item) => item.id === message.id)) {
+              return prev;
+            }
+            return { ...prev, [message.eventId]: [...existing, message] };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isLoggedIn]);
 
   const updateCurrentUserUsage = (updater: (user: User) => User) => {
     if (!currentUser) return;
@@ -826,23 +880,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .filter(Boolean) as User[];
   };
 
-  const sendMessage = (eventId: string, text: string) => {
+  const sendMessage = async (eventId: string, text: string): Promise<void> => {
     if (!currentUser || !text.trim()) {
       return;
     }
 
     const message: Message = {
-      id: `m${Date.now()}`,
+      id: randomUUID(),
       eventId,
       userId: currentUser.id,
       text: text.trim(),
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => ({
-      ...prev,
-      [eventId]: [...(prev[eventId] ?? []), message],
-    }));
+    const { error } = await supabase
+      .from('messages')
+      .insert([{ id: message.id, event_id: message.eventId, user_id: message.userId, text: message.text }]);
+
+    if (error) {
+      console.error('Error sending message:', error);
+      throw new Error(error.message);
+    }
+
+    setMessages((prev) => {
+      const existing = prev[eventId] ?? [];
+      if (existing.some((item) => item.id === message.id)) {
+        return prev;
+      }
+      return { ...prev, [eventId]: [...existing, message] };
+    });
   };
 
   const rateUser = (toUserId: string, eventId: string, stars: number) => {

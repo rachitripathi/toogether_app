@@ -18,6 +18,8 @@ export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage } = useApp();
   const [text, setText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const event = getEventById(id ?? '');
 
   if (!event) {
@@ -27,6 +29,24 @@ export default function ChatScreen() {
   const isCreator = currentUser?.id === event.creatorId;
   const canChat = isCreator || getRequestStatus(event.id) === 'approved';
   const eventMessages = messages[event.id] ?? [];
+
+  const handleSend = async () => {
+    const value = text.trim();
+    if (!value || isSending) {
+      return;
+    }
+    setSendError(null);
+    setIsSending(true);
+    setText('');
+    try {
+      await sendMessage(event.id, value);
+    } catch (err) {
+      setText(value);
+      setSendError(err instanceof Error ? err.message : 'Could not send message. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -162,43 +182,44 @@ export default function ChatScreen() {
             </Text>
           </View>
         ) : (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 10,
-              backgroundColor: '#FFFFFF',
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 999,
-              paddingHorizontal: 16,
-            }}
-          >
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
-              placeholder="Say something..."
-              placeholderTextColor="#98A2B3"
-              style={{ flex: 1, minHeight: 52, color: colors.text }}
-            />
-            <Pressable
-              onPress={() => {
-                sendMessage(event.id, text);
-                setText('');
-              }}
-              disabled={!text.trim()}
+          <View style={{ gap: 8 }}>
+            {sendError ? <Text style={{ color: colors.danger, fontSize: 13 }}>{sendError}</Text> : null}
+            <View
               style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
-                backgroundColor: text.trim() ? colors.primary : '#D0D5DD',
+                flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: 10,
+                backgroundColor: '#FFFFFF',
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 999,
+                paddingHorizontal: 16,
               }}
             >
-              <Ionicons name="send" size={16} color="#FFFFFF" />
-            </Pressable>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                placeholder="Say something..."
+                placeholderTextColor="#98A2B3"
+                editable={!isSending}
+                style={{ flex: 1, minHeight: 52, color: colors.text }}
+              />
+              <Pressable
+                onPress={handleSend}
+                disabled={!text.trim() || isSending}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: text.trim() && !isSending ? colors.primary : '#D0D5DD',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="send" size={16} color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
         )}
       </View>
