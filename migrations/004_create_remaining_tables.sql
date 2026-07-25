@@ -1,38 +1,15 @@
--- Toogether App - Core Schema Migration
--- Version: 1.0
--- Description: Create all core tables for the Toogether event discovery app
+-- Toogether App - Create Remaining Tables
+-- Version: 1.3
+-- Why: `profiles` already exists live and is working. `events`,
+-- `join_requests`, `messages`, `ratings`, and `crew_requests` don't exist yet
+-- — this migration creates them, matching exactly the columns the app code
+-- (providers/AppProvider.tsx) reads and writes. Safe to re-run: uses
+-- CREATE TABLE/INDEX IF NOT EXISTS, and drops+recreates policies/triggers
+-- rather than relying on invalid `IF NOT EXISTS` variants of those.
 
 -- ============================================================================
--- 1. PROFILES TABLE - Authentication & User Profiles
+-- 1. EVENTS
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT,
-  name TEXT,
-  username TEXT UNIQUE,
-  gender TEXT,
-  age INTEGER,
-  city TEXT,
-  bio TEXT,
-  avatar_uri TEXT,
-  avatar_colors TEXT[] DEFAULT ARRAY['#8B5CF6', '#6366F1'],
-  verified BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
-CREATE INDEX IF NOT EXISTS idx_profiles_city ON public.profiles(city);
-CREATE INDEX IF NOT EXISTS idx_profiles_verified ON public.profiles(verified);
-
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- PROFILES RLS Policies
-CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE 
-  USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT 
-  WITH CHECK (auth.uid() = id);
 
 CREATE TABLE IF NOT EXISTS public.events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -40,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   description TEXT NOT NULL,
   creator_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   category VARCHAR(50) NOT NULL
-    CHECK (category IN ('movies', 'chill', 'music', 'sports', 
+    CHECK (category IN ('movies', 'chill', 'music', 'sports',
                         'food', 'travel', 'gaming', 'other')),
   emoji VARCHAR(10) NOT NULL,
   date_time TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -70,7 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_events_search ON public.events(area, date_time DE
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 3. JOIN_REQUESTS TABLE - Event Participation Workflow
+-- 2. JOIN_REQUESTS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.join_requests (
@@ -95,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_join_requests_user_approved ON public.join_reques
 ALTER TABLE public.join_requests ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 4. MESSAGES TABLE - Event Chat/Messaging
+-- 3. MESSAGES
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.messages (
@@ -115,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_recent ON public.messages(event_id, crea
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 5. RATINGS TABLE - Post-Event Reviews & User Ratings
+-- 4. RATINGS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.ratings (
@@ -137,7 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_ratings_received ON public.ratings(to_user_id);
 ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 6. CREW_REQUESTS TABLE - Friend/Crew Connections
+-- 5. CREW_REQUESTS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.crew_requests (
@@ -158,70 +135,91 @@ CREATE INDEX IF NOT EXISTS idx_crew_requests_status ON public.crew_requests(stat
 ALTER TABLE public.crew_requests ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- ROW-LEVEL SECURITY (RLS) POLICIES
+-- 6. DROP *EVERY* EXISTING POLICY ON THESE TABLES, WHATEVER IT'S CALLED
+-- (harmless no-op if the tables were just created and have none yet — this
+-- just makes the migration safe to re-run later if policies change)
 -- ============================================================================
 
--- EVENTS Policies
+DO $$
+DECLARE
+  pol RECORD;
+  target_table TEXT;
+BEGIN
+  FOREACH target_table IN ARRAY ARRAY['events', 'join_requests', 'messages', 'ratings', 'crew_requests']
+  LOOP
+    FOR pol IN
+      SELECT policyname FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = target_table
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, target_table);
+    END LOOP;
+  END LOOP;
+END $$;
+
+-- ============================================================================
+-- 7. RLS POLICIES
+-- ============================================================================
+
+-- EVENTS
 CREATE POLICY "events_select_all" ON public.events FOR SELECT USING (true);
-CREATE POLICY "events_insert_authenticated" ON public.events FOR INSERT 
+CREATE POLICY "events_insert_authenticated" ON public.events FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND creator_id = auth.uid());
-CREATE POLICY "events_update_creator" ON public.events FOR UPDATE 
+CREATE POLICY "events_update_creator" ON public.events FOR UPDATE
   USING (auth.uid() = creator_id)
   WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "events_delete_creator" ON public.events FOR DELETE 
+CREATE POLICY "events_delete_creator" ON public.events FOR DELETE
   USING (auth.uid() = creator_id);
 
--- JOIN_REQUESTS Policies
-CREATE POLICY "join_requests_select_own" ON public.join_requests FOR SELECT 
-  USING (auth.uid() = user_id OR 
+-- JOIN_REQUESTS
+CREATE POLICY "join_requests_select_own" ON public.join_requests FOR SELECT
+  USING (auth.uid() = user_id OR
          EXISTS(SELECT 1 FROM public.events WHERE id = event_id AND creator_id = auth.uid()));
-CREATE POLICY "join_requests_insert_own" ON public.join_requests FOR INSERT 
+CREATE POLICY "join_requests_insert_own" ON public.join_requests FOR INSERT
   WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "join_requests_update_creator" ON public.join_requests FOR UPDATE 
+CREATE POLICY "join_requests_update_creator" ON public.join_requests FOR UPDATE
   USING (EXISTS(SELECT 1 FROM public.events WHERE id = event_id AND creator_id = auth.uid()))
   WITH CHECK (EXISTS(SELECT 1 FROM public.events WHERE id = event_id AND creator_id = auth.uid()));
 
--- MESSAGES Policies
-CREATE POLICY "messages_select_approved" ON public.messages FOR SELECT 
-  USING (EXISTS(SELECT 1 FROM public.events e 
-         LEFT JOIN public.join_requests jr ON e.id = jr.event_id 
-         WHERE e.id = messages.event_id 
-         AND (e.creator_id = auth.uid() OR 
+-- MESSAGES
+CREATE POLICY "messages_select_approved" ON public.messages FOR SELECT
+  USING (EXISTS(SELECT 1 FROM public.events e
+         LEFT JOIN public.join_requests jr ON e.id = jr.event_id
+         WHERE e.id = messages.event_id
+         AND (e.creator_id = auth.uid() OR
               (jr.user_id = auth.uid() AND jr.status = 'approved'))));
-CREATE POLICY "messages_insert_approved" ON public.messages FOR INSERT 
+CREATE POLICY "messages_insert_approved" ON public.messages FOR INSERT
   WITH CHECK (auth.uid() = user_id AND
-              EXISTS(SELECT 1 FROM public.events e 
-              LEFT JOIN public.join_requests jr ON e.id = jr.event_id 
-              WHERE e.id = messages.event_id 
-              AND (e.creator_id = auth.uid() OR 
+              EXISTS(SELECT 1 FROM public.events e
+              LEFT JOIN public.join_requests jr ON e.id = jr.event_id
+              WHERE e.id = messages.event_id
+              AND (e.creator_id = auth.uid() OR
                    (jr.user_id = auth.uid() AND jr.status = 'approved'))));
 
--- RATINGS Policies
+-- RATINGS
 CREATE POLICY "ratings_select_all" ON public.ratings FOR SELECT USING (true);
-CREATE POLICY "ratings_insert_participated" ON public.ratings FOR INSERT 
+CREATE POLICY "ratings_insert_participated" ON public.ratings FOR INSERT
   WITH CHECK (auth.uid() = from_user_id AND
-              EXISTS(SELECT 1 FROM public.join_requests 
-              WHERE event_id = ratings.event_id 
-              AND user_id = ratings.to_user_id 
+              EXISTS(SELECT 1 FROM public.join_requests
+              WHERE event_id = ratings.event_id
+              AND user_id = ratings.to_user_id
               AND status = 'approved'));
-CREATE POLICY "ratings_update_own" ON public.ratings FOR UPDATE 
+CREATE POLICY "ratings_update_own" ON public.ratings FOR UPDATE
   USING (auth.uid() = from_user_id)
   WITH CHECK (auth.uid() = from_user_id);
 
--- CREW_REQUESTS Policies
-CREATE POLICY "crew_requests_select_own" ON public.crew_requests FOR SELECT 
+-- CREW_REQUESTS
+CREATE POLICY "crew_requests_select_own" ON public.crew_requests FOR SELECT
   USING (auth.uid() = from_user_id OR auth.uid() = to_user_id);
-CREATE POLICY "crew_requests_insert_own" ON public.crew_requests FOR INSERT 
+CREATE POLICY "crew_requests_insert_own" ON public.crew_requests FOR INSERT
   WITH CHECK (auth.uid() = from_user_id);
-CREATE POLICY "crew_requests_update_recipient" ON public.crew_requests FOR UPDATE 
+CREATE POLICY "crew_requests_update_recipient" ON public.crew_requests FOR UPDATE
   USING (auth.uid() = to_user_id)
   WITH CHECK (auth.uid() = to_user_id);
 
 -- ============================================================================
--- FUNCTIONS & TRIGGERS
+-- 8. FUNCTIONS & TRIGGERS
 -- ============================================================================
 
--- Update updated_at timestamp on table changes
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -230,35 +228,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply updated_at trigger to all tables that have it
+DROP TRIGGER IF EXISTS update_events_updated_at ON public.events;
 CREATE TRIGGER update_events_updated_at BEFORE UPDATE ON public.events
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_join_requests_updated_at ON public.join_requests;
 CREATE TRIGGER update_join_requests_updated_at BEFORE UPDATE ON public.join_requests
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_messages_updated_at ON public.messages;
 CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_crew_requests_updated_at ON public.crew_requests;
 CREATE TRIGGER update_crew_requests_updated_at BEFORE UPDATE ON public.crew_requests
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- ============================================================================
--- CLEANUP / ROLLBACK (for development/testing)
--- ============================================================================
-/*
--- To rollback this migration, uncomment and run:
-
-DROP TRIGGER IF EXISTS update_crew_requests_updated_at ON public.crew_requests;
-DROP TRIGGER IF EXISTS update_messages_updated_at ON public.messages;
-DROP TRIGGER IF EXISTS update_join_requests_updated_at ON public.join_requests;
-DROP TRIGGER IF EXISTS update_events_updated_at ON public.events;
-DROP FUNCTION IF EXISTS public.update_updated_at_column();
-
-DROP TABLE IF EXISTS public.crew_requests;
-DROP TABLE IF EXISTS public.ratings;
-DROP TABLE IF EXISTS public.messages;
-DROP TABLE IF EXISTS public.join_requests;
-DROP TABLE IF EXISTS public.events;
-DROP TABLE IF EXISTS public.profiles;
-*/

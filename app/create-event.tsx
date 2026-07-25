@@ -44,6 +44,14 @@ function combineDateAndTime(date: Date, time: Date) {
   return next;
 }
 
+function deriveTimeSlot(time: Date): 'Morning' | 'Afternoon' | 'Evening' | 'Night' {
+  const hour = time.getHours();
+  if (hour >= 5 && hour < 12) return 'Morning';
+  if (hour >= 12 && hour < 17) return 'Afternoon';
+  if (hour >= 17 && hour < 21) return 'Evening';
+  return 'Night';
+}
+
 function googleMapsUrl(latitude: number, longitude: number) {
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
@@ -55,7 +63,6 @@ export default function CreateEventScreen() {
   const [description, setDescription] = useState('');
   const [eventDate, setEventDate] = useState<Date | null>(null);
   const [eventTime, setEventTime] = useState<Date | null>(null);
-  const [timeSlot, setTimeSlot] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night'>('Evening');
   const [area, setArea] = useState('');
   const [exactLocation, setExactLocation] = useState('');
   const [locationNote, setLocationNote] = useState('');
@@ -68,7 +75,12 @@ export default function CreateEventScreen() {
   const [category, setCategory] = useState<EventCategory>('chill');
   const [womenOnly, setWomenOnly] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const usage = getUsageSummary();
+
+  const isFormValid = Boolean(
+    title.trim() && eventDate && eventTime && area.trim() && exactLocation.trim()
+  );
 
   const applyCoordinate = async (nextCoordinate: MapCoordinate) => {
     setCoordinate(nextCoordinate);
@@ -140,13 +152,17 @@ export default function CreateEventScreen() {
     setShowTimePicker(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     if (shouldShowPaywallForCreate()) {
       router.push('/paywall');
       return;
     }
 
-    if (!title || !eventDate || !eventTime || !area || !exactLocation) {
+    if (!isFormValid) {
       setError('Add title, locality, date, exact time, and exact location.');
       return;
     }
@@ -161,35 +177,39 @@ export default function CreateEventScreen() {
     }
 
     setError('');
+    setIsSubmitting(true);
 
     const selectedCategory = categories.find((item) => item.id === category);
-    const dateTime = combineDateAndTime(eventDate, eventTime);
-    let event;
+    const dateTime = combineDateAndTime(eventDate!, eventTime!);
+
     try {
-      event = createEvent({
-      title,
-      description: description.slice(0, 200),
-      dateTime: dateTime.toISOString(),
-      area,
-      timeSlot,
-      exactTime: formatTime(eventTime),
-      exactLocation,
-      locationNote: locationNote.slice(0, 90),
-      latitude: coordinate?.latitude,
-      longitude: coordinate?.longitude,
-      mapUrl: coordinate ? googleMapsUrl(coordinate.latitude, coordinate.longitude) : undefined,
-      location: exactLocation,
-      maxPeople: parsedMaxPeople,
-      category,
-      emoji: selectedCategory?.emoji ?? '✨',
+      const event = await createEvent({
+        title,
+        description: description.slice(0, 200),
+        dateTime: dateTime.toISOString(),
+        area,
+        timeSlot: deriveTimeSlot(eventTime!),
+        exactTime: formatTime(eventTime),
+        exactLocation,
+        locationNote: locationNote.slice(0, 90),
+        latitude: coordinate?.latitude,
+        longitude: coordinate?.longitude,
+        mapUrl: coordinate ? googleMapsUrl(coordinate.latitude, coordinate.longitude) : undefined,
+        location: exactLocation,
+        maxPeople: parsedMaxPeople,
+        category,
+        emoji: selectedCategory?.emoji ?? '✨',
         womenOnly,
       });
-    } catch {
-      router.push('/paywall');
-      return;
+      router.replace(`/event/${event.id}`);
+    } catch (err) {
+      setIsSubmitting(false);
+      if (err instanceof Error && err.message === 'Plan creation limit reached') {
+        router.push('/paywall');
+        return;
+      }
+      setError(err instanceof Error ? err.message : 'Could not create the plan. Try again.');
     }
-
-    router.replace(`/event/${event.id}`);
   };
 
   return (
@@ -293,7 +313,7 @@ export default function CreateEventScreen() {
         />
 
         <View style={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Public date and shift</Text>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Date and time</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable
               onPress={openDatePicker}
@@ -331,27 +351,6 @@ export default function CreateEventScreen() {
               <Ionicons name="time-outline" size={18} color={colors.primary} />
               <Text style={{ color: eventTime ? colors.text : colors.muted, fontWeight: '700' }}>{formatTime(eventTime)}</Text>
             </Pressable>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((item) => {
-              const active = item === timeSlot;
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() => setTimeSlot(item)}
-                  style={{
-                    backgroundColor: active ? '#FFF1D6' : '#FFFFFF',
-                    borderWidth: 1,
-                    borderColor: active ? colors.primary : colors.border,
-                    borderRadius: 999,
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                  }}
-                >
-                  <Text style={{ color: active ? '#B45309' : colors.text, fontWeight: '700' }}>{item}</Text>
-                </Pressable>
-              );
-            })}
           </View>
         </View>
 
@@ -450,7 +449,12 @@ export default function CreateEventScreen() {
 
         {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
 
-        <GradientButton label="Drop the Plan" onPress={handleCreate} fullWidth />
+        <GradientButton
+          label={isSubmitting ? 'Dropping the plan...' : 'Drop the Plan'}
+          onPress={handleCreate}
+          disabled={!isFormValid || isSubmitting}
+          fullWidth
+        />
       </ScrollView>
 
       <LocationMapPicker

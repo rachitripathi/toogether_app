@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { supabase } from '@/utils/supabase';
 import { CATEGORY_CONFIG, MOCK_MESSAGES, MOCK_RATINGS } from '@/lib/mockData';
+import { randomUUID } from '@/lib/uuid';
 import type {
   CrewRequest,
   Event,
@@ -89,7 +90,7 @@ type AppContextValue = {
   updateCurrentUser: (
     data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
   ) => void;
-  createEvent: (data: CreateEventInput) => Event;
+  createEvent: (data: CreateEventInput) => Promise<Event>;
   updateEvent: (
     eventId: string,
     data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
@@ -409,7 +410,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const createEvent = (data: CreateEventInput): Event => {
+  const createEvent = async (data: CreateEventInput): Promise<Event> => {
     if (!currentUser) {
       throw new Error('createEvent requires a signed-in user');
     }
@@ -420,12 +421,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const event: Event = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       creatorId: currentUser.id,
       approvedUserIds: [],
       requestUserIds: [],
       ...data,
     };
+
+    const { error } = await supabase.from('events').insert([
+      {
+        id: event.id,
+        creator_id: event.creatorId,
+        title: event.title,
+        description: event.description,
+        date_time: event.dateTime,
+        area: event.area,
+        exact_time: event.exactTime,
+        exact_location: event.exactLocation,
+        location_note: event.locationNote ?? null,
+        latitude: event.latitude ?? null,
+        longitude: event.longitude ?? null,
+        map_url: event.mapUrl ?? null,
+        time_slot: event.timeSlot,
+        category: event.category,
+        emoji: event.emoji,
+        max_people: event.maxPeople ?? null,
+        women_only: event.womenOnly ?? false,
+        pinned: false,
+      },
+    ]);
+
+    if (error) {
+      console.error('Error saving event:', error);
+      throw new Error(error.message);
+    }
 
     setEvents((prev) => [event, ...prev]);
     updateCurrentUserUsage((user) => {
@@ -437,36 +466,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
       };
     });
-
-    (async () => {
-      const { error } = await supabase.from('events').insert([
-        {
-          id: event.id,
-          creator_id: event.creatorId,
-          title: event.title,
-          description: event.description,
-          date_time: event.dateTime,
-          area: event.area,
-          exact_time: event.exactTime,
-          exact_location: event.exactLocation,
-          location_note: event.locationNote ?? null,
-          latitude: event.latitude ?? null,
-          longitude: event.longitude ?? null,
-          map_url: event.mapUrl ?? null,
-          time_slot: event.timeSlot,
-          category: event.category,
-          emoji: event.emoji,
-          max_people: event.maxPeople ?? null,
-          women_only: event.womenOnly ?? false,
-          pinned: false,
-        },
-      ]);
-
-      if (error) {
-        console.error('Error saving event:', error);
-        setEvents((prev) => prev.filter((item) => item.id !== event.id));
-      }
-    })();
 
     return event;
   };
@@ -554,7 +553,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const nextRequest: JoinRequest = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       userId: currentUser.id,
       eventId,
       status: 'pending',
@@ -743,7 +742,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const inviteId = crypto.randomUUID();
+    const inviteId = randomUUID();
 
     if (event.creatorId === currentUser.id) {
       setEvents((prev) =>
