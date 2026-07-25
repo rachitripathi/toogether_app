@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientButton } from '@/components/GradientButton';
 import { colors, gradients } from '@/lib/theme';
+import { DEV_TOOLS_ENABLED } from '@/lib/devTools';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,23 +71,26 @@ export default function NewUserVerificationScreen() {
           ))}
         </View>
 
-        <View
-          style={{
-            backgroundColor: '#FFF7E8',
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: '#FDE7B3',
-            padding: 16,
-            flexDirection: 'row',
-            gap: 12,
-            alignItems: 'flex-start',
-          }}
-        >
-          <Ionicons name="information-circle-outline" size={20} color="#B45309" style={{ marginTop: 1 }} />
-          <Text style={{ color: '#92400E', lineHeight: 21, flex: 1, fontSize: 13 }}>
-            This is a demo verification — no real ID is required. In the real app, Toogether would verify through social or phone.
-          </Text>
-        </View>
+        {DEV_TOOLS_ENABLED ? (
+          <View
+            style={{
+              backgroundColor: '#FFF7E8',
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: '#FDE7B3',
+              padding: 16,
+              flexDirection: 'row',
+              gap: 12,
+              alignItems: 'flex-start',
+            }}
+          >
+            <Ionicons name="information-circle-outline" size={20} color="#B45309" style={{ marginTop: 1 }} />
+            <Text style={{ color: '#92400E', lineHeight: 21, flex: 1, fontSize: 13 }}>
+              This is a demo verification — no real ID is required. In the real app, Toogether would verify through
+              social or phone.
+            </Text>
+          </View>
+        ) : null}
 
         <GradientButton label="Get verified" onPress={() => finish(true)} fullWidth />
         <Pressable onPress={() => finish(false)} style={{ alignItems: 'center', paddingVertical: 8 }}>

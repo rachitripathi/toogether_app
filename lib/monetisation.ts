@@ -1,3 +1,5 @@
+import { DEV_TOOLS_ENABLED } from './devTools';
+
 export type DevAppMode = 'free' | 'paid' | 'limit-hit' | 'new-user';
 export type AppVersion = 'free' | 'paid';
 
@@ -5,11 +7,11 @@ export type AppVersion = 'free' | 'paid';
 // Set APP_VERSION to 'paid' when you want monetisation enabled by default.
 export const APP_VERSION: AppVersion = 'free';
 
-// Keep this true only while reviewing both versions from the login screen.
-export const SHOW_LOGIN_VERSION_SWITCH = true;
-
-// Demo mode starts users at the free limit with 0 credits so the paywall can be tested quickly.
-export const SHOW_PAYWALL_DEMO_MODE = true;
+// Both of these follow the centralized DEV_TOOLS_ENABLED switch (see lib/devTools.ts) —
+// don't hardcode them independently, or the login screen's account switcher can end up
+// on in a build where dev tools were meant to be off.
+export const SHOW_LOGIN_VERSION_SWITCH = DEV_TOOLS_ENABLED;
+export const SHOW_PAYWALL_DEMO_MODE = DEV_TOOLS_ENABLED;
 
 export const FREE_JOIN_LIMIT = 5;
 export const VERIFIED_JOIN_BONUS = 5;
