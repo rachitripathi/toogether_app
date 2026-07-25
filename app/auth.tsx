@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { FormField } from '@/components/FormField';
+import { GradientButton } from '@/components/GradientButton';
 import { colors, gradients } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import { getSelectableAppModes, type DevAppMode } from '@/lib/monetisation';
@@ -12,7 +14,11 @@ type Mode = 'login' | 'signup';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
-  const { socialAuth, devAppMode, setDevAppMode } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { login, signup, socialAuth, devAppMode, setDevAppMode } = useApp();
   const insets = useSafeAreaInsets();
   const appModeCopy: Record<DevAppMode, { label: string; helper: string }> = {
     free: { label: 'Free version', helper: 'No credits or paywall UI' },
@@ -21,6 +27,40 @@ export default function AuthScreen() {
     'new-user': { label: 'New user demo', helper: 'Profile setup and verification prompts' },
   };
   const appModes = getSelectableAppModes().map((id) => ({ id, ...appModeCopy[id] }));
+
+  const handleModeChange = (nextMode: Mode) => {
+    setMode(nextMode);
+    setError(null);
+  };
+
+  const handleEmailAuth = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    const result =
+      mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
+    setLoading(false);
+
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    if (mode === 'signup') {
+      if (result.needsEmailConfirmation) {
+        setError('Account created. Check your email to confirm it, then log in.');
+        setMode('login');
+        return;
+      }
+      router.replace('/new-user-profile');
+      return;
+    }
+
+    router.replace('/(tabs)/home');
+  };
 
   const handleSocialAuth = (provider: 'google' | 'apple') => {
     socialAuth(provider, mode);
@@ -64,7 +104,7 @@ export default function AuthScreen() {
               return (
                 <Pressable
                   key={item}
-                  onPress={() => setMode(item)}
+                  onPress={() => handleModeChange(item)}
                   style={{
                     flex: 1,
                     borderRadius: 14,
@@ -81,11 +121,36 @@ export default function AuthScreen() {
             })}
           </View>
 
-          <Text style={{ color: '#667085', lineHeight: 22 }}>
-            {mode === 'login'
-              ? 'Continue with the account provider you want to use in the app.'
-              : 'Create your account using Google or Apple. We do not show generic signup anymore.'}
-          </Text>
+          <FormField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+          />
+          <FormField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="At least 6 characters"
+            secureTextEntry
+          />
+
+          {mode === 'login' ? (
+            <Pressable onPress={() => router.push('/reset-password')} style={{ alignSelf: 'flex-end' }}>
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Forgot password?</Text>
+            </Pressable>
+          ) : null}
+
+          {error ? <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text> : null}
+
+          <GradientButton
+            label={loading ? '' : mode === 'login' ? 'Log In' : 'Create Account'}
+            onPress={handleEmailAuth}
+            disabled={loading}
+            fullWidth
+            icon={loading ? <ActivityIndicator color={colors.text} /> : undefined}
+          />
 
           {appModes.length ? (
             <View
@@ -139,36 +204,46 @@ export default function AuthScreen() {
             </View>
           ) : null}
 
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>OR</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          </View>
+
           <Pressable
+            disabled
             onPress={() => handleSocialAuth('google')}
             style={{
               minHeight: 56,
               borderRadius: 24,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: '#F3F4F6',
               alignItems: 'center',
               justifyContent: 'center',
               flexDirection: 'row',
               gap: 10,
               borderWidth: 1,
               borderColor: '#E5E7EB',
+              opacity: 0.55,
             }}
           >
-            <Ionicons name="logo-google" size={18} color="#EA4335" />
-            <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '800' }}>
+            <Ionicons name="logo-google" size={18} color="#9CA3AF" />
+            <Text style={{ color: '#9CA3AF', fontSize: 16, fontWeight: '800' }}>
               {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
             </Text>
           </Pressable>
 
           <Pressable
+            disabled
             onPress={() => handleSocialAuth('apple')}
             style={{
               minHeight: 56,
               borderRadius: 24,
-              backgroundColor: '#111827',
+              backgroundColor: '#4B5563',
               alignItems: 'center',
               justifyContent: 'center',
               flexDirection: 'row',
               gap: 10,
+              opacity: 0.55,
             }}
           >
             <Ionicons name="logo-apple" size={18} color="#FFFFFF" />
@@ -178,8 +253,8 @@ export default function AuthScreen() {
           </Pressable>
 
           <Text style={{ color: '#98A2B3', fontSize: 12, textAlign: 'center' }}>
-            Google and Apple usually do not provide reliable gender data. For women-only plans, the app should use a
-            profile field you confirm after sign-in.
+            Google and Apple sign-in are coming soon. Google and Apple usually do not provide reliable gender data,
+            so the app will still ask you to confirm your profile after sign-in.
           </Text>
         </ScrollView>
       </LinearGradient>

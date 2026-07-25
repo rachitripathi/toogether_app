@@ -1,11 +1,12 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useAuthContext } from '@/hooks/use-auth-context';
+import { supabase } from '@/utils/supabase';
 import {
   CATEGORY_CONFIG,
   MOCK_EVENTS,
   MOCK_MESSAGES,
   MOCK_RATINGS,
   MOCK_REQUESTS,
-  MOCK_USERS,
 } from '@/lib/mockData';
 import type {
   CrewRequest,
@@ -49,6 +50,8 @@ type CreateEventInput = {
 
 type SocialProvider = 'google' | 'apple';
 
+type AuthResult = { error: string | null; needsEmailConfirmation?: boolean };
+
 type UsageSummary = {
   mode: DevAppMode;
   monetisationEnabled: boolean;
@@ -82,6 +85,8 @@ type AppContextValue = {
   isAttendeesUnlocked: (eventId: string) => boolean;
   unlockAttendees: (eventId: string) => boolean;
   completeOnboarding: () => void;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  signup: (email: string, password: string) => Promise<AuthResult>;
   socialAuth: (provider: SocialProvider, mode: 'login' | 'signup') => void;
   logout: () => void;
   dismissVerificationPrompt: () => void;
@@ -116,10 +121,72 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+const getEmailName = (email: string) => email.split('@')[0] || 'New user';
+
+const mapProfileRowToUser = (row: any): User => ({
+  id: row.id,
+  name: row.name ?? (row.email ? getEmailName(row.email) : 'New user'),
+  email: row.email ?? '',
+  username: row.username ?? (row.email ? getEmailName(row.email) : ''),
+  avatarColors: row.avatar_colors ?? ['#8B5CF6', '#6366F1'],
+  avatarUri: row.avatar_uri ?? undefined,
+  gender: row.gender ?? 'other',
+  age: row.age ?? 0,
+  city: row.city ?? '',
+  verified: row.verified ?? false,
+  bio: row.bio ?? '',
+});
+
+const mapEventRow = (row: any): Omit<Event, 'approvedUserIds' | 'requestUserIds'> => ({
+  id: row.id,
+  title: row.title,
+  description: row.description ?? '',
+  dateTime: row.date_time,
+  area: row.area,
+  timeSlot: row.time_slot,
+  exactTime: row.exact_time,
+  exactLocation: row.exact_location,
+  locationNote: row.location_note ?? undefined,
+  latitude: row.latitude ?? undefined,
+  longitude: row.longitude ?? undefined,
+  mapUrl: row.map_url ?? undefined,
+  location: row.exact_location,
+  creatorId: row.creator_id,
+  maxPeople: row.max_people ?? undefined,
+  category: row.category,
+  emoji: row.emoji,
+  womenOnly: row.women_only ?? false,
+  pinned: row.pinned ?? false,
+});
+
+const mapRequestRow = (row: any): JoinRequest => ({
+  id: row.id,
+  userId: row.user_id,
+  eventId: row.event_id,
+  status: row.status,
+  createdAt: row.created_at,
+});
+
+const hydrateEvents = (
+  rawEvents: Omit<Event, 'approvedUserIds' | 'requestUserIds'>[],
+  rawRequests: JoinRequest[]
+): Event[] =>
+  rawEvents.map((event) => ({
+    ...event,
+    approvedUserIds: rawRequests
+      .filter((request) => request.eventId === event.id && request.status === 'approved')
+      .map((request) => request.userId),
+    requestUserIds: rawRequests
+      .filter((request) => request.eventId === event.id && request.status === 'pending')
+      .map((request) => request.userId),
+  }));
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState(MOCK_USERS);
-  const [events, setEvents] = useState(MOCK_EVENTS);
-  const [requests, setRequests] = useState(MOCK_REQUESTS);
+  const { profile, isLoggedIn, refreshProfile } = useAuthContext();
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
+  const [requests, setRequests] = useState<JoinRequest[]>(MOCK_REQUESTS);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
     {
       id: 'c1',
@@ -138,12 +205,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ]);
   const [messages, setMessages] = useState(MOCK_MESSAGES);
   const [ratings, setRatings] = useState(MOCK_RATINGS);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
   const [devAppMode, setDevAppMode] = useState<DevAppMode>(getDefaultAppMode);
   const [unlockedAttendeeEventIds, setUnlockedAttendeeEventIds] = useState<string[]>([]);
+  const [usageState, setUsageState] = useState<
+    Partial<Pick<User, 'credits' | 'joinRequestsThisMonth' | 'plansCreatedThisMonth' | 'totalCreditsEarned' | 'totalCreditsSpent'>>
+  >({});
   const monetisationEnabled = isMonetisationEnabled(devAppMode);
+
+  const baseUser: User | null = profile ? mapProfileRowToUser(profile) : null;
 
   const withDevUsage = (user: User): User => {
     if (devAppMode === 'free' || devAppMode === 'new-user') {
@@ -172,14 +243,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const updateCurrentUserUsage = (updater: (user: User) => User) => {
-    setCurrentUser((prev) => {
-      if (!prev) {
-        return prev;
+  const currentUser: User | null = baseUser ? withDevUsage({ ...baseUser, ...usageState }) : null;
+
+  useEffect(() => {
+    setUsageState({});
+  }, [baseUser?.id]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUsers = async () => {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (!cancelled && !error && data) {
+        setUsers(data.map(mapProfileRowToUser));
       }
-      const next = updater(prev);
-      setUsers((usersPrev) => usersPrev.map((user) => (user.id === next.id ? next : user)));
-      return next;
+    };
+
+    const fetchEventsAndRequests = async () => {
+      const [eventsRes, requestsRes] = await Promise.all([
+        supabase.from('events').select('*').order('created_at', { ascending: false }),
+        supabase.from('join_requests').select('*'),
+      ]);
+
+      if (!cancelled && !eventsRes.error && !requestsRes.error && eventsRes.data && requestsRes.data) {
+        const mappedRequests = requestsRes.data.map(mapRequestRow);
+        setRequests(mappedRequests);
+        setEvents(hydrateEvents(eventsRes.data.map(mapEventRow), mappedRequests));
+      }
+    };
+
+    fetchUsers();
+    fetchEventsAndRequests();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  const updateCurrentUserUsage = (updater: (user: User) => User) => {
+    if (!currentUser) return;
+    const next = updater(currentUser);
+    setUsageState({
+      credits: next.credits,
+      joinRequestsThisMonth: next.joinRequestsThisMonth,
+      plansCreatedThisMonth: next.plansCreatedThisMonth,
+      totalCreditsEarned: next.totalCreditsEarned,
+      totalCreditsSpent: next.totalCreditsSpent,
     });
   };
 
@@ -214,52 +327,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return usage.monetisationEnabled && usage.createLimitReached;
   };
 
-  const socialAuth = (provider: SocialProvider, mode: 'login' | 'signup') => {
-    if (provider === 'google') {
-      const existing = users.find((item) => item.id === 'u2');
-      if (existing) {
-        setCurrentUser(withDevUsage(existing));
-        setShouldShowVerificationPrompt(false);
-        return;
-      }
+  const login = async (email: string, password: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  };
+
+  const signup = async (email: string, password: string): Promise<AuthResult> => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      return { error: error.message };
     }
 
-    if (provider === 'apple') {
-      const nextUser: User = {
-        id: 'u6',
-        name: 'Aisha Thomas',
-        email: 'aisha@example.com',
-        username: 'aishat',
-        avatarColors: ['#A78BFA', '#38BDF8'],
-        gender: 'woman',
-        age: 25,
-        city: 'Guwahati',
-        verified: true,
-        bio: mode === 'signup' ? 'New here and ready for plans.' : 'Always down for one good plan.',
-      };
-      setCurrentUser(withDevUsage(nextUser));
-      setShouldShowVerificationPrompt(false);
-      return;
-    }
+    // Profile row creation is handled by AuthProvider.fetchProfile() once the
+    // resulting auth state change delivers claims — don't race it with a second insert here.
+    return { error: null, needsEmailConfirmation: !data.session };
+  };
 
-    const nextUser: User = {
-      id: 'u1',
-      name: 'Aryan Shah',
-      email: 'aryan@example.com',
-      username: 'aryanshah',
-      avatarColors: ['#8B5CF6', '#6366F1'],
-      gender: 'man',
-      age: 23,
-      city: 'Guwahati',
-      verified: false,
-      bio: 'Living for spontaneous plans.',
-    };
-    setCurrentUser(withDevUsage(nextUser));
-    setShouldShowVerificationPrompt(!nextUser.verified);
+  const socialAuth = (_provider: SocialProvider, _mode: 'login' | 'signup') => {
+    // Real Google/Apple sign-in isn't configured yet (needs OAuth provider setup in Supabase + native SDKs).
+    console.log('Social auth not yet implemented');
   };
 
   const logout = () => {
-    setCurrentUser(null);
+    supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
   };
 
@@ -274,18 +364,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateCurrentUser = (
     data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
   ) => {
-    setCurrentUser((prev) => {
-      if (!prev) {
-        return prev;
+    if (!currentUser) return;
+    const userId = currentUser.id;
+
+    (async () => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: data.name,
+          username: data.username,
+          bio: data.bio,
+          city: data.city,
+          avatar_uri: data.avatarUri,
+          avatar_colors: data.avatarColors,
+          age: data.age,
+          verified: data.verified,
+          gender: data.gender,
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        return;
       }
 
-      const next = { ...prev, ...data };
-      setUsers((usersPrev) => usersPrev.map((user) => (user.id === next.id ? next : user)));
-      return next;
-    });
+      await refreshProfile();
+      const { data: refreshedRow } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (refreshedRow) {
+        const refreshedUser = mapProfileRowToUser(refreshedRow);
+        setUsers((prev) => {
+          const exists = prev.some((user) => user.id === userId);
+          return exists ? prev.map((user) => (user.id === userId ? refreshedUser : user)) : [...prev, refreshedUser];
+        });
+      }
+    })();
   };
 
-  const createEvent = (data: CreateEventInput) => {
+  const createEvent = (data: CreateEventInput): Event => {
     if (!currentUser) {
       throw new Error('createEvent requires a signed-in user');
     }
@@ -296,12 +411,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const event: Event = {
-      id: `e${Date.now()}`,
+      id: crypto.randomUUID(),
       creatorId: currentUser.id,
       approvedUserIds: [],
       requestUserIds: [],
       ...data,
     };
+
     setEvents((prev) => [event, ...prev]);
     updateCurrentUserUsage((user) => {
       const shouldSpendCredit = usage.monetisationEnabled && (user.plansCreatedThisMonth ?? 0) >= FREE_CREATE_LIMIT;
@@ -312,6 +428,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
         totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
       };
     });
+
+    (async () => {
+      const { error } = await supabase.from('events').insert([
+        {
+          id: event.id,
+          creator_id: event.creatorId,
+          title: event.title,
+          description: event.description,
+          date_time: event.dateTime,
+          area: event.area,
+          exact_time: event.exactTime,
+          exact_location: event.exactLocation,
+          location_note: event.locationNote ?? null,
+          latitude: event.latitude ?? null,
+          longitude: event.longitude ?? null,
+          map_url: event.mapUrl ?? null,
+          time_slot: event.timeSlot,
+          category: event.category,
+          emoji: event.emoji,
+          max_people: event.maxPeople ?? null,
+          women_only: event.womenOnly ?? false,
+          pinned: false,
+        },
+      ]);
+
+      if (error) {
+        console.error('Error saving event:', error);
+        setEvents((prev) => prev.filter((item) => item.id !== event.id));
+      }
+    })();
+
     return event;
   };
 
@@ -319,12 +466,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     eventId: string,
     data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
   ) => {
-    setEvents((prev) =>
-      prev.map((event) => (event.id === eventId ? { ...event, ...data } : event))
-    );
+    const previous = events.find((event) => event.id === eventId);
+    setEvents((prev) => prev.map((event) => (event.id === eventId ? { ...event, ...data } : event)));
+
+    (async () => {
+      const { error } = await supabase
+        .from('events')
+        .update({
+          title: data.title,
+          description: data.description,
+          area: data.area,
+          time_slot: data.timeSlot,
+          exact_time: data.exactTime,
+          location_note: data.locationNote,
+          max_people: data.maxPeople,
+        })
+        .eq('id', eventId);
+
+      if (error) {
+        console.error('Error updating event:', error);
+        if (previous) {
+          setEvents((prev) => prev.map((event) => (event.id === eventId ? previous : event)));
+        }
+      }
+    })();
   };
 
   const deleteEvent = (eventId: string) => {
+    const previousEvent = events.find((event) => event.id === eventId);
+    const previousMessages = messages[eventId];
+
     setEvents((prev) => prev.filter((event) => event.id !== eventId));
     setRequests((prev) => prev.filter((request) => request.eventId !== eventId));
     setMessages((prev) => {
@@ -332,6 +503,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       delete next[eventId];
       return next;
     });
+
+    (async () => {
+      const { error } = await supabase.from('events').delete().eq('id', eventId);
+      if (error) {
+        console.error('Error deleting event:', error);
+        if (previousEvent) {
+          setEvents((prev) => [previousEvent, ...prev]);
+        }
+        if (previousMessages) {
+          setMessages((prev) => ({ ...prev, [eventId]: previousMessages }));
+        }
+      }
+    })();
   };
 
   const requestToJoin = (eventId: string) => {
@@ -361,7 +545,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const nextRequest: JoinRequest = {
-      id: `r${Date.now()}`,
+      id: crypto.randomUUID(),
       userId: currentUser.id,
       eventId,
       status: 'pending',
@@ -370,10 +554,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setRequests((prev) => [...prev, nextRequest]);
     setEvents((prev) =>
-      prev.map((event) =>
-        event.id === eventId
-          ? { ...event, requestUserIds: [...event.requestUserIds, currentUser.id] }
-          : event
+      prev.map((item) =>
+        item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, currentUser.id] } : item
       )
     );
     updateCurrentUserUsage((user) => {
@@ -388,6 +570,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
       };
     });
+
+    (async () => {
+      const { error } = await supabase.from('join_requests').insert([
+        {
+          id: nextRequest.id,
+          user_id: currentUser.id,
+          event_id: eventId,
+          status: 'pending',
+        },
+      ]);
+
+      if (error) {
+        console.error('Error creating join request:', error);
+        setRequests((prev) => prev.filter((request) => request.id !== nextRequest.id));
+        setEvents((prev) =>
+          prev.map((item) =>
+            item.id === eventId
+              ? { ...item, requestUserIds: item.requestUserIds.filter((id) => id !== currentUser.id) }
+              : item
+          )
+        );
+      }
+    })();
   };
 
   const buyCreditPack = (packId: CreditPackId) => {
@@ -444,6 +649,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : event
       )
     );
+
+    (async () => {
+      const { error } = await supabase
+        .from('join_requests')
+        .update({ status: 'approved' })
+        .eq('user_id', userId)
+        .eq('event_id', eventId);
+
+      if (error) {
+        console.error('Error approving request:', error);
+        setRequests((prev) =>
+          prev.map((request) =>
+            request.eventId === eventId && request.userId === userId
+              ? { ...request, status: 'pending' }
+              : request
+          )
+        );
+        setEvents((prev) =>
+          prev.map((event) =>
+            event.id === eventId
+              ? {
+                  ...event,
+                  approvedUserIds: event.approvedUserIds.filter((id) => id !== userId),
+                  requestUserIds: [...event.requestUserIds, userId],
+                }
+              : event
+          )
+        );
+      }
+    })();
   };
 
   const rejectRequest = (eventId: string, userId: string) => {
@@ -461,6 +696,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : event
       )
     );
+
+    (async () => {
+      const { error } = await supabase
+        .from('join_requests')
+        .update({ status: 'rejected' })
+        .eq('user_id', userId)
+        .eq('event_id', eventId);
+
+      if (error) {
+        console.error('Error rejecting request:', error);
+        setRequests((prev) =>
+          prev.map((request) =>
+            request.eventId === eventId && request.userId === userId
+              ? { ...request, status: 'pending' }
+              : request
+          )
+        );
+        setEvents((prev) =>
+          prev.map((event) =>
+            event.id === eventId
+              ? { ...event, requestUserIds: [...event.requestUserIds, userId] }
+              : event
+          )
+        );
+      }
+    })();
   };
 
   const inviteToEvent = (eventId: string, userId: string) => {
@@ -473,42 +734,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const inviteId = crypto.randomUUID();
+
     if (event.creatorId === currentUser.id) {
       setEvents((prev) =>
         prev.map((item) =>
-          item.id === eventId
-            ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] }
-            : item
+          item.id === eventId ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] } : item
         )
       );
       setRequests((prev) => [
         ...prev,
-        {
-          id: `r${Date.now()}`,
-          eventId,
-          userId,
-          status: 'approved',
-          createdAt: new Date().toISOString(),
-        },
+        { id: inviteId, eventId, userId, status: 'approved', createdAt: new Date().toISOString() },
       ]);
+
+      (async () => {
+        const { error } = await supabase.from('join_requests').insert([
+          { id: inviteId, user_id: userId, event_id: eventId, status: 'approved' },
+        ]);
+        if (error) {
+          console.error('Error creating approved invite:', error);
+          setEvents((prev) =>
+            prev.map((item) =>
+              item.id === eventId
+                ? { ...item, approvedUserIds: item.approvedUserIds.filter((id) => id !== userId) }
+                : item
+            )
+          );
+          setRequests((prev) => prev.filter((request) => request.id !== inviteId));
+        }
+      })();
       return;
     }
 
     setRequests((prev) => [
       ...prev,
-      {
-        id: `r${Date.now()}`,
-        eventId,
-        userId,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      },
+      { id: inviteId, eventId, userId, status: 'pending', createdAt: new Date().toISOString() },
     ]);
     setEvents((prev) =>
       prev.map((item) =>
         item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, userId] } : item
       )
     );
+
+    (async () => {
+      const { error } = await supabase.from('join_requests').insert([
+        { id: inviteId, user_id: userId, event_id: eventId, status: 'pending' },
+      ]);
+      if (error) {
+        console.error('Error creating pending invite:', error);
+        setRequests((prev) => prev.filter((request) => request.id !== inviteId));
+        setEvents((prev) =>
+          prev.map((item) =>
+            item.id === eventId
+              ? { ...item, requestUserIds: item.requestUserIds.filter((id) => id !== userId) }
+              : item
+          )
+        );
+      }
+    })();
   };
 
   const getRequestStatus = (eventId: string) => {
@@ -751,6 +1034,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAttendeesUnlocked,
         unlockAttendees,
         completeOnboarding,
+        login,
+        signup,
         socialAuth,
         logout,
         dismissVerificationPrompt,

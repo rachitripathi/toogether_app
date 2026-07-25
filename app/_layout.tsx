@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Modal, Pressable, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { AppProvider, useApp } from '@/providers/AppProvider';
+import AuthProvider from '@/providers/auth-provider';
 import { GradientButton } from '@/components/GradientButton';
 import { colors } from '@/lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,25 +83,28 @@ function VerificationPrompt() {
 
 export default function RootLayout() {
   return (
-    <AppProvider>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F7FB' } }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="new-user-profile" />
-        <Stack.Screen name="new-user-verification" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="create-event" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="verification" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="profile-plans/[section]" />
-        <Stack.Screen name="event/[id]" />
-        <Stack.Screen name="chat/[id]" />
-        <Stack.Screen name="user/[id]" />
-      </Stack>
-      <VerificationPrompt />
-      <StatusBar style="dark" />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F7FB' } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="reset-password" />
+          <Stack.Screen name="new-user-profile" />
+          <Stack.Screen name="new-user-verification" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="create-event" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="verification" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="profile-plans/[section]" />
+          <Stack.Screen name="event/[id]" />
+          <Stack.Screen name="chat/[id]" />
+          <Stack.Screen name="user/[id]" />
+        </Stack>
+        <VerificationPrompt />
+        <StatusBar style="dark" />
+      </AppProvider>
+    </AuthProvider>
   );
 }

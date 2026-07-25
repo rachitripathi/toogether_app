@@ -7,6 +7,16 @@ const getEmailName = (email: string | null) => email?.split("@")[0] ?? "New user
 const getDefaultUsername = (email: string | null, userId: string) =>
   `${getEmailName(email).toLowerCase()}-${userId.slice(0, 8)}`;
 
+const AVATAR_COLOR_PALETTE = [
+  ["#8B5CF6", "#6366F1"],
+  ["#F472B6", "#FB7185"],
+  ["#38BDF8", "#0EA5E9"],
+  ["#34D399", "#14B8A6"],
+  ["#FB923C", "#F59E0B"],
+];
+const getDefaultAvatarColors = () =>
+  AVATAR_COLOR_PALETTE[Math.floor(Math.random() * AVATAR_COLOR_PALETTE.length)];
+
 export default function AuthProvider({ children }: PropsWithChildren) {
   const [claims, setClaims] = useState<
     Record<string, any> | undefined | null
@@ -33,6 +43,8 @@ export default function AuthProvider({ children }: PropsWithChildren) {
             email,
             name: getEmailName(email),
             username: getDefaultUsername(email, userClaims.sub),
+            city: "",
+            avatar_colors: getDefaultAvatarColors(),
           })
           .select("*")
           .single();
