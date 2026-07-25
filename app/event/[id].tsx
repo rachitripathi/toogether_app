@@ -31,20 +31,24 @@ function ThemedActionButton({
   label,
   onPress,
   visual,
+  disabled,
 }: {
   label: string;
   onPress: () => void;
   visual: CategoryVisualTheme;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={{
         minHeight: 56,
         borderRadius: 28,
         backgroundColor: visual.buttonBackground,
         alignItems: 'center',
         justifyContent: 'center',
+        opacity: disabled ? 0.6 : 1,
         shadowColor: visual.buttonShadow,
         shadowOpacity: 0.28,
         shadowRadius: 12,
@@ -69,6 +73,8 @@ export default function EventDetailScreen() {
   const chipOpacity = scrollY.interpolate({ inputRange: [0, 50], outputRange: [1, 0], extrapolate: 'clamp' });
   const chipMaxHeight = scrollY.interpolate({ inputRange: [0, 60], outputRange: [40, 0], extrapolate: 'clamp' });
   const [joinError, setJoinError] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -181,6 +187,53 @@ export default function EventDetailScreen() {
         },
       ]
     );
+  };
+
+  const handleJoin = async () => {
+    if (isJoining) {
+      return;
+    }
+    setJoinError('');
+    if (shouldShowPaywallForJoin()) {
+      router.push('/paywall');
+      return;
+    }
+    setIsJoining(true);
+    try {
+      await requestToJoin(event.id);
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : 'Could not send the request. Try again.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleApprove = async (userId: string) => {
+    if (processingRequestId) {
+      return;
+    }
+    setProcessingRequestId(userId);
+    try {
+      await approveRequest(event.id, userId);
+    } catch (err) {
+      Alert.alert('Could not approve', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setProcessingRequestId(null);
+    }
+  };
+
+  const handleReject = async (userId: string) => {
+    if (processingRequestId) {
+      return;
+    }
+    setProcessingRequestId(userId);
+    try {
+      await rejectRequest(event.id, userId);
+    } catch (err) {
+      Alert.alert('Could not decline', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setProcessingRequestId(null);
+    }
   };
 
   if (!canViewWomenOnly) {
@@ -559,14 +612,32 @@ export default function EventDetailScreen() {
                       </Text>
                     </View>
                     <Pressable
-                      onPress={() => rejectRequest(event.id, user.id)}
-                      style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFE4E6', alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => handleReject(user.id)}
+                      disabled={processingRequestId === user.id}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: '#FFE4E6',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: processingRequestId === user.id ? 0.5 : 1,
+                      }}
                     >
                       <Ionicons name="close" size={18} color={colors.danger} />
                     </Pressable>
                     <Pressable
-                      onPress={() => approveRequest(event.id, user.id)}
-                      style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => handleApprove(user.id)}
+                      disabled={processingRequestId === user.id}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: '#DCFCE7',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: processingRequestId === user.id ? 0.5 : 1,
+                      }}
                     >
                       <Ionicons name="checkmark" size={18} color="#16A34A" />
                     </Pressable>
@@ -616,19 +687,9 @@ export default function EventDetailScreen() {
             </View>
           ) : (
             <ThemedActionButton
-              label="Request to Join"
-              onPress={() => {
-                setJoinError('');
-                if (shouldShowPaywallForJoin()) {
-                  router.push('/paywall');
-                  return;
-                }
-                if (event.womenOnly && currentUser?.gender !== 'woman') {
-                  setJoinError('This is a women-only plan.');
-                  return;
-                }
-                requestToJoin(event.id);
-              }}
+              label={isJoining ? 'Sending request...' : 'Request to Join'}
+              onPress={handleJoin}
+              disabled={isJoining}
               visual={visual}
             />
           )}

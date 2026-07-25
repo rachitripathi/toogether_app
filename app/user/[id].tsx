@@ -1,5 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { GradientButton } from '@/components/GradientButton';
@@ -271,10 +271,14 @@ export default function UserProfileScreen() {
         visible={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         events={myCreatedEvents}
-        onSelect={(eventId) => {
-          inviteToEvent(eventId, user.id);
+        onSelect={async (eventId) => {
           setShowInviteModal(false);
-          router.push(`/event/${eventId}`);
+          try {
+            await inviteToEvent(eventId, user.id);
+            router.push(`/event/${eventId}`);
+          } catch (err) {
+            Alert.alert('Could not send invite', err instanceof Error ? err.message : 'Please try again.');
+          }
         }}
       />
     </View>

@@ -96,10 +96,10 @@ type AppContextValue = {
     data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
   ) => void;
   deleteEvent: (eventId: string) => void;
-  requestToJoin: (eventId: string) => void;
-  approveRequest: (eventId: string, userId: string) => void;
-  rejectRequest: (eventId: string, userId: string) => void;
-  inviteToEvent: (eventId: string, userId: string) => void;
+  requestToJoin: (eventId: string) => Promise<void>;
+  approveRequest: (eventId: string, userId: string) => Promise<void>;
+  rejectRequest: (eventId: string, userId: string) => Promise<void>;
+  inviteToEvent: (eventId: string, userId: string) => Promise<void>;
   getRequestStatus: (eventId: string) => RequestStatus | null;
   sendCrewRequest: (userId: string) => void;
   acceptCrewRequest: (requestId: string) => void;
@@ -526,7 +526,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const requestToJoin = (eventId: string) => {
+  const requestToJoin = async (eventId: string): Promise<void> => {
     if (!currentUser) {
       return;
     }
@@ -540,11 +540,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const event = events.find((item) => item.id === eventId);
     if (event?.womenOnly && currentUser.gender !== 'woman') {
-      return;
+      throw new Error('This is a women-only plan.');
     }
 
     if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
-      return;
+      throw new Error('This plan is already full.');
     }
 
     const usage = getUsageSummaryForUser(currentUser);
@@ -559,6 +559,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
+
+    const { error } = await supabase.from('join_requests').insert([
+      {
+        id: nextRequest.id,
+        user_id: currentUser.id,
+        event_id: eventId,
+        status: 'pending',
+      },
+    ]);
+
+    if (error) {
+      console.error('Error creating join request:', error);
+      throw new Error(error.message);
+    }
 
     setRequests((prev) => [...prev, nextRequest]);
     setEvents((prev) =>
@@ -578,29 +592,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
       };
     });
-
-    (async () => {
-      const { error } = await supabase.from('join_requests').insert([
-        {
-          id: nextRequest.id,
-          user_id: currentUser.id,
-          event_id: eventId,
-          status: 'pending',
-        },
-      ]);
-
-      if (error) {
-        console.error('Error creating join request:', error);
-        setRequests((prev) => prev.filter((request) => request.id !== nextRequest.id));
-        setEvents((prev) =>
-          prev.map((item) =>
-            item.id === eventId
-              ? { ...item, requestUserIds: item.requestUserIds.filter((id) => id !== currentUser.id) }
-              : item
-          )
-        );
-      }
-    })();
   };
 
   const buyCreditPack = (packId: CreditPackId) => {
@@ -638,7 +629,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const approveRequest = (eventId: string, userId: string) => {
+  const approveRequest = async (eventId: string, userId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('join_requests')
+      .update({ status: 'approved' })
+      .eq('user_id', userId)
+      .eq('event_id', eventId);
+
+    if (error) {
+      console.error('Error approving request:', error);
+      throw new Error(error.message);
+    }
+
     setRequests((prev) =>
       prev.map((request) =>
         request.eventId === eventId && request.userId === userId
@@ -657,39 +659,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : event
       )
     );
-
-    (async () => {
-      const { error } = await supabase
-        .from('join_requests')
-        .update({ status: 'approved' })
-        .eq('user_id', userId)
-        .eq('event_id', eventId);
-
-      if (error) {
-        console.error('Error approving request:', error);
-        setRequests((prev) =>
-          prev.map((request) =>
-            request.eventId === eventId && request.userId === userId
-              ? { ...request, status: 'pending' }
-              : request
-          )
-        );
-        setEvents((prev) =>
-          prev.map((event) =>
-            event.id === eventId
-              ? {
-                  ...event,
-                  approvedUserIds: event.approvedUserIds.filter((id) => id !== userId),
-                  requestUserIds: [...event.requestUserIds, userId],
-                }
-              : event
-          )
-        );
-      }
-    })();
   };
 
-  const rejectRequest = (eventId: string, userId: string) => {
+  const rejectRequest = async (eventId: string, userId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('join_requests')
+      .update({ status: 'rejected' })
+      .eq('user_id', userId)
+      .eq('event_id', eventId);
+
+    if (error) {
+      console.error('Error rejecting request:', error);
+      throw new Error(error.message);
+    }
+
     setRequests((prev) =>
       prev.map((request) =>
         request.eventId === eventId && request.userId === userId
@@ -704,35 +687,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : event
       )
     );
-
-    (async () => {
-      const { error } = await supabase
-        .from('join_requests')
-        .update({ status: 'rejected' })
-        .eq('user_id', userId)
-        .eq('event_id', eventId);
-
-      if (error) {
-        console.error('Error rejecting request:', error);
-        setRequests((prev) =>
-          prev.map((request) =>
-            request.eventId === eventId && request.userId === userId
-              ? { ...request, status: 'pending' }
-              : request
-          )
-        );
-        setEvents((prev) =>
-          prev.map((event) =>
-            event.id === eventId
-              ? { ...event, requestUserIds: [...event.requestUserIds, userId] }
-              : event
-          )
-        );
-      }
-    })();
   };
 
-  const inviteToEvent = (eventId: string, userId: string) => {
+  const inviteToEvent = async (eventId: string, userId: string): Promise<void> => {
     const event = events.find((item) => item.id === eventId);
     if (!event || !currentUser) {
       return;
@@ -743,63 +700,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const inviteId = randomUUID();
+    const status = event.creatorId === currentUser.id ? 'approved' : 'pending';
 
-    if (event.creatorId === currentUser.id) {
-      setEvents((prev) =>
-        prev.map((item) =>
-          item.id === eventId ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] } : item
-        )
-      );
-      setRequests((prev) => [
-        ...prev,
-        { id: inviteId, eventId, userId, status: 'approved', createdAt: new Date().toISOString() },
-      ]);
+    const { error } = await supabase.from('join_requests').insert([
+      { id: inviteId, user_id: userId, event_id: eventId, status },
+    ]);
 
-      (async () => {
-        const { error } = await supabase.from('join_requests').insert([
-          { id: inviteId, user_id: userId, event_id: eventId, status: 'approved' },
-        ]);
-        if (error) {
-          console.error('Error creating approved invite:', error);
-          setEvents((prev) =>
-            prev.map((item) =>
-              item.id === eventId
-                ? { ...item, approvedUserIds: item.approvedUserIds.filter((id) => id !== userId) }
-                : item
-            )
-          );
-          setRequests((prev) => prev.filter((request) => request.id !== inviteId));
-        }
-      })();
-      return;
+    if (error) {
+      console.error('Error creating invite:', error);
+      throw new Error(error.message);
     }
 
     setRequests((prev) => [
       ...prev,
-      { id: inviteId, eventId, userId, status: 'pending', createdAt: new Date().toISOString() },
+      { id: inviteId, eventId, userId, status, createdAt: new Date().toISOString() },
     ]);
     setEvents((prev) =>
       prev.map((item) =>
-        item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, userId] } : item
+        item.id === eventId
+          ? status === 'approved'
+            ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] }
+            : { ...item, requestUserIds: [...item.requestUserIds, userId] }
+          : item
       )
     );
-
-    (async () => {
-      const { error } = await supabase.from('join_requests').insert([
-        { id: inviteId, user_id: userId, event_id: eventId, status: 'pending' },
-      ]);
-      if (error) {
-        console.error('Error creating pending invite:', error);
-        setRequests((prev) => prev.filter((request) => request.id !== inviteId));
-        setEvents((prev) =>
-          prev.map((item) =>
-            item.id === eventId
-              ? { ...item, requestUserIds: item.requestUserIds.filter((id) => id !== userId) }
-              : item
-          )
-        );
-      }
-    })();
   };
 
   const getRequestStatus = (eventId: string) => {
