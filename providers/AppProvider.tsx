@@ -194,6 +194,16 @@ const hydrateEvents = (
       .map((request) => request.userId),
   }));
 
+const AUTH_TIMEOUT_MS = 15000;
+
+const withAuthTimeout = <T,>(promise: Promise<T>): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Couldn't reach the server. Check your internet connection and try again.")), AUTH_TIMEOUT_MS)
+    ),
+  ]);
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { profile, isLoggedIn, refreshProfile } = useAuthContext();
 
@@ -392,19 +402,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string): Promise<AuthResult> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
+      return { error: error?.message ?? null };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Login timed out. Check your internet connection and try again.' };
+    }
   };
 
   const signup = async (email: string, password: string): Promise<AuthResult> => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      return { error: error.message };
-    }
+    try {
+      const { data, error } = await withAuthTimeout(supabase.auth.signUp({ email, password }));
+      if (error) {
+        return { error: error.message };
+      }
 
-    // Profile row creation is handled by AuthProvider.fetchProfile() once the
-    // resulting auth state change delivers claims — don't race it with a second insert here.
-    return { error: null, needsEmailConfirmation: !data.session };
+      // Profile row creation is handled by AuthProvider.fetchProfile() once the
+      // resulting auth state change delivers claims — don't race it with a second insert here.
+      return { error: null, needsEmailConfirmation: !data.session };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Signup timed out. Check your internet connection and try again.' };
+    }
   };
 
   const socialAuth = (_provider: SocialProvider, _mode: 'login' | 'signup') => {

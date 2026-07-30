@@ -1,16 +1,27 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { colors, gradients } from '@/lib/theme';
+import { SuccessSheet } from '@/components/SuccessSheet';
+import { colors } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
-import { getSelectableAppModes, type DevAppMode } from '@/lib/monetisation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import loginIllustration from '@/assets/auth/login-illustration.png';
+import successIllustration from '@/assets/auth/success-illustration.png';
 
 type Mode = 'login' | 'signup';
+type SuccessMode = 'login' | 'signup' | null;
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
@@ -18,15 +29,9 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login, signup, socialAuth, devAppMode, setDevAppMode } = useApp();
+  const [successMode, setSuccessMode] = useState<SuccessMode>(null);
+  const { login, signup, socialAuth, devAppMode } = useApp();
   const insets = useSafeAreaInsets();
-  const appModeCopy: Record<DevAppMode, { label: string; helper: string }> = {
-    free: { label: 'Free version', helper: 'No credits or paywall UI' },
-    paid: { label: 'Paid version', helper: 'Credits enabled after free limits' },
-    'limit-hit': { label: 'Paywall demo', helper: 'Starts at limits with 0 credits' },
-    'new-user': { label: 'New user demo', helper: 'Profile setup and verification prompts' },
-  };
-  const appModes = getSelectableAppModes().map((id) => ({ id, ...appModeCopy[id] }));
 
   const handleModeChange = (nextMode: Mode) => {
     setMode(nextMode);
@@ -40,26 +45,31 @@ export default function AuthScreen() {
     }
     setError(null);
     setLoading(true);
-    const result =
-      mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
-    setLoading(false);
+    try {
+      const result =
+        mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
 
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-
-    if (mode === 'signup') {
-      if (result.needsEmailConfirmation) {
-        setError('Account created. Check your email to confirm it, then log in.');
-        setMode('login');
+      if (result.error) {
+        setError(result.error);
         return;
       }
-      router.replace('/new-user-profile');
-      return;
-    }
 
-    router.replace('/(tabs)/home');
+      if (mode === 'signup') {
+        if (result.needsEmailConfirmation) {
+          setError('Account created. Check your email to confirm it, then log in.');
+          setMode('login');
+          return;
+        }
+        setSuccessMode('signup');
+        return;
+      }
+
+      setSuccessMode('login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSocialAuth = (provider: 'google' | 'apple') => {
@@ -71,29 +81,55 @@ export default function AuthScreen() {
     router.replace('/(tabs)/home');
   };
 
+  const dismissSuccess = () => {
+    const wasSignup = successMode === 'signup';
+    setSuccessMode(null);
+    router.replace(wasSignup ? '/new-user-profile' : '/(tabs)/home');
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
-        <View style={{ paddingHorizontal: 24, paddingTop: insets.top + 22, paddingBottom: 28 }}>
-          <Text style={{ color: colors.text, fontSize: 34, fontWeight: '900' }}>Toogether</Text>
-          <Text style={{ color: colors.skyDark, marginTop: 8, fontSize: 15, fontWeight: '700' }}>
-            Your next plan is one tap away.
-          </Text>
-        </View>
-
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
         <ScrollView
-          style={{
-            flex: 1,
-            backgroundColor: colors.page,
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 32,
+          style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+          contentContainerStyle={{
+            padding: 24,
+            paddingTop: insets.top + 12,
+            gap: 14,
+            paddingBottom: Math.max(insets.bottom, 16) + 20,
           }}
-          contentContainerStyle={{ padding: 24, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 20 }}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={{ alignItems: 'center' }}>
+            <View
+              style={{
+                width: 132,
+                height: 132,
+                borderRadius: 66,
+                backgroundColor: '#FFF6EA',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+            >
+              <Image source={loginIllustration} style={{ width: 132, height: 132 }} resizeMode="cover" />
+            </View>
+          </View>
+
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 26, fontWeight: '900', color: '#1A1A2E', textAlign: 'center' }}>
+              {mode === 'login' ? 'Welcome back 👋' : 'Create your account 🎉'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7490', marginTop: 6, textAlign: 'center' }}>
+              {mode === 'login'
+                ? 'Enter your details to access your account'
+                : "Let's get your plans started in a minute"}
+            </Text>
+          </View>
+
           <View
             style={{
-              backgroundColor: '#EEF2F7',
+              backgroundColor: '#F1F2F6',
               borderRadius: 18,
               padding: 4,
               flexDirection: 'row',
@@ -138,126 +174,77 @@ export default function AuthScreen() {
 
           {mode === 'login' ? (
             <Pressable onPress={() => router.push('/reset-password')} style={{ alignSelf: 'flex-end' }}>
-              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Forgot password?</Text>
+              <Text style={{ color: '#1A1A2E', fontWeight: '700', fontSize: 13 }}>Forgot Password</Text>
             </Pressable>
           ) : null}
 
           {error ? <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text> : null}
 
           <GradientButton
-            label={loading ? '' : mode === 'login' ? 'Log In' : 'Create Account'}
+            label={loading ? '' : mode === 'login' ? 'Login' : 'Create Account'}
             onPress={handleEmailAuth}
             disabled={loading}
             fullWidth
-            icon={loading ? <ActivityIndicator color={colors.text} /> : undefined}
+            variant="dark"
+            icon={loading ? <ActivityIndicator color="#FFFFFF" /> : undefined}
           />
-
-          {appModes.length ? (
-            <View
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 24,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 14,
-                gap: 10,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="construct-outline" size={18} color={colors.primary} />
-                <Text style={{ color: colors.text, fontWeight: '900' }}>Choose app version</Text>
-              </View>
-              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                Temporary login switch for reviewing the hidden paid flow before launch.
-              </Text>
-              <View style={{ gap: 8 }}>
-                {appModes.map((item) => {
-                  const active = item.id === devAppMode;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => setDevAppMode(item.id)}
-                      style={{
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: active ? colors.primary : colors.border,
-                        backgroundColor: active ? '#E8F4FF' : '#FFFFFF',
-                        padding: 12,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                      }}
-                    >
-                      <Ionicons
-                        name={active ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={active ? colors.primary : colors.muted}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontWeight: '800' }}>{item.label}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{item.helper}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>OR</Text>
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>or continue with</Text>
             <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
           </View>
 
-          <Pressable
-            disabled
-            onPress={() => handleSocialAuth('google')}
-            style={{
-              minHeight: 56,
-              borderRadius: 24,
-              backgroundColor: '#F3F4F6',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'row',
-              gap: 10,
-              borderWidth: 1,
-              borderColor: '#E5E7EB',
-              opacity: 0.55,
-            }}
-          >
-            <Ionicons name="logo-google" size={18} color="#9CA3AF" />
-            <Text style={{ color: '#9CA3AF', fontSize: 16, fontWeight: '800' }}>
-              {mode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
-            </Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
+            <Pressable
+              disabled
+              onPress={() => handleSocialAuth('google')}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#F3F4F6',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                opacity: 0.55,
+              }}
+            >
+              <Ionicons name="logo-google" size={22} color="#9CA3AF" />
+            </Pressable>
 
-          <Pressable
-            disabled
-            onPress={() => handleSocialAuth('apple')}
-            style={{
-              minHeight: 56,
-              borderRadius: 24,
-              backgroundColor: '#4B5563',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'row',
-              gap: 10,
-              opacity: 0.55,
-            }}
-          >
-            <Ionicons name="logo-apple" size={18} color="#FFFFFF" />
-            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800' }}>
-              {mode === 'login' ? 'Continue with Apple' : 'Sign up with Apple'}
-            </Text>
-          </Pressable>
-
-          <Text style={{ color: '#98A2B3', fontSize: 12, textAlign: 'center' }}>
-            Google and Apple sign-in are coming soon. Google and Apple usually do not provide reliable gender data,
-            so the app will still ask you to confirm your profile after sign-in.
-          </Text>
+            <Pressable
+              disabled
+              onPress={() => handleSocialAuth('apple')}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#4B5563',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0.55,
+              }}
+            >
+              <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
         </ScrollView>
-      </LinearGradient>
+      </View>
+
+      <SuccessSheet
+        visible={successMode !== null}
+        image={successIllustration}
+        title={successMode === 'signup' ? 'Account Created' : 'Login Successful'}
+        subtitle={
+          successMode === 'signup'
+            ? "You're all set, let's finish your profile"
+            : 'Everything looks good, moving you ahead'
+        }
+        buttonLabel="Got it"
+        onDismiss={dismissSuccess}
+      />
     </KeyboardAvoidingView>
   );
 }

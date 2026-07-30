@@ -1,29 +1,39 @@
 import { useRef, useState } from 'react';
-import { Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GradientButton } from '@/components/GradientButton';
-import { gradients } from '@/lib/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { gradients, shadow } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import Slide1Illustration from '@/assets/onboarding/slide-1.svg';
+import Slide2Illustration from '@/assets/onboarding/slide-2.svg';
+import Slide3Illustration from '@/assets/onboarding/slide-3.svg';
 
 const slides = [
   {
-    emoji: '🌟',
+    key: 'discover',
+    Illustration: Slide1Illustration,
     title: 'Discover spontaneous plans',
     subtitle: 'No dead group chats. Just real people making real plans nearby.',
+    accent: ['#FFDE7A', '#F5B921'] as const,
+    iconColor: '#1A1A2E',
   },
   {
-    emoji: '🎯',
+    key: 'create',
+    Illustration: Slide2Illustration,
     title: 'Create the vibe you want',
     subtitle: 'Movie nights, chai runs, jam sessions, drives, and anything in between.',
+    accent: ['#FF9294', '#F65C6E'] as const,
+    iconColor: '#FFFFFF',
   },
   {
-    emoji: '🤝',
+    key: 'meet',
+    Illustration: Slide3Illustration,
     title: 'Meet people you click with',
     subtitle: 'Every plan is a chance to find your crew and keep the momentum going.',
+    accent: ['#8B5CF6', '#5D2ED2'] as const,
+    iconColor: '#FFFFFF',
   },
 ];
 
@@ -32,6 +42,8 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { completeOnboarding } = useApp();
   const insets = useSafeAreaInsets();
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const IMAGE_HEIGHT = Math.round(SCREEN_HEIGHT * 0.68);
 
   const finish = () => {
     completeOnboarding();
@@ -51,25 +63,12 @@ export default function OnboardingScreen() {
     }
   };
 
+  const isLast = index === slides.length - 1;
+  const current = slides[index];
+
   return (
     <View style={{ flex: 1, backgroundColor: '#F6F7FB' }}>
-      <LinearGradient colors={[...gradients.hero]} style={{ flex: 1, paddingTop: insets.top + 20 }}>
-        <View style={{ paddingHorizontal: 24, alignItems: 'flex-end', minHeight: 40 }}>
-          {index < slides.length - 1 ? (
-            <Pressable
-              onPress={finish}
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.24)',
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 999,
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Skip</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
+      <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -81,67 +80,98 @@ export default function OnboardingScreen() {
             setIndex(newIndex);
           }}
           style={{ flex: 1 }}
-          contentContainerStyle={{ alignItems: 'center' }}
         >
           {slides.map((slide) => (
-            <View
-              key={slide.emoji}
-              style={{ width: SCREEN_WIDTH, flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}
-            >
-              <View
-                style={{
-                  width: 220,
-                  height: 220,
-                  borderRadius: 110,
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ fontSize: 88 }}>{slide.emoji}</Text>
+            <View key={slide.key} style={{ width: SCREEN_WIDTH, flex: 1 }}>
+              <View style={{ width: SCREEN_WIDTH, height: IMAGE_HEIGHT, overflow: 'hidden' }}>
+                <slide.Illustration
+                  width={SCREEN_WIDTH}
+                  height={IMAGE_HEIGHT}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+              </View>
+
+              <View style={{ paddingHorizontal: 28, paddingTop: 28 }}>
+                <Text style={{ fontSize: 31, fontWeight: '900', color: '#1A1A2E', lineHeight: 38 }}>
+                  {slide.title}
+                </Text>
+                <Text style={{ fontSize: 16, color: '#667085', marginTop: 12, lineHeight: 24 }}>
+                  {slide.subtitle}
+                </Text>
               </View>
             </View>
           ))}
         </ScrollView>
 
         <View
+          pointerEvents="box-none"
           style={{
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 32,
-            paddingHorizontal: 24,
-            paddingTop: 28,
-            paddingBottom: Math.max(insets.bottom, 16) + 20,
-            minHeight: 290,
+            position: 'absolute',
+            top: insets.top + 16,
+            right: 20,
+            left: 20,
+            alignItems: 'flex-end',
           }}
         >
-          <Text style={{ fontSize: 31, fontWeight: '900', color: '#1A1A2E', lineHeight: 38 }}>
-            {slides[index].title}
-          </Text>
-          <Text style={{ fontSize: 16, color: '#667085', marginTop: 12, lineHeight: 24 }}>
-            {slides[index].subtitle}
-          </Text>
+          {!isLast ? (
+            <Pressable
+              onPress={finish}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.5)',
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: '#1A1A2E', fontWeight: '800' }}>Skip</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 28, marginBottom: 28 }}>
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            left: 28,
+            right: 28,
+            bottom: Math.max(insets.bottom, 16) + 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             {slides.map((_, dotIndex) => (
               <Pressable key={dotIndex} onPress={() => goToSlide(dotIndex)}>
                 <View
                   style={{
-                    width: dotIndex === index ? 28 : 8,
+                    width: 8,
                     height: 8,
                     borderRadius: 999,
-                    backgroundColor: dotIndex === index ? '#F5A623' : '#D0D5DD',
+                    backgroundColor: dotIndex === index ? '#1A1A2E' : '#D0D5DD',
                   }}
                 />
               </Pressable>
             ))}
           </View>
 
-          <GradientButton
-            label={index === slides.length - 1 ? 'Get Started' : 'Next'}
-            onPress={handleNext}
-            fullWidth
-          />
+          <Pressable onPress={handleNext} hitSlop={8}>
+            <LinearGradient
+              colors={[...current.accent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...shadow.lift,
+              }}
+            >
+              <Ionicons name={isLast ? 'checkmark' : 'arrow-forward'} size={24} color={current.iconColor} />
+            </LinearGradient>
+          </Pressable>
         </View>
       </LinearGradient>
     </View>
