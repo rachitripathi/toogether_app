@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "toogether-expo",
+    "name": "Toogether",
     "slug": "toogether-expo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,17 +15,10 @@
       }
     },
     "android": {
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
-      ],
-      "bundleIdentifier": "com.toogether.app"
-    },
-    "android": {
       "package": "com.toogether.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FCEEDD",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -56,6 +49,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "09e63a8b-ca90-40e9-ac58-b7375bdde6c3"
+      }
+    },
+    "owner": "rachittripathis-team"
   }
 }

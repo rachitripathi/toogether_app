@@ -11,9 +11,18 @@ type GradientButtonProps = {
   fullWidth?: boolean;
   icon?: ReactNode;
   style?: ViewStyle;
+  variant?: 'gradient' | 'dark';
 };
 
-export function GradientButton({ label, onPress, disabled, fullWidth, icon, style }: GradientButtonProps) {
+export function GradientButton({
+  label,
+  onPress,
+  disabled,
+  fullWidth,
+  icon,
+  style,
+  variant = 'gradient',
+}: GradientButtonProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
@@ -34,7 +43,13 @@ export function GradientButton({ label, onPress, disabled, fullWidth, icon, styl
         style={{ width: '100%' }}
       >
         <LinearGradient
-          colors={disabled ? ['#CBD5E1', '#CBD5E1'] : [...gradients.amber]}
+          colors={
+            disabled
+              ? ['#CBD5E1', '#CBD5E1']
+              : variant === 'dark'
+                ? ['#1A1A2E', '#1A1A2E']
+                : [...gradients.amber]
+          }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
@@ -49,7 +64,15 @@ export function GradientButton({ label, onPress, disabled, fullWidth, icon, styl
           }}
         >
           {icon}
-          <Text style={{ color: disabled ? '#FFFFFF' : colors.text, fontSize: 16, fontWeight: '900' }}>{label}</Text>
+          <Text
+            style={{
+              color: disabled ? '#FFFFFF' : variant === 'dark' ? '#FFFFFF' : colors.text,
+              fontSize: 16,
+              fontWeight: '900',
+            }}
+          >
+            {label}
+          </Text>
         </LinearGradient>
       </Pressable>
     </Animated.View>
