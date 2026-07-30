@@ -40,26 +40,31 @@ export default function AuthScreen() {
     }
     setError(null);
     setLoading(true);
-    const result =
-      mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
-    setLoading(false);
+    try {
+      const result =
+        mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
 
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-
-    if (mode === 'signup') {
-      if (result.needsEmailConfirmation) {
-        setError('Account created. Check your email to confirm it, then log in.');
-        setMode('login');
+      if (result.error) {
+        setError(result.error);
         return;
       }
-      router.replace('/new-user-profile');
-      return;
-    }
 
-    router.replace('/(tabs)/home');
+      if (mode === 'signup') {
+        if (result.needsEmailConfirmation) {
+          setError('Account created. Check your email to confirm it, then log in.');
+          setMode('login');
+          return;
+        }
+        router.replace('/new-user-profile');
+        return;
+      }
+
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSocialAuth = (provider: 'google' | 'apple') => {
