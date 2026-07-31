@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Modal, Pressable, Text, View } from 'react-native';

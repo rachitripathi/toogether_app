@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -30,8 +30,22 @@ export default function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [successMode, setSuccessMode] = useState<SuccessMode>(null);
-  const { login, signup, socialAuth, devAppMode } = useApp();
+  const { login, signup, socialAuth, devAppMode, currentUser } = useApp();
   const insets = useSafeAreaInsets();
+
+  // Safety net: Supabase's signInWithPassword() has been observed to leave the
+  // caller's promise hanging even after it already created the session and
+  // fired onAuthStateChange (confirmed via server logs showing 200s on every
+  // attempt while the app kept showing a timeout error). currentUser flips
+  // true from that background event regardless, so watch it directly instead
+  // of relying solely on handleEmailAuth's own promise ever resolving.
+  useEffect(() => {
+    if (currentUser && successMode === null) {
+      setError(null);
+      setLoading(false);
+      setSuccessMode(mode === 'signup' ? 'signup' : 'login');
+    }
+  }, [currentUser]);
 
   const handleModeChange = (nextMode: Mode) => {
     setMode(nextMode);

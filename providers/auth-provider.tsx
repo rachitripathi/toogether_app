@@ -67,33 +67,57 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     setIsLoading(false);
   };
 
-  const loadClaims = async () => {
+  // Returns true once a definitive answer was reached (logged in or genuinely
+  // logged out) and false if the attempt hit an error and should be retried —
+  // e.g. a transient network hiccup right at cold-start shouldn't be treated
+  // the same as an actual logged-out state.
+  const loadClaims = async (): Promise<boolean> => {
     const { data, error } = await supabase.auth.getClaims();
-    if (error) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
-      return;
+    if (!error) {
+      setClaims(data?.claims ?? null);
+      return true;
     }
-    setClaims(data?.claims ?? null);
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      return false;
+    }
+    const session = sessionData.session;
+    setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
+    return true;
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchClaims = async () => {
       setIsLoading(true);
-      await loadClaims();
-      setIsLoading(false);
+      const ok = await loadClaims();
+      if (!ok && !cancelled) {
+        // One retry after a short delay to ride out a cold-start network blip
+        // instead of immediately dropping the user back to the login screen.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (!cancelled) {
+          await loadClaims();
+        }
+      }
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     };
     fetchClaims();
 
+    // Use the session handed to us by the event directly instead of calling
+    // getClaims()/getSession() again here — fewer redundant calls means fewer
+    // chances to trip the SDK's refresh-failure session wipe (see utils/supabase.ts).
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, _session) => {
-      await loadClaims();
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
     });
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
     };
   }, []);
