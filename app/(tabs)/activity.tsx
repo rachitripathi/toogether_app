@@ -209,7 +209,7 @@ export default function ActivityScreen() {
                   key={nudge.id}
                   onPress={() => router.push(nudge.route as never)}
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: colors.surface,
                     borderRadius: 22,
                     borderWidth: 1,
                     borderColor: colors.border,
@@ -258,7 +258,7 @@ export default function ActivityScreen() {
                 key={activity.id}
                 onPress={() => router.push(activity.route as never)}
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: colors.surface,
                   borderRadius: 26,
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -298,9 +298,24 @@ export default function ActivityScreen() {
                   </View>
                 </View>
 
-                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: '700' }}>{activity.helper}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Tap to open the relevant screen.</Text>
+                <View
+                  style={{
+                    backgroundColor: '#EFF6FF',
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: '#D5E5FF',
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    gap: 4,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} style={{ marginRight: 4 }} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: colors.skyDark, fontWeight: '700' }}>{activity.helper}</Text>
+                    <Text style={{ color: colors.primary, fontSize: 12 }}>Tap to open the relevant screen.</Text>
+                  </View>
                 </View>
               </Pressable>
             );
@@ -310,7 +325,7 @@ export default function ActivityScreen() {
         {!hasContent ? (
           <View
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 28,
               borderWidth: 1,
               borderColor: colors.border,

@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import { AppProvider, useApp } from '@/providers/AppProvider';
 import AuthProvider from '@/providers/auth-provider';
 import { GradientButton } from '@/components/GradientButton';
+import { SuccessToast } from '@/components/SuccessToast';
 import { colors } from '@/lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -86,7 +87,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <AppProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F6F7FB' } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="auth" />
@@ -104,6 +105,7 @@ export default function RootLayout() {
           <Stack.Screen name="user/[id]" />
         </Stack>
         <VerificationPrompt />
+        <SuccessToast />
         <StatusBar style="dark" />
       </AppProvider>
     </AuthProvider>

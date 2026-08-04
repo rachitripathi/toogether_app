@@ -77,7 +77,7 @@ export default function ProfilePlansScreen() {
               key={event.id}
               onPress={() => router.push(`/event/${event.id}`)}
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: colors.surface,
                 borderRadius: 22,
                 borderWidth: 1,
                 borderColor: colors.border,
@@ -100,7 +100,7 @@ export default function ProfilePlansScreen() {
         ) : (
           <View
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: colors.border,

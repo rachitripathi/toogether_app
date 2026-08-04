@@ -11,11 +11,22 @@ type HeaderHeroProps = {
   leading?: ReactNode;
   children?: ReactNode;
   onTitlePress?: () => void;
+  /** Override the safe-area top inset used for spacing. Pass 0 when the parent screen already reserves that space itself. Defaults to the device's actual top inset. */
+  topInset?: number;
 };
 
-export function HeaderHero({ title, subtitle, eyebrow, right, leading, children, onTitlePress }: HeaderHeroProps) {
+export function HeaderHero({
+  title,
+  subtitle,
+  eyebrow,
+  right,
+  leading,
+  children,
+  onTitlePress,
+  topInset,
+}: HeaderHeroProps) {
   const insets = useSafeAreaInsets();
-  const compactTitle = Boolean(leading || eyebrow);
+  const resolvedTopInset = topInset ?? insets.top;
   const TitleWrapper = onTitlePress ? Pressable : View;
 
   return (
@@ -24,29 +35,33 @@ export function HeaderHero({ title, subtitle, eyebrow, right, leading, children,
         backgroundColor: colors.page,
         paddingHorizontal: 20,
         paddingBottom: 6,
-        paddingTop: insets.top + 8,
+        paddingTop: resolvedTopInset + 8,
       }}
     >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <TitleWrapper
-          onPress={onTitlePress}
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+      {leading || right ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+          }}
         >
-          {leading}
-          <View style={{ flex: 1, gap: 2 }}>
-            {eyebrow ? (
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>{eyebrow}</Text>
-            ) : null}
-            <Text style={{ color: colors.text, fontSize: compactTitle ? 19 : 28, fontWeight: '900' }}>{title}</Text>
-            {subtitle ? (
-              <Text style={{ color: colors.muted, fontSize: 14, fontWeight: '600' }}>
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
-        </TitleWrapper>
-        {right}
-      </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>{leading}</View>
+          <View>{right}</View>
+        </View>
+      ) : null}
+
+      <TitleWrapper onPress={onTitlePress} style={{ gap: 2 }}>
+        {eyebrow ? (
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>{eyebrow}</Text>
+        ) : null}
+        <Text style={{ color: colors.text, fontSize: 28, fontWeight: '900' }}>{title}</Text>
+        {subtitle ? (
+          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: '600' }}>{subtitle}</Text>
+        ) : null}
+      </TitleWrapper>
+
       {children}
     </View>
   );

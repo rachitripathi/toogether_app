@@ -66,14 +66,6 @@ function RateModal({ user, visible, onClose }: { user: User | null; visible: boo
   );
 }
 
-function StatPill({ label }: { label: string }) {
-  return (
-    <View style={{ backgroundColor: '#F4F7F6', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
-      <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>{label}</Text>
-    </View>
-  );
-}
-
 export default function PeopleScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -133,7 +125,7 @@ export default function PeopleScreen() {
         <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
           <View
             style={{
-              backgroundColor: colors.page,
+              backgroundColor: colors.surface,
               borderRadius: 999,
               borderWidth: 1,
               borderColor: colors.border,
@@ -184,7 +176,7 @@ export default function PeopleScreen() {
                 <View
                   key={request.id}
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: colors.surface,
                     borderRadius: 22,
                     borderWidth: 1,
                     borderColor: colors.border,
@@ -192,18 +184,21 @@ export default function PeopleScreen() {
                     gap: 12,
                   }}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
                     <AvatarBubble user={user} size={48} />
-                    <View style={{ flex: 1, gap: 6 }}>
+                    <View style={{ flex: 1, gap: 3 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <Text style={{ color: colors.text, fontWeight: '800' }}>{user.name}</Text>
                         {user.verified ? <Ionicons name="checkmark-circle" size={14} color="#15803D" /> : null}
                       </View>
-                      <Text style={{ color: colors.muted }}>wants to join your crew</Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                        <StatPill label={average ? `${average.toFixed(1)} karma` : 'New connection'} />
-                        <StatPill label={`${sharedCount} mutual ${sharedCount === 1 ? 'plan' : 'plans'}`} />
-                        {myRating ? <StatPill label={`${myRating} star rating`} /> : null}
+                      <Text style={{ color: colors.muted, fontSize: 13 }}>wants to join your crew</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                        <Ionicons name="star" size={12} color="#F59E0B" />
+                        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+                          {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedCount} mutual{' '}
+                          {sharedCount === 1 ? 'plan' : 'plans'}
+                          {myRating ? ` · ${myRating}★ from you` : ''}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -239,35 +234,37 @@ export default function PeopleScreen() {
               <View
                 key={person.id}
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: colors.surface,
                   borderRadius: 22,
                   borderWidth: 1,
                   borderColor: colors.border,
                   padding: 14,
-                  gap: 10,
+                  gap: 12,
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
                   <Pressable onPress={() => router.push(`/user/${person.id}`)}>
                     <AvatarBubble user={person} size={50} />
                   </Pressable>
-                  <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ flex: 1, gap: 3 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800' }}>{person.name}</Text>
+                      <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>{person.name}</Text>
                       {person.verified ? <Ionicons name="checkmark-circle" size={14} color="#15803D" /> : null}
                     </View>
-                    <Text style={{ color: colors.muted }}>@{person.username}</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      <StatPill label={average ? `${average.toFixed(1)} karma` : 'New connection'} />
-                      <StatPill label={`${sharedEvents.length} mutual ${sharedEvents.length === 1 ? 'plan' : 'plans'}`} />
-                      {myRating ? <StatPill label={`${myRating} star rating`} /> : null}
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>@{person.username}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+                        {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedEvents.length} mutual{' '}
+                        {sharedEvents.length === 1 ? 'plan' : 'plans'}
+                      </Text>
                     </View>
                   </View>
                   <Pressable
                     onPress={() => router.push(`/user/${person.id}`)}
-                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                   </Pressable>
                 </View>
 
@@ -277,22 +274,31 @@ export default function PeopleScreen() {
                       <Pressable
                         key={event.id}
                         onPress={() => router.push(`/event/${event.id}`)}
-                        style={{ backgroundColor: colors.page, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                        style={{ backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                       >
                         <Text>{event.emoji}</Text>
-                        <Text style={{ color: colors.text, fontWeight: '700' }}>{event.title}</Text>
+                        <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{event.title}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 ) : null}
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ color: colors.muted, fontWeight: '700' }}>{person.city}</Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: 10,
+                    borderTopWidth: 1,
+                    borderTopColor: 'rgba(20, 24, 46, 0.06)',
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13 }}>{person.city || 'Guwahati'}</Text>
                   <Pressable
                     onPress={() => setRatingTarget(person)}
-                    style={{ backgroundColor: myRating ? '#FEF3C7' : colors.page, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
+                    style={{ backgroundColor: myRating ? '#FEF3C7' : '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
                   >
-                    <Text style={{ color: myRating ? '#B45309' : colors.muted, fontWeight: '800' }}>
+                    <Text style={{ color: myRating ? '#B45309' : colors.text, fontWeight: '800', fontSize: 12 }}>
                       {myRating ? `${myRating}★ Rated` : 'Rate'}
                     </Text>
                   </Pressable>
@@ -301,7 +307,7 @@ export default function PeopleScreen() {
             );
           })
         ) : query ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
             <Text style={{ fontSize: 48 }}>🔍</Text>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>No match</Text>
             <Text style={{ color: colors.muted, textAlign: 'center' }}>
@@ -309,7 +315,7 @@ export default function PeopleScreen() {
             </Text>
           </View>
         ) : (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, alignItems: 'center', gap: 8 }}>
             <Text style={{ fontSize: 48 }}>🌱</Text>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>No crew yet</Text>
             <Text style={{ color: colors.muted, textAlign: 'center' }}>

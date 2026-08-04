@@ -55,7 +55,7 @@ export default function VerificationScreen() {
         </LinearGradient>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 16 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 16 }}>
             <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>Your verified perks</Text>
             {perks.map((perk) => (
               <View key={perk.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -122,7 +122,7 @@ export default function VerificationScreen() {
           </Text>
         </View>
 
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why get verified?</Text>
           {benefits.map((item) => (
             <View key={item} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>

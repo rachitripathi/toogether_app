@@ -388,7 +388,7 @@ export default function EventDetailScreen() {
           <View
             style={{
               flex: 1,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 22,
               borderWidth: 1,
               borderColor: colors.border,
@@ -405,7 +405,7 @@ export default function EventDetailScreen() {
           <View
             style={{
               flex: 1,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 22,
               borderWidth: 1,
               borderColor: colors.border,
@@ -423,7 +423,7 @@ export default function EventDetailScreen() {
           </View>
         </View>
 
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Plan snapshot</Text>
           <InfoRow
             icon="time-outline"
@@ -437,7 +437,7 @@ export default function EventDetailScreen() {
           {event.maxPeople ? <InfoRow icon="people-outline" iconColor="#16A34A" label={`${attendeeCount} going so far`} /> : null}
         </View>
 
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Private details</Text>
             <View
@@ -500,14 +500,14 @@ export default function EventDetailScreen() {
         </View>
 
         {event.description ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 10 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 10 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>About</Text>
             <Text style={{ color: colors.muted, lineHeight: 22 }}>{event.description}</Text>
           </View>
         ) : null}
 
         {creator ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Hosted by</Text>
             <Pressable onPress={() => router.push(`/user/${creator.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <AvatarBubble user={creator} size={48} />
@@ -525,7 +525,7 @@ export default function EventDetailScreen() {
         ) : null}
 
         {event.approvedUserIds.length ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
               Going ({event.approvedUserIds.length})
             </Text>
@@ -584,7 +584,7 @@ export default function EventDetailScreen() {
         ) : null}
 
         {isCreator ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
               Join Requests {pendingRequests.length ? `(${pendingRequests.length})` : ''}
             </Text>
@@ -750,7 +750,7 @@ export default function EventDetailScreen() {
                         key={slot}
                         onPress={() => setEditTimeSlot(slot)}
                         style={{
-                          backgroundColor: active ? '#FFF1D6' : '#FFFFFF',
+                          backgroundColor: active ? '#FFF1D6' : colors.surface,
                           borderWidth: 1,
                           borderColor: active ? colors.primary : colors.border,
                           borderRadius: 999,

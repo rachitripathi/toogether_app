@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { supabase } from '@/utils/supabase';
 import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
@@ -47,6 +48,8 @@ type SocialProvider = 'google' | 'apple';
 
 type AuthResult = { error: string | null; needsEmailConfirmation?: boolean };
 
+type SuccessToast = { title: string; subtitle: string };
+
 type UsageSummary = {
   mode: DevAppMode;
   monetisationEnabled: boolean;
@@ -70,7 +73,11 @@ type AppContextValue = {
   messages: Record<string, Message[]>;
   ratings: Rating[];
   isOnboardingComplete: boolean;
+  isAppReady: boolean;
   shouldShowVerificationPrompt: boolean;
+  successToast: SuccessToast | null;
+  showSuccessToast: (title: string, subtitle: string) => void;
+  clearSuccessToast: () => void;
   categoryConfig: typeof CATEGORY_CONFIG;
   devAppMode: DevAppMode;
   monetisationEnabled: boolean;
@@ -85,7 +92,7 @@ type AppContextValue = {
   login: (email: string, password: string) => Promise<AuthResult>;
   signup: (email: string, password: string) => Promise<AuthResult>;
   socialAuth: (provider: SocialProvider, mode: 'login' | 'signup') => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   dismissVerificationPrompt: () => void;
   updateCurrentUser: (
     data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
@@ -194,6 +201,8 @@ const hydrateEvents = (
       .map((request) => request.userId),
   }));
 
+const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
+
 const AUTH_TIMEOUT_MS = 15000;
 
 const withAuthTimeout = <T,>(promise: Promise<T>): Promise<T> =>
@@ -205,7 +214,7 @@ const withAuthTimeout = <T,>(promise: Promise<T>): Promise<T> =>
   ]);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { profile, isLoggedIn, refreshProfile } = useAuthContext();
+  const { profile, isLoggedIn, isLoading: isAuthLoading, refreshProfile } = useAuthContext();
 
   const [users, setUsers] = useState<User[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -231,7 +240,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [isOnboardingLoaded, setIsOnboardingLoaded] = useState(false);
   const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
+  const [successToast, setSuccessToast] = useState<SuccessToast | null>(null);
+  const showSuccessToast = (title: string, subtitle: string) => setSuccessToast({ title, subtitle });
+  const clearSuccessToast = () => setSuccessToast(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY)
+      .then((value) => setIsOnboardingComplete(value === 'true'))
+      .finally(() => setIsOnboardingLoaded(true));
+  }, []);
+
+  // Onboarding is considered "loaded" once we've read the persisted flag, and the
+  // app is "ready" once we also know whether there's a logged-in session — index.tsx
+  // waits on this so it never briefly redirects to /auth for an already-logged-in
+  // user before the session has had a chance to load.
+  const isAppReady = isOnboardingLoaded && !isAuthLoading;
   const [devAppMode, setDevAppMode] = useState<DevAppMode>(getDefaultAppMode);
   const [unlockedAttendeeEventIds, setUnlockedAttendeeEventIds] = useState<string[]>([]);
   const [usageState, setUsageState] = useState<
@@ -430,13 +455,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     console.log('Social auth not yet implemented');
   };
 
-  const logout = () => {
-    supabase.auth.signOut();
+  const logout = async () => {
+    await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
   };
 
   const completeOnboarding = () => {
     setIsOnboardingComplete(true);
+    AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
   };
 
   const dismissVerificationPrompt = () => {
@@ -1040,7 +1066,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         messages,
         ratings,
         isOnboardingComplete,
+        isAppReady,
         shouldShowVerificationPrompt,
+        successToast,
+        showSuccessToast,
+        clearSuccessToast,
         categoryConfig: CATEGORY_CONFIG,
         devAppMode,
         monetisationEnabled,

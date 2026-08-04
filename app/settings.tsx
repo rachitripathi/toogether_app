@@ -15,7 +15,7 @@ function SettingsRow({ label, value }: { label: string; value: string }) {
   return (
     <View
       style={{
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.surface,
         borderRadius: 18,
         borderWidth: 1,
         borderColor: colors.border,

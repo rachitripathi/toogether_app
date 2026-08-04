@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,15 +13,12 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { SuccessSheet } from '@/components/SuccessSheet';
 import { colors } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import loginIllustration from '@/assets/auth/login-illustration.png';
-import successIllustration from '@/assets/auth/success-illustration.png';
 
 type Mode = 'login' | 'signup';
-type SuccessMode = 'login' | 'signup' | null;
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
@@ -29,21 +26,35 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [successMode, setSuccessMode] = useState<SuccessMode>(null);
-  const { login, signup, socialAuth, devAppMode, currentUser } = useApp();
+  const { login, signup, socialAuth, devAppMode, currentUser, showSuccessToast } = useApp();
   const insets = useSafeAreaInsets();
+  const attemptInFlightRef = useRef(false);
+  const hasNavigatedRef = useRef(false);
+
+  const completeAuthSuccess = (kind: 'login' | 'signup') => {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+    setError(null);
+    setLoading(false);
+    showSuccessToast(
+      kind === 'signup' ? 'Account created' : 'Login successful',
+      kind === 'signup' ? "You're all set, let's finish your profile" : 'Welcome back!'
+    );
+    router.replace(kind === 'signup' ? '/new-user-profile' : '/(tabs)/home');
+  };
 
   // Safety net: Supabase's signInWithPassword() has been observed to leave the
   // caller's promise hanging even after it already created the session and
   // fired onAuthStateChange (confirmed via server logs showing 200s on every
   // attempt while the app kept showing a timeout error). currentUser flips
   // true from that background event regardless, so watch it directly instead
-  // of relying solely on handleEmailAuth's own promise ever resolving.
+  // of relying solely on handleEmailAuth's own promise ever resolving. Gated on
+  // attemptInFlightRef so this never fires just from landing on /auth while an
+  // existing session is still loading (index.tsx normally prevents that, but this
+  // guards the edge case of navigating back here manually while already logged in).
   useEffect(() => {
-    if (currentUser && successMode === null) {
-      setError(null);
-      setLoading(false);
-      setSuccessMode(mode === 'signup' ? 'signup' : 'login');
+    if (currentUser && attemptInFlightRef.current) {
+      completeAuthSuccess(mode === 'signup' ? 'signup' : 'login');
     }
   }, [currentUser]);
 
@@ -59,6 +70,7 @@ export default function AuthScreen() {
     }
     setError(null);
     setLoading(true);
+    attemptInFlightRef.current = true;
     try {
       const result =
         mode === 'login' ? await login(email.trim(), password) : await signup(email.trim(), password);
@@ -74,11 +86,11 @@ export default function AuthScreen() {
           setMode('login');
           return;
         }
-        setSuccessMode('signup');
+        completeAuthSuccess('signup');
         return;
       }
 
-      setSuccessMode('login');
+      completeAuthSuccess('login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Check your connection and try again.');
     } finally {
@@ -89,20 +101,16 @@ export default function AuthScreen() {
   const handleSocialAuth = (provider: 'google' | 'apple') => {
     socialAuth(provider, mode);
     if (devAppMode === 'new-user') {
+      showSuccessToast('Account created', "You're all set, let's finish your profile");
       router.replace('/new-user-profile');
       return;
     }
+    showSuccessToast('Login successful', 'Welcome back!');
     router.replace('/(tabs)/home');
   };
 
-  const dismissSuccess = () => {
-    const wasSignup = successMode === 'signup';
-    setSuccessMode(null);
-    router.replace(wasSignup ? '/new-user-profile' : '/(tabs)/home');
-  };
-
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
         <ScrollView
           style={{ flex: 1, backgroundColor: '#FFFFFF' }}
@@ -115,19 +123,7 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignItems: 'center' }}>
-            <View
-              style={{
-                width: 132,
-                height: 132,
-                borderRadius: 66,
-                backgroundColor: '#FFF6EA',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-              }}
-            >
-              <Image source={loginIllustration} style={{ width: 132, height: 132 }} resizeMode="cover" />
-            </View>
+            <Image source={loginIllustration} style={{ width: 220, height: 147 }} resizeMode="contain" />
           </View>
 
           <View style={{ alignItems: 'center' }}>
@@ -246,19 +242,6 @@ export default function AuthScreen() {
           </View>
         </ScrollView>
       </View>
-
-      <SuccessSheet
-        visible={successMode !== null}
-        image={successIllustration}
-        title={successMode === 'signup' ? 'Account Created' : 'Login Successful'}
-        subtitle={
-          successMode === 'signup'
-            ? "You're all set, let's finish your profile"
-            : 'Everything looks good, moving you ahead'
-        }
-        buttonLabel="Got it"
-        onDismiss={dismissSuccess}
-      />
     </KeyboardAvoidingView>
   );
 }

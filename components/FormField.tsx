@@ -34,7 +34,7 @@ export function FormField({
           flexDirection: 'row',
           alignItems: 'center',
           borderRadius: 18,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.surface,
           borderWidth: 1,
           borderColor: error ? colors.danger : colors.border,
         }}

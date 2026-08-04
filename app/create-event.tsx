@@ -250,7 +250,7 @@ export default function CreateEventScreen() {
           <Pressable
             onPress={usage.createLimitReached ? () => router.push('/paywall') : undefined}
             style={{
-              backgroundColor: usage.createLimitReached ? '#FFF7E8' : '#FFFFFF',
+              backgroundColor: usage.createLimitReached ? '#FFF7E8' : colors.surface,
               borderRadius: 18,
               borderWidth: 1,
               borderColor: usage.createLimitReached ? '#FDE7B3' : colors.border,
@@ -284,10 +284,10 @@ export default function CreateEventScreen() {
                   onPress={() => setCategory(item.id)}
                   style={{
                     width: '22%',
-                    backgroundColor: active ? '#EEF2FF' : '#FFFFFF',
-                    borderWidth: 1,
-                    borderColor: active ? '#C7D2FE' : colors.border,
+                    backgroundColor: active ? '#EEF2FF' : colors.surface,
                     borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: active ? colors.primary : colors.border,
                     paddingVertical: 14,
                     alignItems: 'center',
                     gap: 5,
@@ -321,7 +321,7 @@ export default function CreateEventScreen() {
                 flex: 1,
                 minHeight: 54,
                 borderRadius: 18,
-                backgroundColor: '#FFFFFF',
+                backgroundColor: colors.surface,
                 borderWidth: 1,
                 borderColor: colors.border,
                 paddingHorizontal: 14,
@@ -339,7 +339,7 @@ export default function CreateEventScreen() {
                 flex: 1,
                 minHeight: 54,
                 borderRadius: 18,
-                backgroundColor: '#FFFFFF',
+                backgroundColor: colors.surface,
                 borderWidth: 1,
                 borderColor: colors.border,
                 paddingHorizontal: 14,
@@ -359,7 +359,7 @@ export default function CreateEventScreen() {
           <Pressable
             onPress={() => setShowMap(true)}
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 22,
               borderWidth: 1,
               borderColor: colors.border,
@@ -423,10 +423,10 @@ export default function CreateEventScreen() {
           <Pressable
             onPress={() => setWomenOnly((value) => !value)}
             style={{
-              backgroundColor: womenOnly ? '#FCE7F3' : '#FFFFFF',
+              backgroundColor: womenOnly ? '#FCE7F3' : colors.surface,
               borderRadius: 18,
               borderWidth: 1,
-              borderColor: womenOnly ? '#F9A8D4' : colors.border,
+              borderColor: womenOnly ? '#FBCFE8' : colors.border,
               padding: 16,
               flexDirection: 'row',
               alignItems: 'center',

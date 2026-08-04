@@ -178,7 +178,7 @@ export default function UserProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Trust snapshot</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <TrustPill label={user.verified ? 'ID verified' : 'Verification pending'} tone="accent" />
@@ -212,7 +212,7 @@ export default function UserProfileScreen() {
               <Pressable
                 key={event.id}
                 onPress={() => router.push(`/event/${event.id}`)}
-                style={{ backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{ backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -234,7 +234,7 @@ export default function UserProfileScreen() {
               <Pressable
                 key={event.id}
                 onPress={() => router.push(`/event/${event.id}`)}
-                style={{ backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{ backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>

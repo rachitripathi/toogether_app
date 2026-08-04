@@ -59,7 +59,7 @@ export default function NewUserVerificationScreen() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why it matters</Text>
           {benefits.map((benefit) => (
             <View key={benefit.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

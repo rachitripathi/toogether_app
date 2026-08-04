@@ -121,14 +121,14 @@ export default function ChatScreen() {
                   ) : null}
                   <View
                     style={{
-                      backgroundColor: isMe ? colors.primary : '#FFFFFF',
+                      backgroundColor: isMe ? colors.primary : colors.surface,
                       borderRadius: 18,
+                      borderWidth: 1,
+                      borderColor: isMe ? colors.primary : colors.border,
                       paddingHorizontal: 14,
                       paddingVertical: 12,
                       borderBottomRightRadius: isMe ? 6 : 18,
                       borderBottomLeftRadius: isMe ? 18 : 6,
-                      borderWidth: isMe ? 0 : 1,
-                      borderColor: colors.border,
                     }}
                   >
                     <Text style={{ color: isMe ? '#FFFFFF' : colors.text, lineHeight: 20 }}>{message.text}</Text>
@@ -143,7 +143,7 @@ export default function ChatScreen() {
         ) : (
           <View
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: colors.border,
@@ -165,7 +165,7 @@ export default function ChatScreen() {
         {!canChat ? (
           <View
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: colors.border,
@@ -189,10 +189,10 @@ export default function ChatScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 10,
-                backgroundColor: '#FFFFFF',
+                backgroundColor: colors.surface,
+                borderRadius: 999,
                 borderWidth: 1,
                 borderColor: colors.border,
-                borderRadius: 999,
                 paddingHorizontal: 16,
               }}
             >

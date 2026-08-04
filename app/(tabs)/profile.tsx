@@ -1,16 +1,14 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { EventCard } from '@/components/EventCard';
 import { colors, gradients } from '@/lib/theme';
 import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-type Section = 'hosting' | 'joined' | 'past' | null;
 
 function TrustChip({
   icon,
@@ -28,7 +26,7 @@ function TrustChip({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 999,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FFFFFF',
       }}
     >
       <Ionicons name={icon} size={14} color={colors.skyDark} />
@@ -42,17 +40,19 @@ function TrustChip({
 function ProfileMetric({
   label,
   value,
+  variant = 'surface',
 }: {
   label: string;
   value: string | number;
+  variant?: 'surface' | 'onSurface';
 }) {
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: variant === 'surface' ? colors.surface : '#FFFFFF',
         borderRadius: 16,
-        borderWidth: 1,
+        borderWidth: variant === 'surface' ? 1 : 0,
         borderColor: colors.border,
         paddingVertical: 12,
         alignItems: 'center',
@@ -68,36 +68,67 @@ function ProfileMetric({
   );
 }
 
-function RowLink({
+function ListGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={{ gap: 10 }}>
+      <Text
+        style={{
+          color: colors.muted,
+          fontSize: 12,
+          fontWeight: '800',
+          letterSpacing: 0.4,
+          textTransform: 'uppercase',
+          paddingHorizontal: 4,
+        }}
+      >
+        {title}
+      </Text>
+      <View
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: colors.border,
+          overflow: 'hidden',
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
+function ListRow({
   label,
   helper,
   icon,
   onPress,
+  isLast,
 }: {
   label: string;
   helper?: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
+  isLast?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
       style={{
-        backgroundColor: '#FFFFFF',
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: colors.border,
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: colors.border,
       }}
     >
-      <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={18} color={colors.primary} />
+      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={icon} size={17} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, fontWeight: '800' }}>{label}</Text>
+        <Text style={{ color: colors.text, fontWeight: '700' }}>{label}</Text>
         {helper ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{helper}</Text> : null}
       </View>
       <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
@@ -108,7 +139,6 @@ function RowLink({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
-  const [section, setSection] = useState<Section>('hosting');
   const { currentUser, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
 
   if (!currentUser) {
@@ -136,59 +166,6 @@ export default function ProfileScreen() {
     outputRange: [22, 10],
     extrapolate: 'clamp',
   });
-
-  const renderSection = (
-    label: string,
-    key: Section,
-    items: typeof events,
-    emoji: string,
-  ) => (
-    <View style={{ gap: 10 }}>
-      <Pressable
-        onPress={() => setSection(section === key ? null : key)}
-        style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 22,
-          borderWidth: 1,
-          borderColor: colors.border,
-          padding: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Text style={{ fontSize: 22 }}>{emoji}</Text>
-          <View>
-            <Text style={{ color: colors.text, fontWeight: '800' }}>{label}</Text>
-            <Text style={{ color: colors.muted }}>{items.length} plans</Text>
-          </View>
-        </View>
-        <Ionicons
-          name={section === key ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color={colors.muted}
-        />
-      </Pressable>
-      {section === key ? (
-        items.length ? (
-          items.map((event) => <EventCard key={event.id} event={event} />)
-        ) : (
-          <View
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 20,
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 18,
-            }}
-          >
-            <Text style={{ color: colors.muted }}>Nothing here yet.</Text>
-          </View>
-        )
-      ) : null}
-    </View>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -233,8 +210,6 @@ export default function ProfileScreen() {
             style={{
               backgroundColor: '#EFF6FF',
               borderRadius: 24,
-              borderWidth: 1,
-              borderColor: '#D5E8FF',
               padding: 18,
               gap: 10,
             }}
@@ -250,7 +225,7 @@ export default function ProfileScreen() {
 
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.surface,
             borderRadius: 24,
             borderWidth: 1,
             borderColor: colors.border,
@@ -278,7 +253,7 @@ export default function ProfileScreen() {
         {usage.monetisationEnabled ? (
           <View
             style={{
-              backgroundColor: usage.joinLimitReached || usage.createLimitReached ? '#FFF7E8' : '#FFFFFF',
+              backgroundColor: usage.joinLimitReached || usage.createLimitReached ? '#FFF7E8' : colors.surface,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: usage.joinLimitReached || usage.createLimitReached ? '#FDE7B3' : colors.border,
@@ -294,15 +269,15 @@ export default function ProfileScreen() {
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <ProfileMetric label="Requests" value={`${usage.joinUsed}/${usage.joinLimit}`} />
-              <ProfileMetric label="Created" value={`${usage.createUsed}/${usage.createLimit}`} />
-              <ProfileMetric label="Credits" value={usage.credits} />
+              <ProfileMetric variant="onSurface" label="Requests" value={`${usage.joinUsed}/${usage.joinLimit}`} />
+              <ProfileMetric variant="onSurface" label="Created" value={`${usage.createUsed}/${usage.createLimit}`} />
+              <ProfileMetric variant="onSurface" label="Credits" value={usage.credits} />
             </View>
           </View>
         ) : null}
 
         {usage.monetisationEnabled ? (
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E0F2FE', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="flash" size={20} color={colors.skyDark} />
@@ -320,7 +295,7 @@ export default function ProfileScreen() {
                 <Pressable
                   key={pack.id}
                   onPress={() => buyCreditPack(pack.id)}
-                  style={{ borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                  style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '900' }}>{pack.name}</Text>
@@ -333,38 +308,53 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View style={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>My plans</Text>
-          {renderSection("Plans I'm Hosting", 'hosting', hosting, '🎯')}
-          {renderSection('Plans I Joined', 'joined', joined, '🤝')}
-          {renderSection('Past Plans', 'past', past, '🗓️')}
-        </View>
+        <ListGroup title="My plans">
+          <ListRow
+            label="Plans I'm hosting"
+            helper={`${hosting.length} upcoming`}
+            icon="flag-outline"
+            onPress={() => router.push('/profile-plans/hosting')}
+          />
+          <ListRow
+            label="Plans I joined"
+            helper={`${joined.length} upcoming`}
+            icon="people-outline"
+            onPress={() => router.push('/profile-plans/joined')}
+          />
+          <ListRow
+            label="Past plans"
+            helper={`${past.length} completed`}
+            icon="time-outline"
+            onPress={() => router.push('/profile-plans/past')}
+            isLast
+          />
+        </ListGroup>
 
-        <View style={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Account</Text>
-          <RowLink
+        <ListGroup title="Account">
+          <ListRow
             label="Edit profile & settings"
             helper="Photo, username, bio, app details"
             icon="settings-outline"
             onPress={() => router.push('/settings')}
           />
-          <RowLink
+          <ListRow
             label="My crew"
             helper="People you've built trust with"
             icon="people-circle-outline"
             onPress={() => router.push('/(tabs)/people')}
           />
-          <RowLink
+          <ListRow
             label="Notifications inbox"
             helper="Requests, updates, approvals"
             icon="notifications-outline"
             onPress={() => router.push('/(tabs)/activity')}
+            isLast
           />
-        </View>
+        </ListGroup>
 
         <Pressable
-          onPress={() => {
-            logout();
+          onPress={async () => {
+            await logout();
             router.replace('/auth');
           }}
           style={{

@@ -155,7 +155,7 @@ export default function NewUserProfileScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.surface,
             borderRadius: 24,
             borderWidth: 1,
             borderColor: colors.border,
@@ -203,7 +203,7 @@ export default function NewUserProfileScreen() {
                   onPress={() => setGender(option.id)}
                   style={{
                     flex: 1,
-                    backgroundColor: active ? '#EEF6FF' : '#FFFFFF',
+                    backgroundColor: active ? '#EEF6FF' : colors.surface,
                     borderRadius: 18,
                     borderWidth: 1,
                     borderColor: active ? colors.primary : colors.border,
@@ -232,7 +232,7 @@ export default function NewUserProfileScreen() {
             style={{
               minHeight: 54,
               borderRadius: 18,
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.surface,
               borderWidth: 1,
               borderColor: error && !dob ? colors.danger : colors.border,
               paddingHorizontal: 16,

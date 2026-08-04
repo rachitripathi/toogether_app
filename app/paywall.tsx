@@ -112,7 +112,7 @@ export default function PaywallScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.surface,
             borderRadius: 24,
             borderWidth: 1,
             borderColor: colors.border,
@@ -151,7 +151,7 @@ export default function PaywallScreen() {
                 router.back();
               }}
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: colors.surface,
                 borderRadius: 22,
                 borderWidth: 1,
                 borderColor: colors.border,

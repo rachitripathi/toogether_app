@@ -167,7 +167,7 @@ export default function ResetPasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
       <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
@@ -230,10 +230,10 @@ export default function ResetPasswordScreen() {
             <>
               <View
                 style={{
-                  backgroundColor: "#F9FAFB",
+                  backgroundColor: colors.surface,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   flexDirection: "row",
                   alignItems: "center",
                   paddingRight: 12,
@@ -270,10 +270,10 @@ export default function ResetPasswordScreen() {
               </View>
               <View
                 style={{
-                  backgroundColor: "#F9FAFB",
+                  backgroundColor: colors.surface,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   flexDirection: "row",
                   alignItems: "center",
                   paddingRight: 12,
@@ -322,10 +322,10 @@ export default function ResetPasswordScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={{
-                  backgroundColor: "#F9FAFB",
+                  backgroundColor: colors.surface,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   fontSize: 15,
