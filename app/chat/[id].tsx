@@ -1,5 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/lib/theme';
@@ -16,11 +16,18 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage } = useApp();
+  const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage, refreshEventMessages } =
+    useApp();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const event = getEventById(id ?? '');
+
+  useEffect(() => {
+    if (event?.id) {
+      refreshEventMessages(event.id);
+    }
+  }, [event?.id]);
 
   if (!event) {
     return null;

@@ -114,6 +114,7 @@ type AppContextValue = {
   getCrewStatus: (userId: string) => 'none' | 'pending_incoming' | 'pending_outgoing' | 'connected';
   getCrewMembers: () => User[];
   sendMessage: (eventId: string, text: string) => Promise<void>;
+  refreshEventMessages: (eventId: string) => Promise<void>;
   rateUser: (toUserId: string, eventId: string, stars: number) => void;
   getUserAverageRating: (userId: string) => number | null;
   getMyRatingForUser: (toUserId: string, eventId?: string) => number | null;
@@ -998,6 +999,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // The global message fetch on login only sees the events the user has access
+  // to *at that moment*. Access to a chat's history can change later (e.g. a
+  // join request gets approved), so re-fetch a specific event's messages
+  // whenever its chat is opened rather than trusting the stale global snapshot.
+  const refreshEventMessages = async (eventId: string): Promise<void> => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error refreshing event messages:', error);
+      return;
+    }
+
+    if (!data) {
+      return;
+    }
+
+    const freshMessages = data.map(mapMessageRow);
+    setMessages((prev) => ({ ...prev, [eventId]: freshMessages }));
+  };
+
   const rateUser = (toUserId: string, eventId: string, stars: number) => {
     if (!currentUser || currentUser.id === toUserId) {
       return;
@@ -1145,6 +1170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getCrewStatus,
         getCrewMembers,
         sendMessage,
+        refreshEventMessages,
         rateUser,
         getUserAverageRating,
         getMyRatingForUser,
