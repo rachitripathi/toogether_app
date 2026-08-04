@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { supabase } from '@/utils/supabase';
@@ -219,6 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const pendingJoinEventIds = useRef<Set<string>>(new Set());
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [refreshFeedToken, setRefreshFeedToken] = useState(0);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
@@ -636,60 +637,102 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const event = events.find((item) => item.id === eventId);
-    if (event?.womenOnly && currentUser.gender !== 'woman') {
-      throw new Error('This is a women-only plan.');
-    }
-
-    if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
-      throw new Error('This plan is already full.');
-    }
-
-    const usage = getUsageSummaryForUser(currentUser);
-    if (usage.monetisationEnabled && usage.joinLimitReached) {
+    // Guards against double-tap / re-entrant calls firing two inserts before
+    // local `requests` state has updated from the first one.
+    const dedupeKey = `${eventId}:${currentUser.id}`;
+    if (pendingJoinEventIds.current.has(dedupeKey)) {
       return;
     }
+    pendingJoinEventIds.current.add(dedupeKey);
 
-    const nextRequest: JoinRequest = {
-      id: randomUUID(),
-      userId: currentUser.id,
-      eventId,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const event = events.find((item) => item.id === eventId);
+      if (event?.womenOnly && currentUser.gender !== 'woman') {
+        throw new Error('This is a women-only plan.');
+      }
 
-    const { error } = await supabase.from('join_requests').insert([
-      {
-        id: nextRequest.id,
-        user_id: currentUser.id,
-        event_id: eventId,
+      if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
+        throw new Error('This plan is already full.');
+      }
+
+      const usage = getUsageSummaryForUser(currentUser);
+      if (usage.monetisationEnabled && usage.joinLimitReached) {
+        return;
+      }
+
+      const nextRequest: JoinRequest = {
+        id: randomUUID(),
+        userId: currentUser.id,
+        eventId,
         status: 'pending',
-      },
-    ]);
-
-    if (error) {
-      console.error('Error creating join request:', error);
-      throw new Error(error.message);
-    }
-
-    setRequests((prev) => [...prev, nextRequest]);
-    setEvents((prev) =>
-      prev.map((item) =>
-        item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, currentUser.id] } : item
-      )
-    );
-    updateCurrentUserUsage((user) => {
-      const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
-      const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
-      const shouldSpendCredit = usage.monetisationEnabled && (user.joinRequestsThisMonth ?? 0) >= freeJoinLimit;
-
-      return {
-        ...user,
-        joinRequestsThisMonth: nextUsed,
-        credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
-        totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
+        createdAt: new Date().toISOString(),
       };
-    });
+
+      const { error } = await supabase.from('join_requests').insert([
+        {
+          id: nextRequest.id,
+          user_id: currentUser.id,
+          event_id: eventId,
+          status: 'pending',
+        },
+      ]);
+
+      if (error) {
+        if (error.code === '23505') {
+          // A request already exists server-side (e.g. a prior tap already went
+          // through before local state caught up). Sync from the DB instead of
+          // erroring out the user.
+          const { data: existingRow } = await supabase
+            .from('join_requests')
+            .select('id, status, created_at')
+            .eq('user_id', currentUser.id)
+            .eq('event_id', eventId)
+            .maybeSingle();
+
+          if (existingRow) {
+            setRequests((prev) =>
+              prev.some((request) => request.id === existingRow.id)
+                ? prev
+                : [
+                    ...prev,
+                    {
+                      id: existingRow.id,
+                      userId: currentUser.id,
+                      eventId,
+                      status: existingRow.status as RequestStatus,
+                      createdAt: existingRow.created_at,
+                    },
+                  ]
+            );
+          }
+          return;
+        }
+
+        console.error('Error creating join request:', error);
+        throw new Error(error.message);
+      }
+
+      setRequests((prev) => [...prev, nextRequest]);
+      setEvents((prev) =>
+        prev.map((item) =>
+          item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, currentUser.id] } : item
+        )
+      );
+      updateCurrentUserUsage((user) => {
+        const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
+        const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
+        const shouldSpendCredit = usage.monetisationEnabled && (user.joinRequestsThisMonth ?? 0) >= freeJoinLimit;
+
+        return {
+          ...user,
+          joinRequestsThisMonth: nextUsed,
+          credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
+          totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
+        };
+      });
+    } finally {
+      pendingJoinEventIds.current.delete(dedupeKey);
+    }
   };
 
   const buyCreditPack = (packId: CreditPackId) => {

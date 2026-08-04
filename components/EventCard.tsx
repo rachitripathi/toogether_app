@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ImageBackground, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -21,6 +22,7 @@ export function EventCard({ event }: EventCardProps) {
     categoryConfig,
     shouldShowPaywallForJoin,
   } = useApp();
+  const [isJoining, setIsJoining] = useState(false);
   const creator = getUserById(event.creatorId);
   const isCreator = currentUser?.id === event.creatorId;
   const requestStatus = getRequestStatus(event.id);
@@ -69,18 +71,25 @@ export function EventCard({ event }: EventCardProps) {
           ? '#6B7280'
           : theme.buttonText;
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (isCreator || requestStatus === 'approved') {
       router.push(`/event/${event.id}`);
       return;
     }
 
-    if (!requestStatus && !isFull) {
+    if (!requestStatus && !isFull && !isJoining) {
       if (shouldShowPaywallForJoin()) {
         router.push('/paywall');
         return;
       }
-      requestToJoin(event.id);
+      setIsJoining(true);
+      try {
+        await requestToJoin(event.id);
+      } catch (err) {
+        console.error('Error requesting to join:', err);
+      } finally {
+        setIsJoining(false);
+      }
     }
   };
 
@@ -194,7 +203,7 @@ export function EventCard({ event }: EventCardProps) {
 
           <Pressable
             onPress={handleAction}
-            disabled={!isCreator && !requestStatus && isFull}
+            disabled={!isCreator && !requestStatus && (isFull || isJoining)}
             style={{
               backgroundColor: actionBackground,
               borderRadius: 999,
