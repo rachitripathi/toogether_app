@@ -120,6 +120,64 @@ const updateUserProfile = async (userId: string, updates: Partial<User>) => {
 };
 ```
 
+### Upload / Delete Profile Photo (Cloudinary)
+
+Profile photos are stored in Cloudinary, not Supabase Storage. `profiles.avatar_uri` holds
+the Cloudinary `secure_url` — that's the only pointer kept; there's no separate public_id
+column, since the delete step below derives the public_id from this same URL.
+
+```typescript
+// lib/cloudinary.ts
+
+// Cloud name + upload preset are public identifiers, not secrets — hardcoded here rather
+// than read from env, matching utils/supabase.ts's pattern for this project. Uploads use
+// an unsigned, preset-scoped endpoint, so this is safe to call directly from the device.
+const CLOUD_NAME = "defn6q2gc";
+const UPLOAD_PRESET = "toogether_avatars";
+
+const uploadAvatar = async (localUri: string): Promise<string> => {
+  const form = new FormData();
+  form.append("file", { uri: localUri, name: "avatar.jpg", type: "image/jpeg" } as any);
+  form.append("upload_preset", UPLOAD_PRESET);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: "POST",
+    body: form,
+  });
+  const data = await response.json();
+  return data.secure_url as string;
+};
+
+// Deleting requires a *signed* Cloudinary Admin API call (needs the account's API secret),
+// so it's never done from the client. This invokes the "delete-avatar" Supabase Edge
+// Function instead, which holds the secret server-side and deletes whichever asset is
+// currently recorded as the *authenticated caller's own* avatar (looked up from
+// profiles.avatar_uri by their JWT, public_id parsed out of that URL — the client cannot
+// target anyone else's photo).
+const deleteCurrentAvatar = async (): Promise<void> => {
+  const { error } = await supabase.functions.invoke("delete-avatar");
+  if (error) console.error("Error deleting previous avatar:", error);
+};
+```
+
+**Usage pattern — replacing a photo** (see `app/settings.tsx`):
+
+```typescript
+const url = await uploadAvatar(pickedImageUri);
+await deleteCurrentAvatar(); // deletes the OLD asset — must run before the update below
+await updateUserProfile(userId, { avatarUri: url });
+```
+
+**Usage pattern — removing a photo** (see `app/settings.tsx`'s "Remove photo" action):
+
+```typescript
+await deleteCurrentAvatar();
+await updateUserProfile(userId, { avatarUri: "" });
+```
+
+Edge Function source: `supabase/functions/delete-avatar/index.ts`. Deployment and secrets
+setup are documented in `SETUP_GUIDE.md` > "Cloudinary Profile Photos".
+
 ### Search Users
 
 ```typescript

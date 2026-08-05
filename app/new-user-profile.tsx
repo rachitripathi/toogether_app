@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { colors } from '@/lib/theme';
+import { deleteCurrentAvatar, uploadAvatar } from '@/lib/cloudinary';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,7 +71,9 @@ export default function NewUserProfileScreen() {
   const [name, setName] = useState(currentUser?.name ?? '');
   const [dob, setDob] = useState<Date | null>(currentUser?.dob ? new Date(currentUser.dob) : null);
   const [gender, setGender] = useState<Gender>(currentUser?.gender ?? 'man');
-  const [avatarUri, setAvatarUri] = useState(currentUser?.avatarUri);
+  const [avatarPreviewUri, setAvatarPreviewUri] = useState(currentUser?.avatarUri);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUri);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,8 +89,24 @@ export default function NewUserProfileScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setAvatarUri(result.assets[0]?.uri);
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    const localUri = result.assets[0].uri;
+    setAvatarPreviewUri(localUri);
+    setIsUploadingPhoto(true);
+    try {
+      const url = await uploadAvatar(localUri);
+      // Deletes whatever is currently saved on the profile row (a no-op the first time
+      // through onboarding), so it must run before avatarUrl is overwritten below.
+      await deleteCurrentAvatar();
+      setAvatarUrl(url);
+    } catch (uploadError) {
+      Alert.alert('Upload failed', uploadError instanceof Error ? uploadError.message : 'Please try again.');
+      setAvatarPreviewUri(avatarUrl);
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -125,11 +144,16 @@ export default function NewUserProfileScreen() {
       return;
     }
 
+    if (isUploadingPhoto) {
+      setError('Your photo is still uploading — give it a moment.');
+      return;
+    }
+
     updateCurrentUser({
       name: trimmedName,
       dob: dobValue,
       age,
-      avatarUri,
+      avatarUri: avatarUrl ?? '',
       gender,
     });
     router.push('/new-user-verification');
@@ -166,23 +190,37 @@ export default function NewUserProfileScreen() {
         >
           <Pressable
             onPress={pickPhoto}
+            disabled={isUploadingPhoto}
             style={{
               width: 104,
               height: 104,
               borderRadius: 52,
               backgroundColor: '#EFF6FF',
               borderWidth: 1,
-              borderColor: avatarUri ? colors.primary : colors.border,
+              borderColor: avatarPreviewUri ? colors.primary : colors.border,
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
             }}
           >
-            {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={{ width: 104, height: 104 }} />
+            {avatarPreviewUri ? (
+              <Image source={{ uri: avatarPreviewUri }} style={{ width: 104, height: 104 }} />
             ) : (
               <Ionicons name="camera-outline" size={28} color={colors.primary} />
             )}
+            {isUploadingPhoto ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: 'rgba(0,0,0,0.35)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ActivityIndicator color="#FFFFFF" />
+              </View>
+            ) : null}
           </Pressable>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Add a profile picture</Text>
           <Text style={{ color: colors.muted, textAlign: 'center', lineHeight: 20 }}>
@@ -249,7 +287,7 @@ export default function NewUserProfileScreen() {
 
         {error ? <Text style={{ color: colors.danger, fontWeight: '700' }}>{error}</Text> : null}
 
-        <GradientButton label="Continue" onPress={continueToVerification} fullWidth />
+        <GradientButton label="Continue" onPress={continueToVerification} disabled={isUploadingPhoto} fullWidth />
       </ScrollView>
 
       {Platform.OS !== 'android' && showDatePicker ? (

@@ -14,5 +14,9 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "svg.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase/functions/**/*"
   ]
 }

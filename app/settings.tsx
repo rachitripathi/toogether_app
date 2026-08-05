@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +8,7 @@ import { AvatarBubble } from '@/components/AvatarBubble';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { colors, shadow } from '@/lib/theme';
+import { deleteCurrentAvatar, uploadAvatar } from '@/lib/cloudinary';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,6 +37,7 @@ export default function SettingsScreen() {
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
+  const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
 
   useEffect(() => {
     if (!currentUser) {
@@ -67,9 +69,43 @@ export default function SettingsScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0]?.uri) {
-      updateCurrentUser({ avatarUri: result.assets[0].uri });
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
     }
+
+    setIsUpdatingPhoto(true);
+    try {
+      const url = await uploadAvatar(result.assets[0].uri);
+      // Old asset is looked up server-side from the profile row, so this must run
+      // before updateCurrentUser overwrites avatar_uri with the new one.
+      await deleteCurrentAvatar();
+      updateCurrentUser({ avatarUri: url });
+    } catch (error) {
+      Alert.alert('Upload failed', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsUpdatingPhoto(false);
+    }
+  };
+
+  const removePhoto = () => {
+    Alert.alert('Remove profile photo?', 'You can add a new one anytime.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setIsUpdatingPhoto(true);
+          try {
+            await deleteCurrentAvatar();
+            updateCurrentUser({ avatarUri: '' });
+          } catch (error) {
+            Alert.alert('Something went wrong', error instanceof Error ? error.message : 'Please try again.');
+          } finally {
+            setIsUpdatingPhoto(false);
+          }
+        },
+      },
+    ]);
   };
 
   const saveProfile = () => {
@@ -123,31 +159,51 @@ export default function SettingsScreen() {
         >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Edit profile</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Pressable onPress={pickImage} style={{ position: 'relative' }}>
+            <Pressable onPress={pickImage} disabled={isUpdatingPhoto} style={{ position: 'relative' }}>
               <AvatarBubble user={currentUser} size={76} />
-              <View
-                style={{
-                  position: 'absolute',
-                  right: -2,
-                  bottom: -2,
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  borderWidth: 3,
-                  borderColor: '#FFFFFF',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
-              </View>
+              {isUpdatingPhoto ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: 38,
+                    backgroundColor: 'rgba(0,0,0,0.35)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ActivityIndicator color="#FFFFFF" />
+                </View>
+              ) : (
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -2,
+                    bottom: -2,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: colors.primary,
+                    borderWidth: 3,
+                    borderColor: '#FFFFFF',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+                </View>
+              )}
             </Pressable>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={{ color: colors.text, fontWeight: '800' }}>Profile photo</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 Tap the avatar to choose a new picture from your phone.
               </Text>
+              {currentUser.avatarUri ? (
+                <Pressable onPress={removePhoto} disabled={isUpdatingPhoto} hitSlop={8}>
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '700' }}>Remove photo</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
 

@@ -156,6 +156,43 @@ const testConnection = async () => {
 testConnection();
 ```
 
+### Step 8: Cloudinary Profile Photos
+
+Profile photos are stored in Cloudinary (not Supabase Storage). Cloud name and upload
+preset are hardcoded in `lib/cloudinary.ts` (they're public identifiers, not secrets). The
+API key/secret must **never** be added as `EXPO_PUBLIC_*` env vars — they'd ship inside the
+app bundle and let anyone destroy Cloudinary assets. Instead they're set as Supabase Edge
+Function secrets, used only by `supabase/functions/delete-avatar` to perform the signed
+delete server-side.
+
+1. **Unsigned upload preset** — already created in the Cloudinary dashboard: `toogether_avatars`
+   (unsigned, folder `toogether/avatars`). Only needed once; nothing to do here unless it's
+   deleted.
+
+2. **Deploy the Edge Function:**
+
+   ```bash
+   npm install -g supabase
+   supabase login
+   supabase link --project-ref <your-project-id>
+   supabase functions deploy delete-avatar
+   ```
+
+3. **Set the Cloudinary secrets** (server-side only, never in `.env`):
+
+   ```bash
+   supabase secrets set \
+     CLOUDINARY_CLOUD_NAME=defn6q2gc \
+     CLOUDINARY_API_KEY=<your-api-key> \
+     CLOUDINARY_API_SECRET=<your-api-secret>
+   ```
+
+   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically — no need to set
+   those.
+
+See `API_REFERENCE.md` > "Upload / Delete Profile Photo (Cloudinary)" for the client-side
+usage pattern.
+
 ---
 
 ## Database Schema Reference
