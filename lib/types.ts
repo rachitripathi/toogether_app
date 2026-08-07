@@ -1,3 +1,5 @@
+export type VerificationStatus = 'unverified' | 'pending' | 'approved' | 'rejected';
+
 export interface User {
   id: string;
   name: string;
@@ -17,6 +19,12 @@ export interface User {
   totalCreditsSpent?: number;
   verificationBonusGranted?: boolean;
   bio?: string;
+  verificationStatus?: VerificationStatus;
+  verificationSubmittedAt?: string;
+  verificationRejectionReason?: string;
+  aadhaarFrontUri?: string;
+  aadhaarBackUri?: string;
+  selfieUri?: string;
 }
 
 export type EventCategory =

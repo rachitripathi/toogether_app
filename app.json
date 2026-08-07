@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans."
+        "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans.",
+        "NSCameraUsageDescription": "Toogether uses your camera to capture your ID and a live selfie during account verification."
       }
     },
     "android": {
@@ -23,7 +24,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -43,7 +47,9 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -52,8 +58,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "1732e1c3-5838-4df1-938b-c8eabe67f2b8"
+        "projectId": "188214c0-1f08-46fe-a842-a997b1635de2"
       }
-    }
+    },
+    "owner": "rachittripathi"
   }
 }

@@ -234,38 +234,68 @@ export default function HomeScreen() {
             </View>
           }
           right={
-            currentUser?.verified ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  backgroundColor: '#DFF4E8',
-                  borderRadius: 999,
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                }}
-              >
-                <Ionicons name="checkmark-circle" size={14} color="#15803D" />
-                <Text style={{ color: '#15803D', fontWeight: '800', fontSize: 12 }}>Verified</Text>
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => router.push('/verification')}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  backgroundColor: '#111111',
-                  borderRadius: 999,
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                }}
-              >
-                <Ionicons name="shield-checkmark-outline" size={14} color="#FFD700" />
-                <Text style={{ color: '#FFD700', fontWeight: '800', fontSize: 12 }}>Verify</Text>
-              </Pressable>
-            )
+            (() => {
+              const verificationStatus =
+                currentUser?.verificationStatus ?? (currentUser?.verified ? 'approved' : 'unverified');
+
+              if (verificationStatus === 'approved') {
+                return (
+                  <Pressable
+                    onPress={() => router.push('/verification')}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 5,
+                      backgroundColor: '#DFF4E8',
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                    }}
+                  >
+                    <Ionicons name="checkmark-circle" size={14} color="#15803D" />
+                    <Text style={{ color: '#15803D', fontWeight: '800', fontSize: 12 }}>Verified</Text>
+                  </Pressable>
+                );
+              }
+
+              if (verificationStatus === 'pending') {
+                return (
+                  <Pressable
+                    onPress={() => router.push('/verification')}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 5,
+                      backgroundColor: '#FFF0D6',
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                    }}
+                  >
+                    <Ionicons name="hourglass-outline" size={14} color="#B45309" />
+                    <Text style={{ color: '#B45309', fontWeight: '800', fontSize: 12 }}>In review</Text>
+                  </Pressable>
+                );
+              }
+
+              return (
+                <Pressable
+                  onPress={() => router.push('/verification')}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    backgroundColor: '#111111',
+                    borderRadius: 999,
+                    paddingHorizontal: 10,
+                    paddingVertical: 7,
+                  }}
+                >
+                  <Ionicons name="shield-checkmark-outline" size={14} color="#FFD700" />
+                  <Text style={{ color: '#FFD700', fontWeight: '800', fontSize: 12 }}>Verify</Text>
+                </Pressable>
+              );
+            })()
           }
         />
 

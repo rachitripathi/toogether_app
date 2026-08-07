@@ -13,6 +13,7 @@ import type {
   Rating,
   RequestStatus,
   User,
+  VerificationStatus,
 } from '@/lib/types';
 import {
   CREDIT_PACKS,
@@ -97,6 +98,8 @@ type AppContextValue = {
   updateCurrentUser: (
     data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
   ) => void;
+  submitVerification: (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => Promise<void>;
+  setVerificationStatusDev: (status: VerificationStatus, reason?: string) => void;
   createEvent: (data: CreateEventInput) => Promise<Event>;
   updateEvent: (
     eventId: string,
@@ -140,6 +143,12 @@ const mapProfileRowToUser = (row: any): User => ({
   city: row.city ?? '',
   verified: row.verified ?? false,
   bio: row.bio ?? '',
+  verificationStatus: row.verification_status ?? 'unverified',
+  verificationSubmittedAt: row.verification_submitted_at ?? undefined,
+  verificationRejectionReason: row.verification_rejection_reason ?? undefined,
+  aadhaarFrontUri: row.aadhaar_front_uri ?? undefined,
+  aadhaarBackUri: row.aadhaar_back_uri ?? undefined,
+  selfieUri: row.selfie_uri ?? undefined,
 });
 
 const mapEventRow = (row: any): Omit<Event, 'approvedUserIds' | 'requestUserIds'> => ({
@@ -506,6 +515,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const exists = prev.some((user) => user.id === userId);
           return exists ? prev.map((user) => (user.id === userId ? refreshedUser : user)) : [...prev, refreshedUser];
         });
+      }
+    })();
+  };
+
+  const submitVerification = async (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => {
+    if (!currentUser) return;
+    const userId = currentUser.id;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        verification_status: 'pending',
+        verification_submitted_at: new Date().toISOString(),
+        verification_rejection_reason: null,
+        aadhaar_front_uri: data.aadhaarFrontUri,
+        aadhaar_back_uri: data.aadhaarBackUri,
+        selfie_uri: data.selfieUri,
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error submitting verification:', error);
+      throw error;
+    }
+
+    await refreshProfile();
+    const { data: refreshedRow } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (refreshedRow) {
+      const refreshedUser = mapProfileRowToUser(refreshedRow);
+      setUsers((prev) => prev.map((user) => (user.id === userId ? refreshedUser : user)));
+    }
+  };
+
+  // Dev-only: lets a tester flip verification status without a real review pipeline.
+  // Only ever called from UI gated behind DEV_TOOLS_ENABLED (see lib/devTools.ts).
+  const setVerificationStatusDev = (status: VerificationStatus, reason?: string) => {
+    if (!currentUser) return;
+    const userId = currentUser.id;
+
+    (async () => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          verification_status: status,
+          verification_rejection_reason: status === 'rejected' ? (reason ?? null) : null,
+          verified: status === 'approved',
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error setting dev verification status:', error);
+        return;
+      }
+
+      await refreshProfile();
+      const { data: refreshedRow } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (refreshedRow) {
+        const refreshedUser = mapProfileRowToUser(refreshedRow);
+        setUsers((prev) => prev.map((user) => (user.id === userId ? refreshedUser : user)));
       }
     })();
   };
@@ -1156,6 +1224,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         dismissVerificationPrompt,
         updateCurrentUser,
+        submitVerification,
+        setVerificationStatusDev,
         createEvent,
         updateEvent,
         deleteEvent,
