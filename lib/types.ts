@@ -22,9 +22,6 @@ export interface User {
   verificationStatus?: VerificationStatus;
   verificationSubmittedAt?: string;
   verificationRejectionReason?: string;
-  aadhaarFrontUri?: string;
-  aadhaarBackUri?: string;
-  selfieUri?: string;
 }
 
 export type EventCategory =

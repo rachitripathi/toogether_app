@@ -146,9 +146,6 @@ const mapProfileRowToUser = (row: any): User => ({
   verificationStatus: row.verification_status ?? 'unverified',
   verificationSubmittedAt: row.verification_submitted_at ?? undefined,
   verificationRejectionReason: row.verification_rejection_reason ?? undefined,
-  aadhaarFrontUri: row.aadhaar_front_uri ?? undefined,
-  aadhaarBackUri: row.aadhaar_back_uri ?? undefined,
-  selfieUri: row.selfie_uri ?? undefined,
 });
 
 const mapEventRow = (row: any): Omit<Event, 'approvedUserIds' | 'requestUserIds'> => ({
@@ -523,15 +520,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return;
     const userId = currentUser.id;
 
+    // Sensitive document URLs live in verification_documents (owner/admin-only RLS), separate
+    // from the publicly-readable profiles row — see migrations/007_secure_verification_admin.sql.
+    const { error: docsError } = await supabase
+      .from('verification_documents')
+      .upsert(
+        {
+          user_id: userId,
+          aadhaar_front_uri: data.aadhaarFrontUri,
+          aadhaar_back_uri: data.aadhaarBackUri,
+          selfie_uri: data.selfieUri,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (docsError) {
+      console.error('Error submitting verification documents:', docsError);
+      throw docsError;
+    }
+
     const { error } = await supabase
       .from('profiles')
       .update({
         verification_status: 'pending',
         verification_submitted_at: new Date().toISOString(),
         verification_rejection_reason: null,
-        aadhaar_front_uri: data.aadhaarFrontUri,
-        aadhaar_back_uri: data.aadhaarBackUri,
-        selfie_uri: data.selfieUri,
       })
       .eq('id', userId);
 
