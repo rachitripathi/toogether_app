@@ -125,7 +125,6 @@ Treat this whole system as a **UI-level preview of the monetisation model**, not
 
 - `app/auth.tsx` — "choose app version" switcher for `free`/`paid`/`limit-hit`/`new-user` monetisation states.
 - `app/verification/index.tsx` — "simulate a review outcome" approve/reject panel, calling `setVerificationStatusDev()` (self-only, see §7 — **not** the real admin path).
-- `app/verification/liveness.tsx` — "Skip step (dev)" button.
 
 None of these are reachable in a production build unless `EXPO_PUBLIC_DEV_TOOLS_ENABLED` is explicitly set.
 
@@ -135,7 +134,9 @@ None of these are reachable in a production build unless `EXPO_PUBLIC_DEV_TOOLS_
 
 Full route group `app/verification/` (`index`, `capture-aadhaar`, `liveness`, `review`, under `_layout.tsx`), preceded by the onboarding upsell `app/new-user-verification.tsx`.
 
-**Flow**: capture Aadhaar front/back (`capture-aadhaar.tsx`, back camera via `react-native-vision-camera`) → liveness selfie (`liveness.tsx`, front camera + face detector, 4-step guided capture: center/blink/turn-left/turn-right) → review & submit (`review.tsx`). Captured photos live in `store/verificationDraftStore.ts` (local-only, cleared on submit/exit) until submit.
+**Flow**: capture Aadhaar front/back (`capture-aadhaar.tsx`) → selfie (`liveness.tsx`) → review & submit (`review.tsx`). All three captures use the same shared `components/verification/PhotoCaptureScreen.tsx` (a plain "Take Photo" button → `expo-image-picker`'s `launchCameraAsync` → preview/retake/confirm), parameterized by step copy and front/back camera. Captured photos live in `store/verificationDraftStore.ts` (local-only, cleared on submit/exit) until submit.
+
+**No automated liveness/anti-spoofing check**: earlier versions of `liveness.tsx` did real-time frame-by-frame face tracking (`react-native-vision-camera` + `react-native-vision-camera-face-detector`, guided center/blink/turn-left/turn-right steps) to prove a live person was present, not a photo of a photo. That was dropped (2026-08-16) in favor of a single plain selfie capture via `expo-image-picker`, after the vision-camera dependency repeatedly caused native build/crash problems (Nitro Fabric flag breaking `react-native-maps`, MLKit's minSdk 26 requirement, etc. — see memory `camera_crash_android_rawpropsjsivalue` for the full history). Current selfie step has no more anti-spoofing property than the Aadhaar photo steps — it's just a camera-captured image. If liveness/anti-spoofing is needed again later, it needs to be reintroduced deliberately (e.g. a hosted liveness-check API) rather than a bespoke on-device frame processor.
 
 **Submit** (`providers/AppProvider.tsx`, `submitVerification`): uploads the 3 photos to Cloudinary, then does two writes — an upsert into `verification_documents` (owner-only RLS) and an update of `profiles.verification_status='pending'` (see `DATABASE.md` §3.1, §3.6).
 

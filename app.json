@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans.",
-        "NSCameraUsageDescription": "Toogether uses your camera to capture your ID and a live selfie during account verification."
+        "NSCameraUsageDescription": "Toogether uses your camera to capture your ID and a selfie during account verification."
       }
     },
     "android": {
@@ -34,7 +34,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "./plugins/withUseRawPropsJsiValue",
       "expo-router",
       [
         "expo-splash-screen",
@@ -59,9 +58,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "188214c0-1f08-46fe-a842-a997b1635de2"
+        "projectId": "1732e1c3-5838-4df1-938b-c8eabe67f2b8"
       }
     },
-    "owner": "rachittripathi"
+    "owner": "lalitnath"
   }
 }
