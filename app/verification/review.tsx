@@ -49,7 +49,7 @@ export default function ReviewVerificationScreen() {
       ]);
       await submitVerification({ aadhaarFrontUri: frontUrl, aadhaarBackUri: backUrl, selfieUri: selfieUrl });
       reset();
-      router.replace('/verification');
+      router.dismissTo('/verification');
     } catch (error) {
       console.error('Failed to submit verification:', error);
       Alert.alert('Something went wrong', 'We could not submit your verification. Please check your connection and try again.');
