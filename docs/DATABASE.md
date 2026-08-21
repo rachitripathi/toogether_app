@@ -24,6 +24,7 @@ Its companion doc is [`FUNCTIONALITY.md`](./FUNCTIONALITY.md) (app features/flow
 | `005_enable_messages_realtime.sql` | Added `messages` to the `supabase_realtime` publication. |
 | `006_add_verification_status.sql` | Added verification columns to `profiles` (status/submitted_at/rejection_reason/document URIs), backfilled `verified=true` rows to `approved`. |
 | `007_secure_verification_admin.sql` | Moved document URIs off `profiles` into `verification_documents`; added `admin_users`, `is_admin()`, `verification_reviews`, `review_verification()` RPC; added a `CHECK` constraint on `verification_status`. |
+| `008_password_reset_otps.sql` | Added `password_reset_otps` (RLS enabled, zero policies) backing the OTP-based forgot-password flow. |
 
 Two now-retired docs (`MIGRATION_UPDATES_MAY2026.md`, `DATABASE_DOCUMENTATION_INDEX.md`) previously duplicated this history in prose — this table supersedes them.
 
@@ -299,6 +300,26 @@ No insert/update/delete policy for any client role — only `review_verification
 
 ---
 
+### 3.9 `public.password_reset_otps` (added in 008)
+
+Backs the OTP-based forgot-password flow. Not touched by the mobile app or any Supabase Edge Function — only by **together-admin**'s `app/api/forgot-password/send-otp` and `verify-otp` route handlers, via a service-role client (`together-admin/lib/supabase/admin.ts`).
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `id` | `uuid` | `gen_random_uuid()` | PK |
+| `email` | `text` | — | not the FK'd `profiles.id` — looked up by email since the requester isn't authenticated |
+| `otp_hash` | `text` | — | `SHA256(otp + OTP_PEPPER)`, never the plaintext code |
+| `expires_at` | `timestamptz` | — | set to `now() + 10 minutes` on insert |
+| `attempts` | `int` | `0` | incremented on each failed verify; locked out at 5 |
+| `consumed_at` | `timestamptz`, nullable | — | set once the OTP has been successfully used to reset a password |
+| `created_at` | `timestamptz` | `now()` | also used for the 60s resend cooldown and hourly request cap |
+
+**Indexes**: `idx_password_reset_otps_email`.
+
+RLS enabled, **zero policies** — unreachable via the anon/authenticated API in any direction, same as `admin_users` (§3.7). Only the service-role key can read/write it.
+
+---
+
 ## 4. Functions
 
 | Function | Kind | Purpose |
@@ -324,6 +345,8 @@ Only one exists: `supabase/functions/delete-avatar/index.ts`.
 - Deletes the calling user's Cloudinary avatar. Verifies the caller's JWT via a service-role Supabase client's `auth.getUser()`, looks up `profiles.avatar_uri` for that user only (never accepts a target id from the request body), derives the Cloudinary `public_id` from the URL, signs a `destroy` call with `CLOUDINARY_API_SECRET`, then clears `profiles.avatar_uri`.
 - Deploy: `supabase functions deploy delete-avatar`. Secrets: `supabase secrets set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...`.
 - This is the template to copy for any *future* action that genuinely needs the service-role key (i.e., something `is_admin()` + a `SECURITY DEFINER` RPC can't express) — the verification admin flow deliberately did **not** need one; see §4.
+
+The forgot-password OTP flow (§3.9) is the one other place that needs the service-role key, but it deliberately does **not** live here as an Edge Function — it's two Next.js Route Handlers in the separate `together-admin` project (`app/api/forgot-password/send-otp` and `verify-otp`), which already holds the admin panel for this same Supabase project. `app/reset-password.tsx` in this app calls those two endpoints over plain HTTP.
 
 ---
 

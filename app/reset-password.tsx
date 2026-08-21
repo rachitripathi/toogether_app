@@ -1,10 +1,8 @@
 import { colors, gradients } from "@/lib/theme";
-import { supabase } from "@/utils/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import * as ExpoLinking from "expo-linking";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,39 +15,27 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type ResetStep = "request" | "update";
+type ResetStep = "request" | "otp";
 
-const getWebResetUrl = () =>
-  typeof window !== "undefined"
-    ? `${window.location.origin}/reset-password`
-    : null;
+const API_BASE_URL = process.env.EXPO_PUBLIC_FORGOT_PASSWORD_API_URL ?? "";
+const RESEND_COOLDOWN_S = 60;
 
-const getResetRedirectUrl = () =>
-  Platform.OS === "web"
-    ? (getWebResetUrl() ?? "toogetherexpo://reset-password")
-    : ExpoLinking.createURL("/reset-password");
-
-const getUrlParams = (url: string | null) => {
-  const params = new URLSearchParams();
-  if (!url) return params;
-
-  const [, query = ""] = url.split("?");
-  const [cleanQuery = ""] = query.split("#");
-  const [, hash = ""] = url.split("#");
-
-  new URLSearchParams(cleanQuery).forEach((value, key) =>
-    params.set(key, value),
-  );
-  new URLSearchParams(hash).forEach((value, key) => params.set(key, value));
-
-  return params;
-};
+async function postJson(path: string, body: unknown) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok && data.ok !== false, data };
+}
 
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string }>();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<ResetStep>("request");
   const [email, setEmail] = useState(params.email ?? "");
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -57,54 +43,31 @@ export default function ResetPasswordScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [checkingLink, setCheckingLink] = useState(true);
+  const [done, setDone] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
-  const redirectUrl = useMemo(getResetRedirectUrl, []);
+  const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const prepareRecoverySession = async () => {
-      setCheckingLink(true);
-
-      const initialUrl =
-        Platform.OS === "web" && typeof window !== "undefined"
-          ? window.location.href
-          : await ExpoLinking.getInitialURL();
-      const urlParams = getUrlParams(initialUrl);
-      const code = urlParams.get("code");
-      const accessToken = urlParams.get("access_token");
-      const refreshToken = urlParams.get("refresh_token");
-      const type = urlParams.get("type");
-
-      if (code) {
-        const { error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          setError(exchangeError.message);
-        } else {
-          setStep("update");
-        }
-      } else if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (sessionError) {
-          setError(sessionError.message);
-        } else {
-          setStep("update");
-        }
-      } else if (type === "recovery") {
-        const { data } = await supabase.auth.getSession();
-        if (data.session) setStep("update");
-      }
-
-      setCheckingLink(false);
+    return () => {
+      if (resendTimer.current) clearInterval(resendTimer.current);
     };
-
-    prepareRecoverySession();
   }, []);
 
-  const sendResetEmail = async () => {
+  const startResendCooldown = () => {
+    setResendIn(RESEND_COOLDOWN_S);
+    if (resendTimer.current) clearInterval(resendTimer.current);
+    resendTimer.current = setInterval(() => {
+      setResendIn((value) => {
+        if (value <= 1 && resendTimer.current) {
+          clearInterval(resendTimer.current);
+        }
+        return Math.max(0, value - 1);
+      });
+    }, 1000);
+  };
+
+  const sendOtp = async () => {
     if (!email.trim()) {
       setError("Please enter your email address.");
       return;
@@ -114,28 +77,33 @@ export default function ResetPasswordScreen() {
     setError(null);
     setMessage(null);
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      { redirectTo: redirectUrl },
-    );
+    await postJson("/api/forgot-password/send-otp", { email: email.trim() });
 
     setLoading(false);
-
-    if (resetError) {
-      setError(resetError.message);
-      return;
-    }
-
-    setMessage("Password reset link sent. Check your email and open the link.");
+    setStep("otp");
+    startResendCooldown();
+    setMessage("If that email has an account, a 6-digit code was sent to it.");
   };
 
-  const updatePassword = async () => {
+  const resendOtp = async () => {
+    if (resendIn > 0) return;
+    setError(null);
+    await postJson("/api/forgot-password/send-otp", { email: email.trim() });
+    startResendCooldown();
+    setMessage("Code resent. Check your email.");
+  };
+
+  const verifyOtp = async () => {
+    if (!otp.trim() || otp.trim().length !== 6) {
+      setError("Enter the 6-digit code from your email.");
+      return;
+    }
     if (!password || !confirmPassword) {
       setError("Please enter and confirm your new password.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -147,23 +115,24 @@ export default function ResetPasswordScreen() {
     setError(null);
     setMessage(null);
 
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
+    const { ok, data } = await postJson("/api/forgot-password/verify-otp", {
+      email: email.trim(),
+      otp: otp.trim(),
+      newPassword: password,
     });
 
     setLoading(false);
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!ok) {
+      setError(data?.error ?? "Invalid or expired code.");
       return;
     }
 
+    setDone(true);
     setMessage("Password updated. You can now log in with your new password.");
-    setPassword("");
-    setConfirmPassword("");
   };
 
-  const isUpdateStep = step === "update";
+  const isOtpStep = step === "otp";
 
   return (
     <KeyboardAvoidingView
@@ -182,7 +151,9 @@ export default function ResetPasswordScreen() {
           }}
         >
           <Pressable
-            onPress={() => router.replace("/auth")}
+            onPress={() =>
+              isOtpStep && !done ? setStep("request") : router.replace("/auth")
+            }
             style={{
               width: 40,
               height: 40,
@@ -203,7 +174,7 @@ export default function ResetPasswordScreen() {
               Reset Password
             </Text>
             <Text style={{ color: colors.skyDark, marginTop: 4 }}>
-              {isUpdateStep ? "Choose a new password." : "Recover your account."}
+              {isOtpStep ? "Enter your code and a new password." : "Recover your account."}
             </Text>
           </View>
         </View>
@@ -222,12 +193,73 @@ export default function ResetPasswordScreen() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          {checkingLink ? (
-            <View style={{ paddingVertical: 32, alignItems: "center" }}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : isUpdateStep ? (
+          {!isOtpStep ? (
             <>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 15,
+                  color: "#1F2937",
+                }}
+              />
+              <Text style={{ color: colors.muted, lineHeight: 21 }}>
+                We will email you a 6-digit code to reset your password.
+              </Text>
+            </>
+          ) : (
+            <>
+              <TextInput
+                value={otp}
+                onChangeText={(value) => setOtp(value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6-digit code"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                maxLength={6}
+                editable={!done}
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  fontSize: 20,
+                  letterSpacing: 6,
+                  color: "#1F2937",
+                  textAlign: "center",
+                }}
+              />
+
+              {!done ? (
+                <Pressable
+                  onPress={resendOtp}
+                  disabled={resendIn > 0}
+                  style={{ alignItems: "center", paddingVertical: 4 }}
+                >
+                  <Text
+                    style={{
+                      color: resendIn > 0 ? colors.muted : colors.skyDark,
+                      fontWeight: "800",
+                      fontSize: 13,
+                    }}
+                  >
+                    {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                  </Text>
+                </Pressable>
+              ) : null}
+
               <View
                 style={{
                   backgroundColor: colors.surface,
@@ -245,6 +277,7 @@ export default function ResetPasswordScreen() {
                   placeholder="New password"
                   placeholderTextColor="#9CA3AF"
                   secureTextEntry={!showPassword}
+                  editable={!done}
                   style={{
                     flex: 1,
                     paddingHorizontal: 16,
@@ -285,6 +318,7 @@ export default function ResetPasswordScreen() {
                   placeholder="Confirm new password"
                   placeholderTextColor="#9CA3AF"
                   secureTextEntry={!showConfirmPassword}
+                  editable={!done}
                   style={{
                     flex: 1,
                     paddingHorizontal: 16,
@@ -311,32 +345,6 @@ export default function ResetPasswordScreen() {
                 </Pressable>
               </View>
             </>
-          ) : (
-            <>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={{
-                  backgroundColor: colors.surface,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 16,
-                  paddingVertical: 14,
-                  fontSize: 15,
-                  color: "#1F2937",
-                }}
-              />
-              <Text style={{ color: colors.muted, lineHeight: 21 }}>
-                We will send a secure link to this email. Open it to set a new
-                password.
-              </Text>
-            </>
           )}
 
           {error ? (
@@ -350,9 +358,9 @@ export default function ResetPasswordScreen() {
             </Text>
           ) : null}
 
-          {!checkingLink ? (
+          {!done ? (
             <Pressable
-              onPress={isUpdateStep ? updatePassword : sendResetEmail}
+              onPress={isOtpStep ? verifyOtp : sendOtp}
               disabled={loading}
               style={{
                 minHeight: 56,
@@ -369,13 +377,13 @@ export default function ResetPasswordScreen() {
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "800" }}
                 >
-                  {isUpdateStep ? "Update Password" : "Send Reset Link"}
+                  {isOtpStep ? "Update Password" : "Send Code"}
                 </Text>
               )}
             </Pressable>
           ) : null}
 
-          {message && isUpdateStep ? (
+          {done ? (
             <Pressable
               onPress={() => router.replace("/auth")}
               style={{ alignItems: "center", paddingVertical: 6 }}

@@ -37,7 +37,7 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 - `app/index.tsx` — routing gate: waits for app-ready, redirects to `/onboarding`, `/auth`, or `/(tabs)/home`.
 - `app/onboarding.tsx` — 3-slide intro, marks `onboarding_complete` in AsyncStorage.
 - `app/auth.tsx` — login/signup (real, email/password). Google/Apple buttons are stubs. Also hosts the dev-only app-mode switcher (§6).
-- `app/reset-password.tsx` — Supabase Auth password-reset flow.
+- `app/reset-password.tsx` — forgot-password flow: email → 6-digit OTP (emailed via Brevo) → new password. Calls `EXPO_PUBLIC_FORGOT_PASSWORD_API_URL`'s `/api/forgot-password/send-otp` and `/verify-otp`, two Route Handlers in the separate `together-admin` project — not Supabase Auth's built-in magic-link reset. See `DATABASE.md` §3.9/§6.
 - `app/new-user-profile.tsx` — post-signup profile completion (name, DOB/age 18+, gender, city, bio, avatar).
 - `app/new-user-verification.tsx` — post-profile upsell: "Get verified" → `/verification/capture-aadhaar`, or "Skip for now."
 
