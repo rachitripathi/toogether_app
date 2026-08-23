@@ -1,7 +1,17 @@
 import type { Profile } from "@/hooks/use-auth-context";
 import { AuthContext } from "@/hooks/use-auth-context";
-import { supabase } from "@/utils/supabase";
+import { getStoredSessionClaims, supabase } from "@/utils/supabase";
+import { isAuthApiError, isAuthSessionMissingError } from "@supabase/supabase-js";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
+
+// Set by AppProvider's logout() right before calling supabase.auth.signOut(),
+// so the onAuthStateChange handler below can tell a real sign-out apart from
+// the SDK's own known wipe-on-failed-refresh bug (see utils/supabase.ts),
+// which also fires a SIGNED_OUT event but should NOT log the user out here.
+let explicitSignOutInProgress = false;
+export function markExplicitSignOut() {
+  explicitSignOutInProgress = true;
+}
 
 const getEmailName = (email: string | null) => email?.split("@")[0] ?? "New user";
 const getDefaultUsername = (email: string | null, userId: string) =>
@@ -76,52 +86,85 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     setIsLoading(false);
   };
 
-  // Returns true once a definitive answer was reached (logged in or genuinely
-  // logged out) and false if the attempt hit an error and should be retried —
-  // e.g. a transient network hiccup right at cold-start shouldn't be treated
-  // the same as an actual logged-out state.
-  const loadClaims = async (): Promise<boolean> => {
-    const { data, error } = await supabase.auth.getClaims();
-    if (!error) {
-      setClaims(data?.claims ?? null);
-      return true;
-    }
-
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      return false;
-    }
-    const session = sessionData.session;
-    setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
-    return true;
-  };
-
   useEffect(() => {
     let cancelled = false;
 
-    const fetchClaims = async () => {
-      setIsLoading(true);
-      const ok = await loadClaims();
-      if (!ok && !cancelled) {
-        // One retry after a short delay to ride out a cold-start network blip
-        // instead of immediately dropping the user back to the login screen.
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Verifies/refreshes the session against the server in the background.
+    // Only a confirmed server-side rejection (isAuthApiError /
+    // isAuthSessionMissingError) is treated as "actually logged out" — a
+    // network/timeout failure (AuthRetryableFetchError) or any other
+    // inconclusive error just gets retried with backoff, leaving whatever
+    // claims we already have (from local storage or a prior check) in place.
+    const verifyClaims = async (attempt = 0): Promise<void> => {
+      const { data, error } = await supabase.auth.getClaims();
+      if (!error) {
+        if (!cancelled) setClaims(data?.claims ?? null);
+        return;
+      }
+
+      if (isAuthApiError(error) || isAuthSessionMissingError(error)) {
+        if (!cancelled) setClaims(null);
+        return;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!sessionError) {
+        const session = sessionData.session;
         if (!cancelled) {
-          await loadClaims();
+          setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
+        }
+        return;
+      }
+
+      if (isAuthApiError(sessionError) || isAuthSessionMissingError(sessionError)) {
+        if (!cancelled) setClaims(null);
+        return;
+      }
+
+      // Still inconclusive (e.g. device hasn't reassociated with the network
+      // yet after a cold start) — back off and try again a couple more times
+      // rather than giving up and bouncing the user to the login screen.
+      if (attempt < 2 && !cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 2000 : 5000));
+        if (!cancelled) {
+          await verifyClaims(attempt + 1);
         }
       }
-      if (!cancelled) {
-        setIsLoading(false);
-      }
     };
-    fetchClaims();
 
-    // Use the session handed to us by the event directly instead of calling
-    // getClaims()/getSession() again here — fewer redundant calls means fewer
-    // chances to trip the SDK's refresh-failure session wipe (see utils/supabase.ts).
+    const bootstrap = async () => {
+      // Fast path: decode whatever session is already on disk and render the
+      // app as logged-in immediately. This never touches the network, so it
+      // can't be blocked by a cold-start network race — unlike the previous
+      // implementation, which waited on getClaims()/getSession() and treated
+      // a slow/failed network check as "logged out" even with a perfectly
+      // valid session sitting in storage.
+      const storedClaims = await getStoredSessionClaims();
+      if (cancelled) return;
+      if (storedClaims) {
+        setClaims(storedClaims);
+      }
+      setIsLoading(false);
+
+      // Verify/refresh with the server in the background regardless, so a
+      // genuinely logged-out device (no local session) still resolves, and a
+      // logged-in one picks up a freshly refreshed token for API calls.
+      await verifyClaims();
+    };
+
+    bootstrap();
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" && !explicitSignOutInProgress) {
+        // Could be a real sign-out, or the SDK's own wipe-on-failed-refresh
+        // bug (see utils/supabase.ts) misfiring the same event. Re-verify
+        // with the server instead of trusting this blindly.
+        verifyClaims();
+        return;
+      }
+      explicitSignOutInProgress = false;
       setClaims(session?.user ? { sub: session.user.id, email: session.user.email } : null);
     });
 

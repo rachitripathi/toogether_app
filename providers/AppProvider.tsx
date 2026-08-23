@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
+import { markExplicitSignOut } from '@/providers/auth-provider';
 import { supabase } from '@/utils/supabase';
 import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
 import { randomUUID } from '@/lib/uuid';
@@ -464,6 +465,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    markExplicitSignOut();
     await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
   };
