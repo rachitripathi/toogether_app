@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { LocationMapPicker, type MapCoordinate, type MapRegion } from '@/components/LocationMapPicker';
+import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/store/locationPickerStore';
 import { colors } from '@/lib/theme';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
@@ -67,8 +68,6 @@ export default function CreateEventScreen() {
   const [exactLocation, setExactLocation] = useState('');
   const [locationNote, setLocationNote] = useState('');
   const [coordinate, setCoordinate] = useState<MapCoordinate | null>(null);
-  const [mapRegion, setMapRegion] = useState<MapRegion>(defaultRegion);
-  const [showMap, setShowMap] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [maxPeople, setMaxPeople] = useState('');
@@ -77,6 +76,8 @@ export default function CreateEventScreen() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const usage = getUsageSummary();
+  const openLocationPicker = useLocationPickerStore((state) => state.open);
+  const consumeLocationResult = useLocationPickerStore((state) => state.consumeResult);
 
   const isFormValid = Boolean(
     title.trim() && eventDate && eventTime && area.trim() && exactLocation.trim()
@@ -84,7 +85,6 @@ export default function CreateEventScreen() {
 
   const applyCoordinate = async (nextCoordinate: MapCoordinate) => {
     setCoordinate(nextCoordinate);
-    setMapRegion((prev) => ({ ...prev, ...nextCoordinate }));
 
     try {
       const [place] = await Location.reverseGeocodeAsync(nextCoordinate);
@@ -109,19 +109,14 @@ export default function CreateEventScreen() {
     }
   };
 
-  const useCurrentLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setError('Location permission is needed to use your current location.');
-      return;
-    }
-
-    const current = await Location.getCurrentPositionAsync({});
-    await applyCoordinate({
-      latitude: current.coords.latitude,
-      longitude: current.coords.longitude,
-    });
-  };
+  useFocusEffect(
+    useCallback(() => {
+      const nextCoordinate = consumeLocationResult('create-event');
+      if (nextCoordinate) {
+        applyCoordinate(nextCoordinate);
+      }
+    }, [consumeLocationResult])
+  );
 
   const openDatePicker = () => {
     if (Platform.OS === 'android') {
@@ -357,7 +352,13 @@ export default function CreateEventScreen() {
         <View style={{ gap: 10 }}>
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Location</Text>
           <Pressable
-            onPress={() => setShowMap(true)}
+            onPress={() => {
+              openLocationPicker('create-event', {
+                coordinate,
+                region: coordinate ? { ...defaultRegion, ...coordinate } : defaultRegion,
+              });
+              router.push('/location-picker');
+            }}
             style={{
               backgroundColor: colors.surface,
               borderRadius: 22,
@@ -456,18 +457,6 @@ export default function CreateEventScreen() {
           fullWidth
         />
       </ScrollView>
-
-      <LocationMapPicker
-        visible={showMap}
-        topInset={insets.top}
-        coordinate={coordinate}
-        mapRegion={mapRegion}
-        exactLocation={exactLocation}
-        onClose={() => setShowMap(false)}
-        onUseCurrentLocation={useCurrentLocation}
-        onApplyCoordinate={applyCoordinate}
-        onRegionChangeComplete={setMapRegion}
-      />
 
       {Platform.OS !== 'android' && showDatePicker ? (
         <Modal transparent animationType="fade" visible={showDatePicker}>

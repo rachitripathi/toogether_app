@@ -1,7 +1,7 @@
 import type { Profile } from "@/hooks/use-auth-context";
 import { AuthContext } from "@/hooks/use-auth-context";
 import { supabase } from "@/utils/supabase";
-import { PropsWithChildren, useEffect, useState } from "react";
+import { PropsWithChildren, useEffect, useRef, useState } from "react";
 
 const getEmailName = (email: string | null) => email?.split("@")[0] ?? "New user";
 const getDefaultUsername = (email: string | null, userId: string) =>
@@ -23,9 +23,17 @@ export default function AuthProvider({ children }: PropsWithChildren) {
   >();
   const [profile, setProfile] = useState<Profile | null>();
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Bumped on every fetchProfile call so a slower, older request can tell it's
+  // been superseded and skip applying its (now stale) result — otherwise two
+  // calls racing (e.g. a session refresh landing mid-login) can resolve out of
+  // order and let the older one overwrite the newer profile/isLoading state.
+  const fetchRequestIdRef = useRef(0);
 
   const fetchProfile = async (userClaims = claims) => {
+    const requestId = ++fetchRequestIdRef.current;
     setIsLoading(true);
+
+    let nextProfile: Profile | null = null;
     if (userClaims) {
       const { data, error } = await supabase
         .from("profiles")
@@ -51,19 +59,20 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
         if (createError) {
           console.error("Error creating profile:", createError);
-          setProfile(null);
         } else {
-          setProfile(createdProfile);
+          nextProfile = createdProfile;
         }
       } else if (error) {
         console.error("Error fetching profile:", error);
-        setProfile(null);
       } else {
-        setProfile(data);
+        nextProfile = data;
       }
-    } else {
-      setProfile(null);
     }
+
+    if (requestId !== fetchRequestIdRef.current) {
+      return;
+    }
+    setProfile(nextProfile);
     setIsLoading(false);
   };
 

@@ -23,11 +23,11 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 | App | React Native + Expo (`expo-router`, file-based routes under `app/`) |
 | Backend | Supabase (Postgres + Auth + Realtime + Edge Functions) — see `DATABASE.md` |
 | App state | React Context: `providers/AppProvider.tsx` (events/requests/messages/crew/ratings/verification) + `providers/auth-provider.tsx` (session/profile) |
-| Local-only state | Zustand: `store/verificationDraftStore.ts` (the only live Zustand store — see §7) |
+| Local-only state | Zustand: `store/verificationDraftStore.ts` (§7), `store/locationPickerStore.ts` (below) |
 | Images | Cloudinary, unsigned client uploads — see `DATABASE.md` §7 |
 | Web admin panel | Does not exist yet — greenfield, see §8 |
 
-**Dead code, confirmed not imported by anything** (leave alone unless doing a dedicated cleanup — flagging here so nobody mistakes them for the real data path): `hooks/useEvents.ts`, `hooks/useFeed.ts`, `hooks/useProfile.ts` (React-Query-based, never wired up), `store/authStore.ts` (hardcoded dev user), `store/feedStore.ts` (empty file). All real data flows through the two providers above, using plain `await supabase.from(...)` calls — no React Query in the live app despite `providers/QueryProvider.tsx` existing.
+**Dead code, confirmed not imported by anything** (leave alone unless doing a dedicated cleanup — flagging here so nobody mistakes them for the real data path): `hooks/useProfile.ts` (React-Query-based, never wired up), `store/authStore.ts` (hardcoded dev user), `store/feedStore.ts` (empty file). All real data flows through the two providers above, using plain `await supabase.from(...)` calls — no React Query in the live app despite `providers/QueryProvider.tsx` existing. (`hooks/useEvents.ts` and `hooks/useFeed.ts`, the other two React-Query files that used to sit here, were deleted 2026-08-22 — same problem plus a live bug in `useJoinRequest`'s `.update()` call.)
 
 ---
 
@@ -48,7 +48,7 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 - `profile.tsx` — own profile, hosting/joined/past sections, settings entry.
 
 **Event / chat**
-- `app/create-event.tsx` — modal create-plan form, real Supabase insert.
+- `app/create-event.tsx` — modal create-plan form, real Supabase insert. Its "pin exact location" row pushes `/location-picker` (see below) rather than opening an in-screen map modal.
 - `app/event/[id].tsx` — event detail; public info vs. private (post-approval) info; host approve/reject; attendee-list unlock (credits).
 - `app/chat/[id].tsx` — per-event chat, gated to host + approved members.
 
@@ -65,6 +65,8 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 
 **Monetisation**
 - `app/paywall.tsx` — credit-pack upsell, shown when a usage gate is hit.
+
+**Location picking** — `app/location-picker.tsx` is a thin route file (`export { default } from '@/components/LocationPickerScreen'`) registered in `app/_layout.tsx` with `presentation: 'modal'` and pushed from `home.tsx`'s location switcher and `create-event.tsx`'s location row. The actual screen is split one level down as `components/LocationPickerScreen.native.tsx` (real `react-native-maps` `MapView`) / `components/LocationPickerScreen.tsx` (web fallback, no native map module) — the platform split has to live on a plain component, not directly on the `app/` route file, because expo-router's route discovery bundles whichever `app/` file it matches straight into the web/SSR manifest and ignores Metro's usual per-platform extension resolution; a `location-picker.native.tsx` route file pulled `react-native-maps` into the web build and broke `expo export --platform web`. This used to be a shared `components/LocationMapPicker.*` pair rendered as a same-screen `<Modal>` from both callers. On Android, opening it meant closing one `<Modal>` (e.g. `home.tsx`'s location-options sheet) and opening another in the same tap — each RN `Modal` is backed by its own native `Dialog` window, and tearing one down while standing another up in the same commit hands the incoming window a stray dismiss, so the map flashed open and closed itself immediately (fixed 2026-08-22). Routing to a real screen removes the second `Dialog` entirely. Because a route push can't hand a result back to the screen that pushed it the way a callback prop could, the picker returns its coordinate through `store/locationPickerStore.ts` instead: the opening screen calls `open(origin, { coordinate, region })` then `router.push('/location-picker')`, and reads the result back via `useFocusEffect` + `consumeResult(origin)` once it regains focus. Needs a real Google Maps Android API key to actually render tiles — see `DATABASE.md` §8.
 
 ---
 

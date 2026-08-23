@@ -27,7 +27,12 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA"
-      ]
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "REPLACE_WITH_YOUR_GOOGLE_MAPS_ANDROID_API_KEY"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -49,7 +54,13 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Toogether uses your location to help you pin exact meeting spots for plans."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

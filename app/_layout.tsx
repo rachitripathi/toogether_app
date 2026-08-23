@@ -96,6 +96,7 @@ export default function RootLayout() {
           <Stack.Screen name="new-user-verification" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="create-event" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="location-picker" options={{ presentation: 'modal' }} />
           <Stack.Screen name="verification" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />

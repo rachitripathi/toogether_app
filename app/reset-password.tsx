@@ -77,20 +77,28 @@ export default function ResetPasswordScreen() {
     setError(null);
     setMessage(null);
 
-    await postJson("/api/forgot-password/send-otp", { email: email.trim() });
-
-    setLoading(false);
-    setStep("otp");
-    startResendCooldown();
-    setMessage("If that email has an account, a 6-digit code was sent to it.");
+    try {
+      await postJson("/api/forgot-password/send-otp", { email: email.trim() });
+      setStep("otp");
+      startResendCooldown();
+      setMessage("If that email has an account, a 6-digit code was sent to it.");
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resendOtp = async () => {
     if (resendIn > 0) return;
     setError(null);
-    await postJson("/api/forgot-password/send-otp", { email: email.trim() });
-    startResendCooldown();
-    setMessage("Code resent. Check your email.");
+    try {
+      await postJson("/api/forgot-password/send-otp", { email: email.trim() });
+      startResendCooldown();
+      setMessage("Code resent. Check your email.");
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    }
   };
 
   const verifyOtp = async () => {
@@ -115,21 +123,25 @@ export default function ResetPasswordScreen() {
     setError(null);
     setMessage(null);
 
-    const { ok, data } = await postJson("/api/forgot-password/verify-otp", {
-      email: email.trim(),
-      otp: otp.trim(),
-      newPassword: password,
-    });
+    try {
+      const { ok, data } = await postJson("/api/forgot-password/verify-otp", {
+        email: email.trim(),
+        otp: otp.trim(),
+        newPassword: password,
+      });
 
-    setLoading(false);
+      if (!ok) {
+        setError(data?.error ?? "Invalid or expired code.");
+        return;
+      }
 
-    if (!ok) {
-      setError(data?.error ?? "Invalid or expired code.");
-      return;
+      setDone(true);
+      setMessage("Password updated. You can now log in with your new password.");
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setDone(true);
-    setMessage("Password updated. You can now log in with your new password.");
   };
 
   const isOtpStep = step === "otp";

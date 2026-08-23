@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { EventCard } from '@/components/EventCard';
 import { HeaderHero } from '@/components/HeaderHero';
-import { LocationMapPicker, type MapCoordinate, type MapRegion } from '@/components/LocationMapPicker';
+import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/store/locationPickerStore';
 import { PinMark } from '@/components/PinMark';
 import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleton';
 import { colors } from '@/lib/theme';
@@ -96,11 +97,11 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [locationLabel, setLocationLabel] = useState('Guwahati');
   const [locationCoordinate, setLocationCoordinate] = useState<MapCoordinate | null>(null);
-  const [locationMapRegion, setLocationMapRegion] = useState<MapRegion>(defaultMapRegion);
   const [showLocationOptions, setShowLocationOptions] = useState(false);
-  const [showLocationMap, setShowLocationMap] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const openLocationPicker = useLocationPickerStore((state) => state.open);
+  const consumeLocationResult = useLocationPickerStore((state) => state.consumeResult);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -121,7 +122,6 @@ export default function HomeScreen() {
         if (parsed.label) setLocationLabel(parsed.label);
         if (parsed.coordinate) {
           setLocationCoordinate(parsed.coordinate);
-          setLocationMapRegion((prev) => ({ ...prev, ...parsed.coordinate }));
         }
       } catch {
         // ignore malformed cache
@@ -135,7 +135,6 @@ export default function HomeScreen() {
 
   const applyCoordinate = async (coordinate: MapCoordinate) => {
     setLocationCoordinate(coordinate);
-    setLocationMapRegion((prev) => ({ ...prev, ...coordinate }));
 
     try {
       const [place] = await Location.reverseGeocodeAsync(coordinate);
@@ -167,6 +166,18 @@ export default function HomeScreen() {
       setLocationLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      const coordinate = consumeLocationResult('home');
+      if (coordinate) {
+        applyCoordinate(coordinate);
+      }
+      // consumeLocationResult/applyCoordinate close over per-render state but only
+      // do anything when the picker actually left a result behind, so re-running
+      // this on every focus (not just once) is harmless.
+    }, [consumeLocationResult])
+  );
 
   const filtered = events.filter((event) => {
     const normalizedQuery = query.toLowerCase();
@@ -469,7 +480,11 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 setShowLocationOptions(false);
-                setShowLocationMap(true);
+                openLocationPicker('home', {
+                  coordinate: locationCoordinate,
+                  region: locationCoordinate ? { ...defaultMapRegion, ...locationCoordinate } : defaultMapRegion,
+                });
+                router.push('/location-picker');
               }}
               style={{
                 flexDirection: 'row',
@@ -488,18 +503,6 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-      <LocationMapPicker
-        visible={showLocationMap}
-        topInset={insets.top}
-        coordinate={locationCoordinate}
-        mapRegion={locationMapRegion}
-        exactLocation={locationLabel}
-        onClose={() => setShowLocationMap(false)}
-        onUseCurrentLocation={useCurrentLocation}
-        onApplyCoordinate={applyCoordinate}
-        onRegionChangeComplete={setLocationMapRegion}
-      />
     </View>
   );
 }

@@ -28,10 +28,12 @@ export function PhotoCaptureScreen({
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const openCamera = async () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
       let permission = await ImagePicker.getCameraPermissionsAsync();
       if (!permission.granted) {
@@ -51,6 +53,8 @@ export function PhotoCaptureScreen({
       if (!result.canceled && result.assets[0]?.uri) {
         setPreviewUri(result.assets[0].uri);
       }
+    } catch {
+      setError("Couldn't open the camera. Try again.");
     } finally {
       setBusy(false);
     }
@@ -124,23 +128,28 @@ export function PhotoCaptureScreen({
                 </Pressable>
               </>
             ) : (
-              <Pressable
-                onPress={openCamera}
-                disabled={busy}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 10,
-                  paddingVertical: 16,
-                  borderRadius: 20,
-                  backgroundColor: '#FFFFFF',
-                  opacity: busy ? 0.6 : 1,
-                }}
-              >
-                <Ionicons name="camera" size={20} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Take Photo</Text>
-              </Pressable>
+              <>
+                {error ? (
+                  <Text style={{ color: '#FCA5A5', textAlign: 'center', fontSize: 13 }}>{error}</Text>
+                ) : null}
+                <Pressable
+                  onPress={openCamera}
+                  disabled={busy}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                    paddingVertical: 16,
+                    borderRadius: 20,
+                    backgroundColor: '#FFFFFF',
+                    opacity: busy ? 0.6 : 1,
+                  }}
+                >
+                  <Ionicons name="camera" size={20} color={colors.text} />
+                  <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Take Photo</Text>
+                </Pressable>
+              </>
             )}
           </>
         )}
