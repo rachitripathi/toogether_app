@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { colors, gradients } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const { currentUser, requests, crewRequests, getUserById, getEventById, getEventsImPartOf, getMyRatingForUser } = useApp();
+  const { colors, shadow } = useTheme();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const dismiss = (id: string) => {
@@ -184,14 +185,12 @@ export default function ActivityScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <LinearGradient colors={[...gradients.activity]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Animated.View style={{ paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Activity</Text>
-          <Animated.Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, opacity: subtitleOpacity }}>
-            Updates and approvals
-          </Animated.Text>
-        </Animated.View>
-      </LinearGradient>
+      <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
+        <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Activity</Text>
+        <Animated.Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, opacity: subtitleOpacity }}>
+          Updates and approvals
+        </Animated.Text>
+      </Animated.View>
 
       <ScrollView
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
@@ -228,14 +227,14 @@ export default function ActivityScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', gap: 2 }}>
                     {[1, 2, 3].map((s) => (
-                      <Ionicons key={s} name="star-outline" size={14} color="#F59E0B" />
+                      <Icon key={s} name="star-outline" size={14} color={colors.warning} />
                     ))}
                   </View>
                   <Pressable
                     onPress={(e) => { e.stopPropagation(); dismiss(nudge.id); }}
                     style={{ padding: 4 }}
                   >
-                    <Ionicons name="close" size={16} color={colors.muted} />
+                    <Icon name="close" size={16} color={colors.muted} />
                   </Pressable>
                 </Pressable>
               );
@@ -247,9 +246,9 @@ export default function ActivityScreen() {
           activities.map((activity) => {
             const user = getUserById(activity.userId);
             const accent =
-              activity.tone === 'positive' ? '#DCFCE7' : activity.tone === 'pending' ? '#FFF1D6' : '#EFF6FF';
+              activity.tone === 'positive' ? colors.status.success.bg : activity.tone === 'pending' ? colors.status.warning.bg : colors.status.info.bg;
             const iconColor =
-              activity.tone === 'positive' ? '#15803D' : activity.tone === 'pending' ? '#B45309' : colors.skyDark;
+              activity.tone === 'positive' ? colors.status.success.text : activity.tone === 'pending' ? colors.status.warning.text : colors.status.info.text;
             const label =
               activity.tone === 'positive' ? 'Good news' : activity.tone === 'pending' ? 'Action needed' : 'Update';
 
@@ -264,11 +263,7 @@ export default function ActivityScreen() {
                   borderColor: colors.border,
                   padding: 16,
                   gap: 14,
-                  shadowColor: '#D7E6F2',
-                  shadowOpacity: 0.16,
-                  shadowRadius: 18,
-                  shadowOffset: { width: 0, height: 8 },
-                  elevation: 2,
+                  ...shadow.card,
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -277,13 +272,13 @@ export default function ActivityScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={activity.icon} size={18} color={iconColor} />
+                      <Icon name={activity.icon} size={18} color={iconColor} />
                     </View>
                     <Pressable
                       onPress={(e) => { e.stopPropagation(); dismiss(activity.id); }}
-                      style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Ionicons name="close" size={14} color={colors.muted} />
+                      <Icon name="close" size={14} color={colors.muted} />
                     </Pressable>
                   </View>
                 </View>
@@ -300,10 +295,10 @@ export default function ActivityScreen() {
 
                 <View
                   style={{
-                    backgroundColor: '#EFF6FF',
+                    backgroundColor: colors.status.info.bg,
                     borderRadius: 18,
                     borderWidth: 1,
-                    borderColor: '#D5E5FF',
+                    borderColor: colors.status.info.border,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
                     gap: 4,
@@ -311,9 +306,9 @@ export default function ActivityScreen() {
                     alignItems: 'center',
                   }}
                 >
-                  <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} style={{ marginRight: 4 }} />
+                  <Icon name="arrow-forward-circle" size={20} color={colors.primary} style={{ marginRight: 4 }} />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ color: colors.skyDark, fontWeight: '700' }}>{activity.helper}</Text>
+                    <Text style={{ color: colors.status.info.text, fontWeight: '700' }}>{activity.helper}</Text>
                     <Text style={{ color: colors.primary, fontSize: 12 }}>Tap to open the relevant screen.</Text>
                   </View>
                 </View>

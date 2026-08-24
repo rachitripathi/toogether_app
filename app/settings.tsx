@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { colors, shadow } from '@/lib/theme';
+import { UsernameStatusIcon, usernameStatusMessage } from '@/components/UsernameStatusIcon';
+import { useTheme, type ThemePreference } from '@/providers/ThemeProvider';
 import { deleteCurrentAvatar, uploadAvatar } from '@/lib/cloudinary';
+import { normalizeUsername, useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function SettingsRow({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
   return (
     <View
       style={{
@@ -33,8 +36,10 @@ function SettingsRow({ label, value }: { label: string; value: string }) {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { currentUser, updateCurrentUser } = useApp();
+  const { colors, shadow, preference, setPreference } = useTheme();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
+  const usernameStatus = useUsernameAvailability(username, currentUser?.username);
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
@@ -46,7 +51,7 @@ export default function SettingsScreen() {
     setName(currentUser.name);
     setUsername(currentUser.username);
     setBio(currentUser.bio ?? '');
-    setCity(currentUser.city);
+    setCity(currentUser.city ?? '');
   }, [currentUser]);
 
   if (!currentUser) {
@@ -115,9 +120,26 @@ export default function SettingsScreen() {
   };
 
   const saveProfile = () => {
+    const normalizedUsername = normalizeUsername(username);
+
+    if (normalizedUsername && normalizedUsername !== normalizeUsername(currentUser.username)) {
+      if (usernameStatus === 'invalid') {
+        Alert.alert('Invalid username', '3-20 characters: letters, numbers, and underscores only.');
+        return;
+      }
+      if (usernameStatus === 'checking') {
+        Alert.alert('Still checking', 'Give it a second to finish checking that username.');
+        return;
+      }
+      if (usernameStatus === 'taken') {
+        Alert.alert('Username taken', 'That username is already taken — pick another one.');
+        return;
+      }
+    }
+
     updateCurrentUser({
       name: name.trim() || currentUser.name,
-      username: username.trim().replace(/\s+/g, '').toLowerCase() || currentUser.username,
+      username: normalizedUsername || currentUser.username,
       bio: bio.trim(),
       city: city.trim() || currentUser.city,
     });
@@ -131,7 +153,7 @@ export default function SettingsScreen() {
           paddingTop: insets.top + 16,
           paddingHorizontal: 20,
           paddingBottom: 18,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -143,7 +165,7 @@ export default function SettingsScreen() {
           onPress={() => router.back()}
           style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <Icon name="arrow-back" size={18} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>Settings</Text>
@@ -154,7 +176,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.card,
             borderRadius: 28,
             borderWidth: 1,
             borderColor: colors.border,
@@ -191,12 +213,12 @@ export default function SettingsScreen() {
                     borderRadius: 14,
                     backgroundColor: colors.primary,
                     borderWidth: 3,
-                    borderColor: '#FFFFFF',
+                    borderColor: colors.card,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+                  <Icon name="camera-outline" size={14} color="#FFFFFF" />
                 </View>
               )}
             </Pressable>
@@ -214,7 +236,15 @@ export default function SettingsScreen() {
           </View>
 
           <FormField label="Name" value={name} onChangeText={setName} placeholder="Your name" />
-          <FormField label="Username" value={username} onChangeText={setUsername} placeholder="username" />
+          <FormField
+            label="Username"
+            value={username}
+            onChangeText={setUsername}
+            placeholder="username"
+            autoCapitalize="none"
+            rightAccessory={<UsernameStatusIcon status={usernameStatus} />}
+            {...usernameStatusMessage(usernameStatus, normalizeUsername(username))}
+          />
           <FormField label="City" value={city} onChangeText={setCity} placeholder="City" />
           <FormField
             label="Bio"
@@ -225,6 +255,52 @@ export default function SettingsScreen() {
           />
 
           <GradientButton label="Save changes" onPress={saveProfile} fullWidth />
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Appearance</Text>
+          <View
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 6,
+              flexDirection: 'row',
+              gap: 6,
+            }}
+          >
+            {(
+              [
+                { id: 'light', label: 'Light', icon: 'sunny' },
+                { id: 'dark', label: 'Dark', icon: 'moon' },
+                { id: 'system', label: 'System', icon: 'phone-portrait' },
+              ] as const
+            ).map((option) => {
+              const active = option.id === preference;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => setPreference(option.id as ThemePreference)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: active ? colors.status.info.bg : 'transparent',
+                    borderRadius: 15,
+                    borderWidth: 1,
+                    borderColor: active ? colors.primary : 'transparent',
+                    paddingVertical: 12,
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Icon name={option.icon} size={20} color={active ? colors.primary : colors.muted} />
+                  <Text style={{ color: active ? colors.primary : colors.muted, fontWeight: '800', fontSize: 12.5 }}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View style={{ gap: 12 }}>

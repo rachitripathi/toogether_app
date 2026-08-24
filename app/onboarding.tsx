@@ -2,13 +2,24 @@ import { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { gradients, shadow } from '@/lib/theme';
+import { Icon } from '@/components/Icon';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slide1Illustration from '@/assets/onboarding/slide-1.svg';
 import Slide2Illustration from '@/assets/onboarding/slide-2.svg';
 import Slide3Illustration from '@/assets/onboarding/slide-3.svg';
+
+// This screen's SVG illustrations bake in their own light backgrounds, so it's kept
+// intentionally light-invariant rather than following the app theme — flipping the
+// surrounding chrome dark while the art stays light would look broken, not themed.
+const HERO_GRADIENT = ['#FFFFFF', '#EFF6FF'] as const;
+const LIFT_SHADOW = {
+  shadowColor: '#9AACDF',
+  shadowOpacity: 0.26,
+  shadowRadius: 22,
+  shadowOffset: { width: 0, height: 12 },
+  elevation: 6,
+};
 
 const slides = [
   {
@@ -68,7 +79,7 @@ export default function OnboardingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F6F7FB' }}>
-      <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
+      <LinearGradient colors={HERO_GRADIENT} style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -166,10 +177,10 @@ export default function OnboardingScreen() {
                 borderRadius: 28,
                 alignItems: 'center',
                 justifyContent: 'center',
-                ...shadow.lift,
+                ...LIFT_SHADOW,
               }}
             >
-              <Ionicons name={isLast ? 'checkmark' : 'arrow-forward'} size={24} color={current.iconColor} />
+              <Icon name={isLast ? 'checkmark' : 'arrow-forward'} size={24} color={current.iconColor} />
             </LinearGradient>
           </Pressable>
         </View>

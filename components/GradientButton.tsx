@@ -1,7 +1,6 @@
 import { useRef } from 'react';
-import { Animated, Pressable, Text, type ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients, shadow } from '@/lib/theme';
+import { Animated, Pressable, Text, View, type ViewStyle } from 'react-native';
+import { useTheme } from '@/providers/ThemeProvider';
 import type { ReactNode } from 'react';
 
 type GradientButtonProps = {
@@ -23,6 +22,7 @@ export function GradientButton({
   style,
   variant = 'gradient',
 }: GradientButtonProps) {
+  const { colors, shadow } = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
@@ -42,17 +42,9 @@ export function GradientButton({
         onPressOut={onPressOut}
         style={{ width: '100%' }}
       >
-        <LinearGradient
-          colors={
-            disabled
-              ? ['#CBD5E1', '#CBD5E1']
-              : variant === 'dark'
-                ? ['#1A1A2E', '#1A1A2E']
-                : [...gradients.amber]
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View
           style={{
+            backgroundColor: disabled ? colors.border : variant === 'dark' ? colors.text : colors.primary,
             minHeight: 56,
             borderRadius: 28,
             paddingHorizontal: 20,
@@ -66,14 +58,14 @@ export function GradientButton({
           {icon}
           <Text
             style={{
-              color: disabled ? '#FFFFFF' : variant === 'dark' ? '#FFFFFF' : colors.text,
+              color: disabled ? '#FFFFFF' : variant === 'dark' ? colors.page : '#FFFFFF',
               fontSize: 16,
               fontWeight: '900',
             }}
           >
             {label}
           </Text>
-        </LinearGradient>
+        </View>
       </Pressable>
     </Animated.View>
   );

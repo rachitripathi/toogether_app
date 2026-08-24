@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, gradients } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 
 type AppShellProps = {
   children: ReactNode;
@@ -12,6 +12,7 @@ type AppShellProps = {
 };
 
 export function AppShell({ children, header, withGradient = false, style }: AppShellProps) {
+  const { colors, gradients } = useTheme();
   const content = (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.page }}>
       {header}

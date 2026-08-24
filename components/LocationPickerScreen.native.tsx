@@ -1,16 +1,39 @@
 import { useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import MapView, { Marker, PROVIDER_GOOGLE, type MapPressEvent } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/store/locationPickerStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Google's standard dark map style (docs.mapsplatform.google.com) — without this the
+// map renders its default bright-white basemap regardless of app theme, which looks
+// broken embedded in an otherwise dark screen.
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#1B1F2B' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1B1F2B' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8A93A8' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#B4BCCF' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#8A93A8' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#152420' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#5C7A6E' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2A2F3D' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1B1F2B' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8A93A8' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#333A4D' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1B1F2B' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#B4BCCF' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2A2F3D' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0D1420' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#5C7A93' }] },
+];
+
 export default function LocationPickerScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
   const initialCoordinate = useLocationPickerStore((state) => state.initialCoordinate);
   const initialRegion = useLocationPickerStore((state) => state.initialRegion);
   const resolve = useLocationPickerStore((state) => state.resolve);
@@ -57,7 +80,7 @@ export default function LocationPickerScreen() {
           paddingTop: insets.top + 14,
           paddingHorizontal: 16,
           paddingBottom: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -69,7 +92,7 @@ export default function LocationPickerScreen() {
           onPress={() => router.back()}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="close" size={22} color={colors.text} />
+          <Icon name="close" size={22} color={colors.text} />
         </Pressable>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', flex: 1 }}>Pin exact location</Text>
         <Pressable onPress={useMyLocation} disabled={locating} style={{ paddingHorizontal: 12, paddingVertical: 9 }}>
@@ -81,6 +104,7 @@ export default function LocationPickerScreen() {
         ref={mapRef}
         style={{ flex: 1 }}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        customMapStyle={scheme === 'dark' ? DARK_MAP_STYLE : undefined}
         initialRegion={region}
         onRegionChangeComplete={setRegion}
         onPress={(event: MapPressEvent) => setCoordinate(event.nativeEvent.coordinate)}
@@ -88,7 +112,7 @@ export default function LocationPickerScreen() {
         {coordinate ? <Marker coordinate={coordinate} /> : null}
       </MapView>
 
-      <View style={{ padding: 16, gap: 10, backgroundColor: '#FFFFFF' }}>
+      <View style={{ padding: 16, gap: 10, backgroundColor: colors.card }}>
         {error ? <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text> : null}
         <Text style={{ color: colors.text, fontWeight: '800' }}>
           {coordinate

@@ -1,9 +1,10 @@
 import { useLocalSearchParams, router } from 'expo-router';
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
@@ -19,14 +20,15 @@ function InviteToEventModal({
   events: { id: string; title: string; emoji: string; location: string }[];
   onSelect: (eventId: string) => void;
 }) {
+  const { colors } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>
-        <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16 }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Invite to my event</Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close" size={22} color={colors.muted} />
+              <Icon name="close" size={22} color={colors.muted} />
             </Pressable>
           </View>
           {events.map((event) => (
@@ -47,7 +49,7 @@ function InviteToEventModal({
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
                 <Text style={{ color: colors.muted }}>{event.location}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              <Icon name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>
           ))}
         </View>
@@ -57,8 +59,9 @@ function InviteToEventModal({
 }
 
 function TrustPill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'accent' | 'warm' }) {
-  const backgroundColor = tone === 'accent' ? '#E0F2FE' : tone === 'warm' ? '#FFF1D6' : '#F8FAFC';
-  const color = tone === 'accent' ? colors.skyDark : tone === 'warm' ? '#B45309' : colors.text;
+  const { colors } = useTheme();
+  const backgroundColor = tone === 'accent' ? colors.status.info.bg : tone === 'warm' ? colors.status.warning.bg : colors.surface;
+  const color = tone === 'accent' ? colors.skyDark : tone === 'warm' ? colors.status.warning.text : colors.text;
 
   return (
     <View style={{ backgroundColor, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 }}>
@@ -81,6 +84,7 @@ export default function UserProfileScreen() {
     sendCrewRequest,
     inviteToEvent,
   } = useApp();
+  const { colors } = useTheme();
   const user = getUserById(id ?? '');
 
   if (!currentUser) {
@@ -99,9 +103,9 @@ export default function UserProfileScreen() {
         >
           <Pressable
             onPress={() => router.back()}
-            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}
           >
-            <Ionicons name="arrow-back" size={18} color={colors.text} />
+            <Icon name="arrow-back" size={18} color={colors.text} />
           </Pressable>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
@@ -131,7 +135,7 @@ export default function UserProfileScreen() {
           paddingTop: insets.top + 16,
           paddingHorizontal: 20,
           paddingBottom: 24,
-          backgroundColor: '#EEF8FF',
+          backgroundColor: colors.status.info.bg,
           borderBottomLeftRadius: 28,
           borderBottomRightRadius: 28,
           gap: 18,
@@ -139,9 +143,9 @@ export default function UserProfileScreen() {
       >
         <Pressable
           onPress={() => router.back()}
-          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <Icon name="arrow-back" size={18} color={colors.text} />
         </Pressable>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -152,9 +156,9 @@ export default function UserProfileScreen() {
                 {user.name}, {user.age}
               </Text>
               {user.verified ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DFF4E8', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
-                  <Ionicons name="checkmark-circle" size={14} color="#15803D" />
-                  <Text style={{ color: '#15803D', fontSize: 12, fontWeight: '800' }}>Verified</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.status.info.bg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
+                  <VerifiedBadge size={14} />
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '800' }}>Verified</Text>
                 </View>
               ) : null}
             </View>
@@ -169,7 +173,7 @@ export default function UserProfileScreen() {
             { label: 'Mutual', value: mutualEvents.length },
             { label: 'Karma', value: rating ? rating.toFixed(1) : 'New' },
           ].map((item) => (
-            <View key={item.label} style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 12, alignItems: 'center' }}>
+            <View key={item.label} style={{ flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, alignItems: 'center' }}>
               <Text style={{ color: colors.text, fontWeight: '900', fontSize: 18 }}>{item.value}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
             </View>
@@ -219,7 +223,7 @@ export default function UserProfileScreen() {
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
                   <Text style={{ color: colors.muted }}>{event.area}, Guwahati · {event.timeSlot}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+                <Icon name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
             ))}
           </View>
@@ -241,7 +245,7 @@ export default function UserProfileScreen() {
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
                   <Text style={{ color: colors.muted }}>{event.area}, Guwahati · {event.timeSlot}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+                <Icon name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
             ))}
           </View>

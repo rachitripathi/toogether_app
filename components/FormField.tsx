@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/lib/theme';
+import { Icon } from '@/components/Icon';
+import { useTheme } from '@/providers/ThemeProvider';
 
 type FormFieldProps = {
   label: string;
@@ -12,6 +13,9 @@ type FormFieldProps = {
   multiline?: boolean;
   keyboardType?: 'default' | 'email-address' | 'numeric';
   error?: string;
+  success?: string;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  rightAccessory?: ReactNode;
 };
 
 export function FormField({
@@ -23,7 +27,11 @@ export function FormField({
   multiline,
   keyboardType,
   error,
+  success,
+  autoCapitalize,
+  rightAccessory,
 }: FormFieldProps) {
+  const { colors } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
 
   return (
@@ -43,10 +51,11 @@ export function FormField({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.muted}
           secureTextEntry={secureTextEntry && !isVisible}
           multiline={multiline}
           keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
           textAlignVertical={multiline ? 'top' : 'center'}
           style={{
             flex: 1,
@@ -65,11 +74,14 @@ export function FormField({
             accessibilityLabel={isVisible ? 'Hide password' : 'Show password'}
             style={{ paddingHorizontal: 14 }}
           >
-            <Ionicons name={isVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color="#7A8093" />
+            <Icon name={isVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
           </Pressable>
+        ) : rightAccessory ? (
+          <View style={{ paddingHorizontal: 14 }}>{rightAccessory}</View>
         ) : null}
       </View>
       {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
+      {!error && success ? <Text style={{ color: colors.success, fontSize: 12 }}>{success}</Text> : null}
     </View>
   );
 }

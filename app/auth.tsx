@@ -10,10 +10,10 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import loginIllustration from '@/assets/auth/login-illustration.png';
@@ -24,9 +24,11 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { login, signup, socialAuth, devAppMode, currentUser, showSuccessToast } = useApp();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const attemptInFlightRef = useRef(false);
   const hasNavigatedRef = useRef(false);
@@ -61,12 +63,23 @@ export default function AuthScreen() {
   const handleModeChange = (nextMode: Mode) => {
     setMode(nextMode);
     setError(null);
+    setConfirmPassword('');
   };
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
       setError('Please enter your email and password.');
       return;
+    }
+    if (mode === 'signup') {
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
     }
     setError(null);
     setLoading(true);
@@ -111,9 +124,9 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <View style={{ flex: 1, backgroundColor: colors.page }}>
         <ScrollView
-          style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+          style={{ flex: 1, backgroundColor: colors.page }}
           contentContainerStyle={{
             padding: 24,
             paddingTop: insets.top + 12,
@@ -127,10 +140,10 @@ export default function AuthScreen() {
           </View>
 
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 26, fontWeight: '900', color: '#1A1A2E', textAlign: 'center' }}>
+            <Text style={{ fontSize: 26, fontWeight: '900', color: colors.text, textAlign: 'center' }}>
               {mode === 'login' ? 'Welcome back 👋' : 'Create your account 🎉'}
             </Text>
-            <Text style={{ fontSize: 14, color: '#6B7490', marginTop: 6, textAlign: 'center' }}>
+            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 6, textAlign: 'center' }}>
               {mode === 'login'
                 ? 'Enter your details to access your account'
                 : "Let's get your plans started in a minute"}
@@ -139,7 +152,7 @@ export default function AuthScreen() {
 
           <View
             style={{
-              backgroundColor: '#F1F2F6',
+              backgroundColor: colors.surface,
               borderRadius: 18,
               padding: 4,
               flexDirection: 'row',
@@ -154,12 +167,12 @@ export default function AuthScreen() {
                   style={{
                     flex: 1,
                     borderRadius: 14,
-                    backgroundColor: active ? '#FFFFFF' : 'transparent',
+                    backgroundColor: active ? colors.card : 'transparent',
                     paddingVertical: 12,
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={{ color: active ? '#1A1A2E' : '#7A8093', fontWeight: '800' }}>
+                  <Text style={{ color: active ? colors.text : colors.muted, fontWeight: '800' }}>
                     {item === 'login' ? 'Log In' : 'Sign Up'}
                   </Text>
                 </Pressable>
@@ -182,9 +195,20 @@ export default function AuthScreen() {
             secureTextEntry
           />
 
+          {mode === 'signup' ? (
+            <FormField
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter your password"
+              secureTextEntry
+              error={confirmPassword.length > 0 && confirmPassword !== password ? 'Passwords do not match.' : undefined}
+            />
+          ) : null}
+
           {mode === 'login' ? (
             <Pressable onPress={() => router.push('/reset-password')} style={{ alignSelf: 'flex-end' }}>
-              <Text style={{ color: '#1A1A2E', fontWeight: '700', fontSize: 13 }}>Forgot Password</Text>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Forgot Password</Text>
             </Pressable>
           ) : null}
 
@@ -195,7 +219,6 @@ export default function AuthScreen() {
             onPress={handleEmailAuth}
             disabled={loading}
             fullWidth
-            variant="dark"
             icon={loading ? <ActivityIndicator color="#FFFFFF" /> : undefined}
           />
 
@@ -213,15 +236,15 @@ export default function AuthScreen() {
                 width: 56,
                 height: 56,
                 borderRadius: 28,
-                backgroundColor: '#F3F4F6',
+                backgroundColor: colors.surface,
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderWidth: 1,
-                borderColor: '#E5E7EB',
+                borderColor: colors.border,
                 opacity: 0.55,
               }}
             >
-              <Ionicons name="logo-google" size={22} color="#9CA3AF" />
+              <Icon name="logo-google" size={22} color={colors.muted} />
             </Pressable>
 
             <Pressable
@@ -237,7 +260,7 @@ export default function AuthScreen() {
                 opacity: 0.55,
               }}
             >
-              <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
+              <Icon name="logo-apple" size={22} color="#FFFFFF" />
             </Pressable>
           </View>
         </ScrollView>

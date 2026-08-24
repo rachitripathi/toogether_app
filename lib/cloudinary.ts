@@ -1,3 +1,4 @@
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { supabase } from '@/utils/supabase';
 
 // Public identifiers, not secrets — safe to bundle into the client. Hardcoded rather than
@@ -17,14 +18,25 @@ const extensionToMimeType: Record<string, string> = {
   heic: 'image/heic',
 };
 
+// Camera captures come straight off the sensor at full resolution (often 8-12MP, several
+// MB each) — launchCameraAsync's own `quality` option only controls JPEG compression, not
+// pixel dimensions. Downscaling to a sane max width before upload cuts payload size (and
+// therefore upload time) dramatically while staying plenty legible for ID review.
+async function compressForUpload(localUri: string): Promise<string> {
+  const image = await ImageManipulator.manipulate(localUri).resize({ width: 1600 }).renderAsync();
+  const result = await image.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
+  return result.uri;
+}
+
 async function uploadToCloudinary(localUri: string, uploadPreset: string, fallbackName: string): Promise<string> {
-  const filename = localUri.split('/').pop() ?? fallbackName;
+  const compressedUri = await compressForUpload(localUri);
+  const filename = compressedUri.split('/').pop() ?? fallbackName;
   const extension = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase() ?? 'jpg';
   const mimeType = extensionToMimeType[extension] ?? 'image/jpeg';
 
   const form = new FormData();
   // React Native's fetch/FormData accepts this {uri,name,type} shape in place of a Blob.
-  form.append('file', { uri: localUri, name: filename, type: mimeType } as unknown as Blob);
+  form.append('file', { uri: compressedUri, name: filename, type: mimeType } as unknown as Blob);
   form.append('upload_preset', uploadPreset);
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {

@@ -1,6 +1,7 @@
 // components/SkeletonBox.tsx
 import { useEffect, useRef } from "react";
 import { Animated, ViewStyle } from "react-native";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export function SkeletonBox({
   width,
@@ -13,6 +14,7 @@ export function SkeletonBox({
   borderRadius?: number;
   style?: ViewStyle;
 }) {
+  const { colors } = useTheme();
   const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function SkeletonBox({
   return (
     <Animated.View
       style={[
-        { width, height, borderRadius, backgroundColor: "#E0D9F0", opacity },
+        { width, height, borderRadius, backgroundColor: colors.border, opacity },
         style,
       ]}
     />

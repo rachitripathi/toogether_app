@@ -1,7 +1,7 @@
 import { useLocalSearchParams, router } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/lib/theme';
+import { Icon } from '@/components/Icon';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ type Section = 'hosting' | 'joined' | 'past';
 export default function ProfilePlansScreen() {
   const { section } = useLocalSearchParams<{ section: Section }>();
   const { currentUser, events } = useApp();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   if (!currentUser || !section) {
@@ -50,7 +51,7 @@ export default function ProfilePlansScreen() {
           paddingTop: insets.top + 16,
           paddingHorizontal: 20,
           paddingBottom: 18,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -62,7 +63,7 @@ export default function ProfilePlansScreen() {
           onPress={() => router.back()}
           style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <Icon name="arrow-back" size={18} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>{current.title}</Text>
@@ -94,7 +95,7 @@ export default function ProfilePlansScreen() {
                   {event.area}, Guwahati · {event.timeSlot}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+              <Icon name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>
           ))
         ) : (

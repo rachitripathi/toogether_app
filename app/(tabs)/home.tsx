@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -9,10 +8,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { EventCard } from '@/components/EventCard';
 import { HeaderHero } from '@/components/HeaderHero';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/store/locationPickerStore';
 import { PinMark } from '@/components/PinMark';
 import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleton';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +39,7 @@ const categories: { id: EventCategory | 'all'; label: string; emoji: string }[] 
 ];
 
 function SearchBar({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
+  const { colors } = useTheme();
   return (
     <View
       style={{
@@ -53,49 +54,34 @@ function SearchBar({ query, setQuery }: { query: string; setQuery: (value: strin
           backgroundColor: colors.surface,
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: 'rgba(15, 18, 34, 0.08)',
+          borderColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: 16,
           gap: 10,
-          shadowColor: colors.primary,
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: 5,
         }}
       >
-        <Ionicons name="search" size={18} color={colors.primary} />
+        <Icon name="search" size={18} color={colors.primary} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search hangouts or areas"
-          placeholderTextColor="#A6A2A8"
+          placeholderTextColor={colors.muted}
           style={{ flex: 1, minHeight: 50, color: colors.text, fontSize: 14, fontWeight: '600' }}
         />
       </View>
-      <LinearGradient
-        pointerEvents="none"
-        colors={[colors.page, 'rgba(255,255,255,0)']}
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: -8,
-          height: 8,
-        }}
-      />
     </View>
   );
 }
 
 export default function HomeScreen() {
   const { currentUser, events, isLoadingEvents, refreshFeed, getUsageSummary } = useApp();
+  const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<EventCategory | 'all'>('all');
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [locationLabel, setLocationLabel] = useState('Guwahati');
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [locationCoordinate, setLocationCoordinate] = useState<MapCoordinate | null>(null);
   const [showLocationOptions, setShowLocationOptions] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -116,17 +102,27 @@ export default function HomeScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(HOME_LOCATION_KEY).then((raw) => {
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw) as { label: string; coordinate: MapCoordinate | null };
-        if (parsed.label) setLocationLabel(parsed.label);
-        if (parsed.coordinate) {
-          setLocationCoordinate(parsed.coordinate);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { label: string; coordinate: MapCoordinate | null };
+          if (parsed.label) setLocationLabel(parsed.label);
+          if (parsed.coordinate) {
+            setLocationCoordinate(parsed.coordinate);
+          }
+          return;
+        } catch {
+          // fall through to a fresh fetch below on malformed cache
         }
-      } catch {
-        // ignore malformed cache
       }
+
+      // No location saved yet — try to use their real location right away instead of
+      // silently showing a made-up default. requestForegroundPermissionsAsync only
+      // actually shows the OS prompt when permission is still undetermined; if the
+      // user already granted or denied it, this just resolves with that existing
+      // status, so it never re-nags someone who already said no.
+      fetchCurrentLocation();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const persistLocation = (label: string, coordinate: MapCoordinate | null) => {
@@ -148,7 +144,7 @@ export default function HomeScreen() {
     }
   };
 
-  const useCurrentLocation = async () => {
+  const fetchCurrentLocation = async () => {
     setLocationLoading(true);
     setLocationError(null);
     try {
@@ -236,11 +232,11 @@ export default function HomeScreen() {
                   maxWidth: 130,
                 }}
               >
-                <Ionicons name="location-sharp" size={13} color={colors.primary} />
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '700', fontSize: 12, flexShrink: 1 }}>
-                  {locationLabel}
+                <Icon name="location-sharp" size={13} color={colors.primary} />
+                <Text numberOfLines={1} style={{ color: locationLabel ? colors.text : colors.muted, fontWeight: '700', fontSize: 12, flexShrink: 1 }}>
+                  {locationLoading ? 'Locating…' : (locationLabel ?? 'Set location')}
                 </Text>
-                <Ionicons name="chevron-down" size={13} color={colors.muted} />
+                <Icon name="chevron-down" size={13} color={colors.muted} />
               </Pressable>
             </View>
           }
@@ -257,14 +253,14 @@ export default function HomeScreen() {
                       flexDirection: 'row',
                       alignItems: 'center',
                       gap: 5,
-                      backgroundColor: '#DFF4E8',
+                      backgroundColor: colors.status.info.bg,
                       borderRadius: 999,
                       paddingHorizontal: 10,
                       paddingVertical: 7,
                     }}
                   >
-                    <Ionicons name="checkmark-circle" size={14} color="#15803D" />
-                    <Text style={{ color: '#15803D', fontWeight: '800', fontSize: 12 }}>Verified</Text>
+                    <VerifiedBadge size={14} />
+                    <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>Verified</Text>
                   </Pressable>
                 );
               }
@@ -277,14 +273,14 @@ export default function HomeScreen() {
                       flexDirection: 'row',
                       alignItems: 'center',
                       gap: 5,
-                      backgroundColor: '#FFF0D6',
+                      backgroundColor: colors.status.warning.bg,
                       borderRadius: 999,
                       paddingHorizontal: 10,
                       paddingVertical: 7,
                     }}
                   >
-                    <Ionicons name="hourglass-outline" size={14} color="#B45309" />
-                    <Text style={{ color: '#B45309', fontWeight: '800', fontSize: 12 }}>In review</Text>
+                    <Icon name="hourglass-outline" size={14} color={colors.status.warning.text} />
+                    <Text style={{ color: colors.status.warning.text, fontWeight: '800', fontSize: 12 }}>In review</Text>
                   </Pressable>
                 );
               }
@@ -296,14 +292,14 @@ export default function HomeScreen() {
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 5,
-                    backgroundColor: '#111111',
+                    backgroundColor: colors.primary,
                     borderRadius: 999,
                     paddingHorizontal: 10,
                     paddingVertical: 7,
                   }}
                 >
-                  <Ionicons name="shield-checkmark-outline" size={14} color="#FFD700" />
-                  <Text style={{ color: '#FFD700', fontWeight: '800', fontSize: 12 }}>Verify</Text>
+                  <VerifiedBadge size={14} color="#FFFFFF" />
+                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }}>Verify</Text>
                 </Pressable>
               );
             })()
@@ -328,14 +324,14 @@ export default function HomeScreen() {
                     backgroundColor: active ? colors.primary : colors.card,
                     borderRadius: 999,
                     borderWidth: 1,
-                    borderColor: active ? '#4A68E0' : 'rgba(20, 24, 50, 0.1)',
+                    borderColor: active ? colors.primary : colors.border,
                     paddingLeft: 14,
                     paddingRight: 16,
                     paddingVertical: 10,
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 8,
-                    shadowColor: '#3A4B8C',
+                    shadowColor: scheme === 'dark' ? '#000000' : '#3A4B8C',
                     shadowOpacity: active ? 0.25 : 0.12,
                     shadowRadius: 10,
                     shadowOffset: { width: 0, height: 4 },
@@ -343,7 +339,7 @@ export default function HomeScreen() {
                   }}
                 >
                   {category.id === 'all' ? (
-                    <Ionicons name="grid" size={16} color={active ? '#FFFFFF' : colors.primary} />
+                    <Icon name="grid" size={16} color={active ? '#FFFFFF' : colors.primary} />
                   ) : (
                     <Text style={{ fontSize: 15 }}>{category.emoji}</Text>
                   )}
@@ -383,10 +379,10 @@ export default function HomeScreen() {
           {usage.monetisationEnabled ? (
             <View
               style={{
-                backgroundColor: usage.joinLimitReached ? '#FFF7E8' : colors.surface,
+                backgroundColor: usage.joinLimitReached ? colors.status.warning.bg : colors.surface,
                 borderRadius: 18,
                 borderWidth: 1,
-                borderColor: usage.joinLimitReached ? '#FDE7B3' : colors.border,
+                borderColor: usage.joinLimitReached ? colors.status.warning.border : colors.border,
                 paddingHorizontal: 14,
                 paddingVertical: 12,
                 flexDirection: 'row',
@@ -394,7 +390,7 @@ export default function HomeScreen() {
                 gap: 10,
               }}
             >
-              <Ionicons name="flash-outline" size={18} color={usage.joinLimitReached ? '#B45309' : colors.primary} />
+              <Icon name="flash-outline" size={18} color={usage.joinLimitReached ? colors.status.warning.text : colors.primary} />
               <Text style={{ color: colors.text, fontWeight: '800', flex: 1 }}>
                 {usage.joinUsed}/{usage.joinLimit} join requests used this month
               </Text>
@@ -447,7 +443,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.card,
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               padding: 20,
@@ -458,7 +454,7 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text }}>Set your location</Text>
             {locationError ? <Text style={{ color: colors.danger, fontSize: 13 }}>{locationError}</Text> : null}
             <Pressable
-              onPress={useCurrentLocation}
+              onPress={fetchCurrentLocation}
               disabled={locationLoading}
               style={{
                 flexDirection: 'row',
@@ -472,7 +468,7 @@ export default function HomeScreen() {
                 opacity: locationLoading ? 0.6 : 1,
               }}
             >
-              <Ionicons name="navigate" size={18} color={colors.primary} />
+              <Icon name="navigate" size={18} color={colors.primary} />
               <Text style={{ fontWeight: '800', color: colors.text }}>
                 {locationLoading ? 'Fetching current location…' : 'Use current location'}
               </Text>
@@ -497,7 +493,7 @@ export default function HomeScreen() {
                 padding: 14,
               }}
             >
-              <Ionicons name="map" size={18} color={colors.primary} />
+              <Icon name="map" size={18} color={colors.primary} />
               <Text style={{ fontWeight: '800', color: colors.text }}>Choose on map</Text>
             </Pressable>
           </Pressable>

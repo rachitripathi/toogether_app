@@ -2,13 +2,21 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Alert, Animated, ImageBackground, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { colors } from '@/lib/theme';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { useTheme } from '@/providers/ThemeProvider';
 import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// The back/edit buttons sit on translucent white chips (rgba(255,255,255,0.75)) laid
+// over the category art photo — that chip stays white regardless of app theme (it needs
+// to read against varied photo backgrounds, not the page), so its icon must be a pinned
+// dark color too. Using colors.text there would go near-white in dark mode and vanish.
+const ON_LIGHT_CHIP_ICON = '#1A1D2E';
 
 function InfoRow({
   icon,
@@ -19,9 +27,10 @@ function InfoRow({
   iconColor: string;
   label: string;
 }) {
+  const { colors } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <Ionicons name={icon} size={20} color={iconColor} />
+      <Icon name={icon} size={20} color={iconColor} />
       <Text style={{ color: colors.text, fontWeight: '700', flex: 1 }}>{label}</Text>
     </View>
   );
@@ -65,6 +74,7 @@ function ThemedActionButton({
 
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const headerPaddingBottom = scrollY.interpolate({ inputRange: [0, 80], outputRange: [24, 10], extrapolate: 'clamp' });
@@ -249,11 +259,11 @@ export default function EventDetailScreen() {
 
   const statusTone =
     requestStatus === 'approved'
-      ? { bg: '#DCFCE7', text: '#15803D', label: 'Approved member', shadow: '#84CC96' }
+      ? { bg: colors.status.success.bg, text: colors.status.success.text, label: 'Approved member', shadow: colors.status.success.border }
       : requestStatus === 'pending'
-        ? { bg: '#FFBE3D', text: '#5B3A00', label: 'Approval pending', shadow: '#D4860F' }
+        ? { bg: colors.warning, text: '#FFFFFF', label: 'Approval pending', shadow: colors.status.warning.border }
         : requestStatus === 'rejected'
-          ? { bg: '#E5E7EB', text: '#6B7280', label: 'Request declined', shadow: '#B8C0CC' }
+          ? { bg: colors.border, text: colors.muted, label: 'Request declined', shadow: colors.border }
           : isCreator
             ? { bg: visual.buttonBackground, text: visual.buttonText, label: 'You are hosting', shadow: visual.buttonShadow }
             : { bg: visual.buttonBackground, text: visual.buttonText, label: 'Open for requests', shadow: visual.buttonShadow };
@@ -279,7 +289,7 @@ export default function EventDetailScreen() {
               justifyContent: 'center',
             }}
           >
-            <Ionicons name="arrow-back" size={18} color={colors.text} />
+            <Icon name="arrow-back" size={18} color={ON_LIGHT_CHIP_ICON} />
           </Pressable>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             {isCreator ? (
@@ -295,7 +305,7 @@ export default function EventDetailScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="create-outline" size={18} color={colors.text} />
+                  <Icon name="create-outline" size={18} color={ON_LIGHT_CHIP_ICON} />
                 </Pressable>
                 <Pressable
                   onPress={handleDelete}
@@ -308,7 +318,7 @@ export default function EventDetailScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <Icon name="trash-outline" size={18} color={colors.danger} />
                 </Pressable>
               </>
             ) : null}
@@ -432,9 +442,9 @@ export default function EventDetailScreen() {
           />
           <InfoRow icon="location-outline" iconColor={colors.secondary} label={`${event.area}, Guwahati`} />
           {event.locationNote ? (
-            <InfoRow icon="information-circle-outline" iconColor="#16A34A" label={event.locationNote} />
+            <InfoRow icon="information-circle-outline" iconColor={colors.success} label={event.locationNote} />
           ) : null}
-          {event.maxPeople ? <InfoRow icon="people-outline" iconColor="#16A34A" label={`${attendeeCount} going so far`} /> : null}
+          {event.maxPeople ? <InfoRow icon="people-outline" iconColor={colors.success} label={`${attendeeCount} going so far`} /> : null}
         </View>
 
         <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
@@ -442,26 +452,26 @@ export default function EventDetailScreen() {
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Private details</Text>
             <View
               style={{
-                backgroundColor: canViewPrivateLayer ? '#DCFCE7' : '#EEF2F7',
+                backgroundColor: canViewPrivateLayer ? colors.status.success.bg : colors.surface,
                 borderRadius: 999,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
               }}
             >
-              <Text style={{ color: canViewPrivateLayer ? '#15803D' : colors.muted, fontSize: 12, fontWeight: '700' }}>
+              <Text style={{ color: canViewPrivateLayer ? colors.status.success.text : colors.muted, fontSize: 12, fontWeight: '700' }}>
                 {canViewPrivateLayer ? 'Unlocked' : 'Locked'}
               </Text>
             </View>
           </View>
           {canViewPrivateLayer ? (
             <View style={{ gap: 10 }}>
-              <InfoRow icon="time" iconColor="#1D9E75" label={`Exact meeting time: ${event.exactTime}`} />
-              <InfoRow icon="navigate" iconColor="#1D9E75" label={event.exactLocation} />
+              <InfoRow icon="time" iconColor={colors.success} label={`Exact meeting time: ${event.exactTime}`} />
+              <InfoRow icon="navigate" iconColor={colors.success} label={event.exactLocation} />
               {mapUrl ? (
                 <Pressable
                   onPress={() => Linking.openURL(mapUrl)}
                   style={{
-                    backgroundColor: '#E0F2FE',
+                    backgroundColor: colors.status.info.bg,
                     borderRadius: 18,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
@@ -472,17 +482,17 @@ export default function EventDetailScreen() {
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <Ionicons name="map-outline" size={20} color={colors.skyDark} />
+                    <Icon name="map-outline" size={20} color={colors.skyDark} />
                     <Text style={{ color: colors.skyDark, fontWeight: '800' }}>Open pinned location in Maps</Text>
                   </View>
-                  <Ionicons name="open-outline" size={18} color={colors.skyDark} />
+                  <Icon name="open-outline" size={18} color={colors.skyDark} />
                 </Pressable>
               ) : null}
             </View>
           ) : (
             <View
               style={{
-                backgroundColor: '#F8FAFC',
+                backgroundColor: colors.card,
                 borderRadius: 18,
                 paddingHorizontal: 14,
                 paddingVertical: 12,
@@ -512,14 +522,16 @@ export default function EventDetailScreen() {
             <Pressable onPress={() => router.push(`/user/${creator.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <AvatarBubble user={creator} size={48} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '800' }}>{creator.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ color: colors.text, fontWeight: '800' }}>{creator.name}</Text>
+                  {creator.verified ? <VerifiedBadge size={13} /> : null}
+                </View>
                 <Text style={{ color: colors.muted }}>@{creator.username}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {creator.age} · {creatorRating ? `${creatorRating.toFixed(1)}★ karma` : 'New'}
-                  {creator.verified ? ' · Verified' : ''}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+              <Icon name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>
           </View>
         ) : null}
@@ -530,14 +542,14 @@ export default function EventDetailScreen() {
               Going ({event.approvedUserIds.length})
             </Text>
             {!monetisationEnabled ? (
-              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 18, padding: 14 }}>
+              <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} confirmed so far</Text>
                 <Text style={{ color: colors.muted, marginTop: 4 }}>
                   Full attendee details unlock after you are part of the plan.
                 </Text>
               </View>
             ) : !attendeesUnlocked ? (
-              <View style={{ backgroundColor: '#F8FAFC', borderRadius: 18, padding: 14, gap: 10 }}>
+              <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 10 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} people are going</Text>
                 <Text style={{ color: colors.muted, lineHeight: 20 }}>
                   Phase 2 preview: unlock the attendee list for 1 credit.
@@ -564,7 +576,7 @@ export default function EventDetailScreen() {
                       key={userId}
                       onPress={() => router.push(`/user/${userId}`)}
                       style={{
-                        backgroundColor: colors.page,
+                        backgroundColor: colors.card,
                         borderRadius: 999,
                         padding: 8,
                         paddingRight: 12,
@@ -596,7 +608,7 @@ export default function EventDetailScreen() {
                   <View
                     key={request.id}
                     style={{
-                      backgroundColor: '#F8FAFC',
+                      backgroundColor: colors.card,
                       borderRadius: 18,
                       padding: 14,
                       flexDirection: 'row',
@@ -618,13 +630,13 @@ export default function EventDetailScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: '#FFE4E6',
+                        backgroundColor: colors.status.danger.bg,
                         alignItems: 'center',
                         justifyContent: 'center',
                         opacity: processingRequestId === user.id ? 0.5 : 1,
                       }}
                     >
-                      <Ionicons name="close" size={18} color={colors.danger} />
+                      <Icon name="close" size={18} color={colors.danger} />
                     </Pressable>
                     <Pressable
                       onPress={() => handleApprove(user.id)}
@@ -633,13 +645,13 @@ export default function EventDetailScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: '#DCFCE7',
+                        backgroundColor: colors.status.success.bg,
                         alignItems: 'center',
                         justifyContent: 'center',
                         opacity: processingRequestId === user.id ? 0.5 : 1,
                       }}
                     >
-                      <Ionicons name="checkmark" size={18} color="#16A34A" />
+                      <Icon name="checkmark" size={18} color={colors.status.success.text} />
                     </Pressable>
                   </View>
                 );
@@ -656,10 +668,10 @@ export default function EventDetailScreen() {
           {joinError ? (
             <View
               style={{
-                backgroundColor: '#FFF7E8',
+                backgroundColor: colors.status.warning.bg,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: '#FDE7B3',
+                borderColor: colors.status.warning.border,
                 paddingHorizontal: 14,
                 paddingVertical: 10,
                 flexDirection: 'row',
@@ -667,23 +679,23 @@ export default function EventDetailScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="warning-outline" size={16} color="#B45309" />
-              <Text style={{ color: '#B45309', fontWeight: '700', flex: 1, fontSize: 13 }}>{joinError}</Text>
+              <Icon name="warning-outline" size={16} color={colors.status.warning.text} />
+              <Text style={{ color: colors.status.warning.text, fontWeight: '700', flex: 1, fontSize: 13 }}>{joinError}</Text>
             </View>
           ) : null}
           {requestStatus === 'approved' ? (
             <ThemedActionButton label="Open Chat" onPress={() => router.push(`/chat/${event.id}`)} visual={visual} />
           ) : requestStatus === 'pending' ? (
-            <View style={{ backgroundColor: '#FEF3C7', borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
-              <Text style={{ color: '#B45309', fontWeight: '800' }}>Request Pending</Text>
+            <View style={{ backgroundColor: colors.warning, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Request Pending</Text>
             </View>
           ) : requestStatus === 'rejected' ? (
-            <View style={{ backgroundColor: '#E5E7EB', borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
-              <Text style={{ color: '#6B7280', fontWeight: '800' }}>Not this time</Text>
+            <View style={{ backgroundColor: colors.border, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ color: colors.muted, fontWeight: '800' }}>Not this time</Text>
             </View>
           ) : isFull ? (
-            <View style={{ backgroundColor: '#E5E7EB', borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
-              <Text style={{ color: '#6B7280', fontWeight: '800' }}>This plan is full</Text>
+            <View style={{ backgroundColor: colors.border, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ color: colors.muted, fontWeight: '800' }}>This plan is full</Text>
             </View>
           ) : (
             <ThemedActionButton
@@ -700,7 +712,7 @@ export default function EventDetailScreen() {
         <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>
           <View
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: colors.card,
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               padding: 24,
@@ -711,7 +723,7 @@ export default function EventDetailScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Edit plan</Text>
               <Pressable onPress={() => setShowEdit(false)}>
-                <Ionicons name="close" size={22} color={colors.muted} />
+                <Icon name="close" size={22} color={colors.muted} />
               </Pressable>
             </View>
 
@@ -750,7 +762,7 @@ export default function EventDetailScreen() {
                         key={slot}
                         onPress={() => setEditTimeSlot(slot)}
                         style={{
-                          backgroundColor: active ? '#FFF1D6' : colors.surface,
+                          backgroundColor: active ? colors.status.warning.bg : colors.surface,
                           borderWidth: 1,
                           borderColor: active ? colors.primary : colors.border,
                           borderRadius: 999,
@@ -758,7 +770,7 @@ export default function EventDetailScreen() {
                           paddingVertical: 10,
                         }}
                       >
-                        <Text style={{ color: active ? '#B45309' : colors.text, fontWeight: '700' }}>{slot}</Text>
+                        <Text style={{ color: active ? colors.status.warning.text : colors.text, fontWeight: '700' }}>{slot}</Text>
                       </Pressable>
                     );
                   })}

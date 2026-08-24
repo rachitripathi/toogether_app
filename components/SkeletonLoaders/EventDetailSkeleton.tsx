@@ -1,12 +1,16 @@
 // components/EventDetailSkeleton.tsx
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
+import { useTheme } from "@/providers/ThemeProvider";
 import { SkeletonBox } from "./SkeletonBox";
 
 export function EventDetailSkeleton() {
+  const { colors } = useTheme();
+  const cardStyle = { backgroundColor: colors.card, borderRadius: 16, padding: 16, margin: 12, gap: 4 };
+
   return (
     <View>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={{ flexDirection: "row", alignItems: "center", padding: 20, backgroundColor: colors.lavender }}>
         <SkeletonBox width={52} height={52} borderRadius={26} />
         <View style={{ marginLeft: 12, gap: 8 }}>
           <SkeletonBox width={70} height={22} borderRadius={10} />
@@ -15,7 +19,7 @@ export function EventDetailSkeleton() {
       </View>
 
       {/* Info card */}
-      <View style={styles.card}>
+      <View style={cardStyle}>
         <SkeletonBox width={"90%"} height={16} borderRadius={6} />
         <SkeletonBox
           width={100}
@@ -26,7 +30,7 @@ export function EventDetailSkeleton() {
       </View>
 
       {/* About card */}
-      <View style={styles.card}>
+      <View style={cardStyle}>
         <SkeletonBox width={60} height={18} borderRadius={6} />
         <SkeletonBox
           width={"95%"}
@@ -43,7 +47,7 @@ export function EventDetailSkeleton() {
       </View>
 
       {/* Join requests card */}
-      <View style={styles.card}>
+      <View style={cardStyle}>
         <SkeletonBox width={120} height={18} borderRadius={6} />
         <SkeletonBox
           width={"70%"}
@@ -55,19 +59,3 @@ export function EventDetailSkeleton() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#EDE9F8",
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    margin: 12,
-    gap: 4,
-  },
-});

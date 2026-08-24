@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import type { ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,6 +26,7 @@ export function HeaderHero({
   topInset,
 }: HeaderHeroProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const resolvedTopInset = topInset ?? insets.top;
   const TitleWrapper = onTitlePress ? Pressable : View;
 

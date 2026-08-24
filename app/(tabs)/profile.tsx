@@ -3,9 +3,10 @@ import type { ReactNode } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Icon } from '@/components/Icon';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { colors, gradients } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,12 +14,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 function TrustChip({
   icon,
   label,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string | undefined;
+  onPress?: () => void;
 }) {
+  const { colors } = useTheme();
   return (
-    <View
+    <Pressable
+      onPress={onPress}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -26,14 +31,19 @@ function TrustChip({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 999,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.card,
       }}
     >
-      <Ionicons name={icon} size={14} color={colors.skyDark} />
+      {icon === 'shield-checkmark-outline' ? (
+        <VerifiedBadge size={14} color={colors.skyDark} />
+      ) : (
+        <Icon name={icon} size={14} color={colors.skyDark} />
+      )}
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>
         {label}
       </Text>
-    </View>
+      {onPress ? <Icon name="chevron-forward" size={12} color={colors.muted} /> : null}
+    </Pressable>
   );
 }
 
@@ -46,11 +56,12 @@ function ProfileMetric({
   value: string | number;
   variant?: 'surface' | 'onSurface';
 }) {
+  const { colors } = useTheme();
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: variant === 'surface' ? colors.surface : '#FFFFFF',
+        backgroundColor: variant === 'surface' ? colors.surface : colors.card,
         borderRadius: 16,
         borderWidth: variant === 'surface' ? 1 : 0,
         borderColor: colors.border,
@@ -69,6 +80,7 @@ function ProfileMetric({
 }
 
 function ListGroup({ title, children }: { title: string; children: ReactNode }) {
+  const { colors } = useTheme();
   return (
     <View style={{ gap: 10 }}>
       <Text
@@ -85,7 +97,7 @@ function ListGroup({ title, children }: { title: string; children: ReactNode }) 
       </Text>
       <View
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.surface,
           borderRadius: 20,
           borderWidth: 1,
           borderColor: colors.border,
@@ -111,6 +123,7 @@ function ListRow({
   onPress: () => void;
   isLast?: boolean;
 }) {
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -124,20 +137,21 @@ function ListRow({
         borderBottomColor: colors.border,
       }}
     >
-      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={17} color={colors.primary} />
+      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={17} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.text, fontWeight: '700' }}>{label}</Text>
         {helper ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{helper}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+      <Icon name="chevron-forward" size={18} color={colors.muted} />
     </Pressable>
   );
 }
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
   const { currentUser, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
 
@@ -169,29 +183,27 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <LinearGradient colors={[...gradients.profile]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Animated.View style={{ paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Pressable onPress={() => router.push('/settings')}>
-              <AvatarBubble user={currentUser} size={52} />
-            </Pressable>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: -0.3 }}>
-                {currentUser.name.split(' ')[0]}, {currentUser.age}
-              </Text>
-              <Animated.Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, opacity: subtitleOpacity }}>
-                {currentUser.city ?? 'Guwahati'} · @{currentUser.username}
-              </Animated.Text>
-            </View>
-            <Pressable
-              onPress={() => router.push('/settings')}
-              style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Ionicons name="settings-outline" size={18} color="#FFFFFF" />
-            </Pressable>
+      <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Pressable onPress={() => router.push('/settings')}>
+            <AvatarBubble user={currentUser} size={52} />
+          </Pressable>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: -0.3 }}>
+              {currentUser.name.split(' ')[0]}, {currentUser.age}
+            </Text>
+            <Animated.Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, opacity: subtitleOpacity }}>
+              {currentUser.city ?? 'Guwahati'} · @{currentUser.username}
+            </Animated.Text>
           </View>
-        </Animated.View>
-      </LinearGradient>
+          <Pressable
+            onPress={() => router.push('/settings')}
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="settings-outline" size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Animated.View>
 
       <ScrollView
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
@@ -208,7 +220,7 @@ export default function ProfileScreen() {
           <Pressable
             onPress={() => router.push('/verification')}
             style={{
-              backgroundColor: '#EFF6FF',
+              backgroundColor: colors.status.info.bg,
               borderRadius: 24,
               padding: 18,
               gap: 10,
@@ -236,33 +248,43 @@ export default function ProfileScreen() {
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
             Trust signals
           </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
             <TrustChip
               icon="shield-checkmark-outline"
               label={currentUser.verified ? 'ID verified' : 'Verification pending'}
+              onPress={() => router.push('/verification')}
             />
             <TrustChip
               icon="sparkles-outline"
               label={past.length ? `${past.length} past hangouts` : 'First hangout soon'}
+              onPress={() => router.push('/profile-plans/past')}
             />
-            <TrustChip icon="people-outline" label={`${crew} crew connections`} />
-            <TrustChip icon="location-outline" label={currentUser.city ?? 'Guwahati'} />
-          </View>
+            <TrustChip
+              icon="people-outline"
+              label={`${crew} crew connections`}
+              onPress={() => router.push('/(tabs)/people')}
+            />
+            <TrustChip
+              icon="location-outline"
+              label={currentUser.city ?? 'Guwahati'}
+              onPress={() => router.push('/settings')}
+            />
+          </ScrollView>
         </View>
 
         {usage.monetisationEnabled ? (
           <View
             style={{
-              backgroundColor: usage.joinLimitReached || usage.createLimitReached ? '#FFF7E8' : colors.surface,
+              backgroundColor: usage.joinLimitReached || usage.createLimitReached ? colors.status.warning.bg : colors.surface,
               borderRadius: 24,
               borderWidth: 1,
-              borderColor: usage.joinLimitReached || usage.createLimitReached ? '#FDE7B3' : colors.border,
+              borderColor: usage.joinLimitReached || usage.createLimitReached ? colors.status.warning.border : colors.border,
               padding: 18,
               gap: 12,
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="flash-outline" size={18} color={usage.joinLimitReached ? '#B45309' : colors.primary} />
+              <Icon name="flash-outline" size={18} color={usage.joinLimitReached ? colors.status.warning.text : colors.primary} />
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>This month</Text>
               <Text style={{ marginLeft: 'auto', color: colors.muted, fontSize: 12, fontWeight: '800' }}>
                 Credits ON
@@ -279,8 +301,8 @@ export default function ProfileScreen() {
         {usage.monetisationEnabled ? (
           <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E0F2FE', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="flash" size={20} color={colors.skyDark} />
+              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.status.info.bg, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="flash" size={20} color={colors.skyDark} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>Remaining credits</Text>
@@ -295,7 +317,7 @@ export default function ProfileScreen() {
                 <Pressable
                   key={pack.id}
                   onPress={() => buyCreditPack(pack.id)}
-                  style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                  style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '900' }}>{pack.name}</Text>
@@ -358,10 +380,11 @@ export default function ProfileScreen() {
             router.replace('/auth');
           }}
           style={{
-            backgroundColor: '#FFFFFF',
+            // colors.danger ('#FB7185') is a coral/rose tone, tuned for text and small
+            // accents — reads as pink rather than red when used as a solid full-size
+            // button fill, so this button uses a properly saturated red instead.
+            backgroundColor: scheme === 'dark' ? '#EF4444' : '#DC2626',
             borderRadius: 24,
-            borderWidth: 1,
-            borderColor: '#FFE4E6',
             padding: 18,
             flexDirection: 'row',
             alignItems: 'center',
@@ -369,8 +392,8 @@ export default function ProfileScreen() {
             gap: 10,
           }}
         >
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-          <Text style={{ color: colors.danger, fontWeight: '800' }}>Log Out</Text>
+          <Icon name="log-out-outline" size={18} color="#FFFFFF" />
+          <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Log Out</Text>
         </Pressable>
       </ScrollView>
     </View>

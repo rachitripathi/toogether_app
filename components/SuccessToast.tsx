@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/providers/AppProvider';
-import { colors, shadow } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import successIllustration from '@/assets/auth/login-illustration.png';
 
 const OFFSCREEN_Y = 160;
@@ -10,6 +10,7 @@ const VISIBLE_DURATION_MS = 1600;
 
 export function SuccessToast() {
   const { successToast, clearSuccessToast } = useApp();
+  const { colors, shadow } = useTheme();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(OFFSCREEN_Y)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -57,7 +58,7 @@ export function SuccessToast() {
         style={{
           transform: [{ translateY }],
           opacity,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderRadius: 20,
           paddingVertical: 14,
           paddingHorizontal: 16,
@@ -74,7 +75,7 @@ export function SuccessToast() {
             width: 52,
             height: 52,
             borderRadius: 26,
-            backgroundColor: '#FFF6EA',
+            backgroundColor: colors.butter,
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',

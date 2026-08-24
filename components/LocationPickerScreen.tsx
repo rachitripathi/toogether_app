@@ -1,8 +1,8 @@
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useLocationPickerStore } from '@/store/locationPickerStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // on the calling screen) survives round-tripping through this route on web.
 export default function LocationPickerScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const coordinate = useLocationPickerStore((state) => state.initialCoordinate);
   const resolve = useLocationPickerStore((state) => state.resolve);
 
@@ -27,7 +28,7 @@ export default function LocationPickerScreen() {
           paddingTop: insets.top + 14,
           paddingHorizontal: 16,
           paddingBottom: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           flexDirection: 'row',
@@ -39,13 +40,13 @@ export default function LocationPickerScreen() {
           onPress={() => router.back()}
           style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="close" size={22} color={colors.text} />
+          <Icon name="close" size={22} color={colors.text} />
         </Pressable>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', flex: 1 }}>Pin exact location</Text>
       </View>
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
-        <Ionicons name="map-outline" size={42} color={colors.skyDark} />
+        <Icon name="map-outline" size={42} color={colors.skyDark} />
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', textAlign: 'center' }}>
           Map pinning opens on phone preview
         </Text>
@@ -59,7 +60,7 @@ export default function LocationPickerScreen() {
         ) : null}
       </View>
 
-      <View style={{ padding: 16, backgroundColor: '#FFFFFF' }}>
+      <View style={{ padding: 16, backgroundColor: colors.card }}>
         <GradientButton label="Done" onPress={confirm} fullWidth disabled={!coordinate} />
       </View>
     </View>

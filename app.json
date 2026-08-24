@@ -26,7 +26,9 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "config": {
         "googleMaps": {
@@ -55,6 +57,7 @@
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-web-browser",
+      "expo-navigation-bar",
       [
         "expo-location",
         {
@@ -68,10 +71,11 @@
     },
     "extra": {
       "router": {},
+      "expo-navigation-bar": {},
       "eas": {
-        "projectId": "1732e1c3-5838-4df1-938b-c8eabe67f2b8"
+        "projectId": "09e63a8b-ca90-40e9-ac58-b7375bdde6c3"
       }
     },
-    "owner": "lalitnath"
+    "owner": "rachittripathis-team"
   }
 }

@@ -43,40 +43,53 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     const requestId = ++fetchRequestIdRef.current;
     setIsLoading(true);
 
-    let nextProfile: Profile | null = null;
-    if (userClaims) {
-      const { data, error } = await supabase
+    if (!userClaims) {
+      if (requestId === fetchRequestIdRef.current) {
+        setProfile(null);
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Default to whatever profile we already had. A confirmed "no such row"
+    // (PGRST116) below overwrites this with null (then a freshly created
+    // row); any other error — most commonly a transient cold-start network
+    // failure, the same race verifyClaims() guards against for the session
+    // itself — must NOT null this out, or a valid, still-logged-in session
+    // gets treated as logged out just because this one fetch hiccupped.
+    let nextProfile: Profile | null = profile ?? null;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userClaims.sub)
+      .single();
+
+    if (error && error.code === "PGRST116") {
+      const email =
+        typeof userClaims.email === "string" ? userClaims.email : null;
+      const { data: createdProfile, error: createError } = await supabase
         .from("profiles")
+        .insert({
+          id: userClaims.sub,
+          email,
+          name: getEmailName(email),
+          username: getDefaultUsername(email, userClaims.sub),
+          city: "",
+          avatar_colors: getDefaultAvatarColors(),
+        })
         .select("*")
-        .eq("id", userClaims.sub)
         .single();
 
-      if (error && error.code === "PGRST116") {
-        const email =
-          typeof userClaims.email === "string" ? userClaims.email : null;
-        const { data: createdProfile, error: createError } = await supabase
-          .from("profiles")
-          .insert({
-            id: userClaims.sub,
-            email,
-            name: getEmailName(email),
-            username: getDefaultUsername(email, userClaims.sub),
-            city: "",
-            avatar_colors: getDefaultAvatarColors(),
-          })
-          .select("*")
-          .single();
-
-        if (createError) {
-          console.error("Error creating profile:", createError);
-        } else {
-          nextProfile = createdProfile;
-        }
-      } else if (error) {
-        console.error("Error fetching profile:", error);
+      if (createError) {
+        console.error("Error creating profile:", createError);
       } else {
-        nextProfile = data;
+        nextProfile = createdProfile;
       }
+    } else if (error) {
+      console.error("Error fetching profile:", error);
+    } else {
+      nextProfile = data;
     }
 
     if (requestId !== fetchRequestIdRef.current) {

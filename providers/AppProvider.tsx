@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { markExplicitSignOut } from '@/providers/auth-provider';
 import { supabase } from '@/utils/supabase';
+import { uploadVerificationDocument } from '@/lib/cloudinary';
 import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
 import { randomUUID } from '@/lib/uuid';
 import type {
@@ -518,30 +519,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const submitVerification = async (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => {
-    if (!currentUser) return;
-    const userId = currentUser.id;
-
+  // Uploads the (large, multi-MB) camera photos and writes their resulting URLs to
+  // verification_documents. Deliberately NOT awaited by submitVerification below — it's
+  // kicked off from this always-mounted provider rather than from the documents screen,
+  // so it keeps running to completion (success or failure) no matter what the user
+  // navigates to in the meantime.
+  const uploadVerificationDocuments = async (
+    userId: string,
+    data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }
+  ) => {
     // Sensitive document URLs live in verification_documents (owner/admin-only RLS), separate
     // from the publicly-readable profiles row — see migrations/007_secure_verification_admin.sql.
+    const [frontUrl, backUrl, selfieUrl] = await Promise.all([
+      uploadVerificationDocument(data.aadhaarFrontUri),
+      uploadVerificationDocument(data.aadhaarBackUri),
+      uploadVerificationDocument(data.selfieUri),
+    ]);
+
     const { error: docsError } = await supabase
       .from('verification_documents')
       .upsert(
         {
           user_id: userId,
-          aadhaar_front_uri: data.aadhaarFrontUri,
-          aadhaar_back_uri: data.aadhaarBackUri,
-          selfie_uri: data.selfieUri,
+          aadhaar_front_uri: frontUrl,
+          aadhaar_back_uri: backUrl,
+          selfie_uri: selfieUrl,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' }
       );
 
     if (docsError) {
-      console.error('Error submitting verification documents:', docsError);
       throw docsError;
     }
+  };
 
+  const submitVerification = async (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => {
+    if (!currentUser) return;
+    const userId = currentUser.id;
+
+    // Flip to "pending" first — a single small row update — so the user gets instant
+    // feedback instead of sitting on the submit screen waiting for three large photo
+    // uploads to finish. The actual uploads continue below, in the background.
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -562,6 +581,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const refreshedUser = mapProfileRowToUser(refreshedRow);
       setUsers((prev) => prev.map((user) => (user.id === userId ? refreshedUser : user)));
     }
+
+    uploadVerificationDocuments(userId, data).catch(async (uploadError) => {
+      console.error('Error uploading verification documents:', uploadError);
+      await supabase
+        .from('profiles')
+        .update({
+          verification_status: 'unverified',
+          verification_rejection_reason: "We couldn't upload your photos. Please try verifying again.",
+        })
+        .eq('id', userId);
+      await refreshProfile();
+    });
   };
 
   // Dev-only: lets a tester flip verification status without a real review pipeline.

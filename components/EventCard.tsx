@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { ImageBackground, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { useApp } from '@/providers/AppProvider';
+import { useTheme } from '@/providers/ThemeProvider';
 import type { Event } from '@/lib/types';
 import { categoryFontFamily, categoryVisuals } from '@/lib/categoryVisuals';
 import { AvatarBubble } from './AvatarBubble';
 import { PinMark } from './PinMark';
+import { VerifiedBadge } from './VerifiedBadge';
 
 type EventCardProps = {
   event: Event;
@@ -22,6 +24,7 @@ export function EventCard({ event }: EventCardProps) {
     categoryConfig,
     shouldShowPaywallForJoin,
   } = useApp();
+  const { colors, shadow } = useTheme();
   const [isJoining, setIsJoining] = useState(false);
   const creator = getUserById(event.creatorId);
   const isCreator = currentUser?.id === event.creatorId;
@@ -56,9 +59,9 @@ export function EventCard({ event }: EventCardProps) {
     : requestStatus === 'approved'
       ? theme.buttonBackground
       : requestStatus === 'pending'
-        ? '#FFBE3D'
+        ? colors.warning
         : requestStatus === 'rejected' || isFull
-          ? '#E5E7EB'
+          ? colors.border
           : theme.buttonBackground;
 
   const actionTextColor = isCreator
@@ -66,9 +69,9 @@ export function EventCard({ event }: EventCardProps) {
     : requestStatus === 'approved'
       ? theme.buttonText
       : requestStatus === 'pending'
-        ? '#5B3A00'
+        ? '#FFFFFF'
         : requestStatus === 'rejected' || isFull
-          ? '#6B7280'
+          ? colors.muted
           : theme.buttonText;
 
   const handleAction = async () => {
@@ -99,12 +102,8 @@ export function EventCard({ event }: EventCardProps) {
       style={{
         borderRadius: 28,
         minHeight: 230,
-        shadowColor: '#D8E1EF',
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 7 },
-        elevation: 3,
         overflow: 'hidden',
+        ...shadow.card,
       }}
     >
       <ImageBackground
@@ -161,13 +160,13 @@ export function EventCard({ event }: EventCardProps) {
           </Text>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="calendar-outline" size={14} color={theme.meta} />
+              <Icon name="calendar-outline" size={14} color={theme.meta} />
               <Text style={{ color: theme.meta, fontWeight: '800', fontFamily: categoryFontFamily }}>
                 {dateLabel} · {event.timeSlot}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="location-outline" size={14} color={theme.meta} />
+              <Icon name="location-outline" size={14} color={theme.meta} />
               <Text style={{ color: theme.meta, fontWeight: '800', fontFamily: categoryFontFamily }}>{event.area}, Guwahati</Text>
             </View>
           </View>
@@ -191,7 +190,7 @@ export function EventCard({ event }: EventCardProps) {
                 <Text style={{ color: theme.title, fontWeight: '900', fontFamily: categoryFontFamily }}>
                   {isCreator ? 'You' : creator?.name.split(' ')[0]}
                 </Text>
-                {creator?.verified ? <Ionicons name="checkmark-circle" size={14} color="#16A34A" /> : null}
+                {creator?.verified ? <VerifiedBadge size={14} /> : null}
               </View>
               {creator ? (
                 <Text style={{ color: theme.meta, fontSize: 11, fontWeight: '700', fontFamily: categoryFontFamily }}>
@@ -209,7 +208,7 @@ export function EventCard({ event }: EventCardProps) {
               borderRadius: 999,
               paddingHorizontal: 14,
               paddingVertical: 9,
-              shadowColor: requestStatus === 'rejected' || isFull ? '#B8C0CC' : theme.buttonShadow,
+              shadowColor: requestStatus === 'rejected' || isFull ? colors.border : theme.buttonShadow,
               shadowOpacity: requestStatus === 'rejected' || isFull ? 0.14 : 0.28,
               shadowRadius: 9,
               shadowOffset: { width: 0, height: 5 },

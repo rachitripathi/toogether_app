@@ -1,14 +1,17 @@
 import { Platform, Pressable, Text, View } from 'react-native';
 import { router, Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '@/providers/AppProvider';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CustomTabBar({ state, navigation }: any) {
   const { currentUser, requests, events } = useApp();
+  const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
+  const fadeGradientColors: [string, string] =
+    scheme === 'dark' ? ['rgba(11,13,20,0)', 'rgba(11,13,20,0.92)'] : ['rgba(255,255,255,0)', 'rgba(246,247,251,0.9)'];
   const pendingCount = requests.filter((request) => {
     const event = events.find((item) => item.id === request.eventId);
     return request.status === 'pending' && event?.creatorId === currentUser?.id;
@@ -39,7 +42,7 @@ function CustomTabBar({ state, navigation }: any) {
     >
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(255,255,255,0)', 'rgba(246,247,251,0.9)']}
+        colors={fadeGradientColors}
         locations={[0, 0.85]}
         style={{
           position: 'absolute',
@@ -51,10 +54,10 @@ function CustomTabBar({ state, navigation }: any) {
       />
       <View
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderRadius: 34,
           borderWidth: 1,
-          borderColor: 'rgba(20, 24, 50, 0.06)',
+          borderColor: colors.border,
           paddingHorizontal: 10,
           paddingVertical: 10,
           flexDirection: 'row',
@@ -62,7 +65,7 @@ function CustomTabBar({ state, navigation }: any) {
           gap: 6,
           ...Platform.select({
             ios: {
-              shadowColor: '#5D6B99',
+              shadowColor: scheme === 'dark' ? '#000000' : '#5D6B99',
               shadowOpacity: 0.3,
               shadowRadius: 26,
               shadowOffset: { width: 0, height: 14 },
@@ -87,7 +90,7 @@ function CustomTabBar({ state, navigation }: any) {
                 flex: isActive ? 1.35 : 1,
                 minHeight: 48,
                 borderRadius: 24,
-                backgroundColor: isActive ? '#E8F4FF' : 'transparent',
+                backgroundColor: isActive ? colors.status.info.bg : 'transparent',
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -95,10 +98,10 @@ function CustomTabBar({ state, navigation }: any) {
               }}
             >
               <View>
-                <Ionicons
+                <Icon
                   name={iconName}
                   size={20}
-                  color={isActive ? colors.primary : '#4C5670'}
+                  color={isActive ? colors.primary : colors.muted}
                 />
                 {item.key === 'activity' && pendingCount > 0 ? (
                   <View
@@ -134,7 +137,7 @@ function CustomTabBar({ state, navigation }: any) {
             backgroundColor: colors.primary,
             ...Platform.select({
               ios: {
-                shadowColor: '#3355DD',
+                shadowColor: scheme === 'dark' ? '#000000' : '#3355DD',
                 shadowOpacity: 0.5,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 8 },
@@ -162,7 +165,7 @@ function CustomTabBar({ state, navigation }: any) {
                 borderColor: 'rgba(255,255,255,0.3)',
               }}
             >
-              <Ionicons name="add" size={26} color="#FFFFFF" />
+              <Icon name="add" size={26} color="#FFFFFF" />
             </LinearGradient>
           </Pressable>
         </View>

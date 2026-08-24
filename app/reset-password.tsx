@@ -1,5 +1,5 @@
-import { colors, gradients } from "@/lib/theme";
-import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/providers/ThemeProvider";
+import { Icon } from "@/components/Icon";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -33,6 +33,7 @@ async function postJson(path: string, body: unknown) {
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string }>();
   const insets = useSafeAreaInsets();
+  const { colors, gradients } = useTheme();
   const [step, setStep] = useState<ResetStep>("request");
   const [email, setEmail] = useState(params.email ?? "");
   const [otp, setOtp] = useState("");
@@ -151,7 +152,7 @@ export default function ResetPasswordScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
-      <LinearGradient colors={[...gradients.hero]} style={{ flex: 1 }}>
+      <LinearGradient colors={gradients.hero} style={{ flex: 1 }}>
         <View
           style={{
             paddingHorizontal: 24,
@@ -170,14 +171,14 @@ export default function ResetPasswordScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: "#FFFFFF",
+              backgroundColor: colors.card,
               alignItems: "center",
               justifyContent: "center",
               borderWidth: 1,
               borderColor: colors.border,
             }}
           >
-            <Ionicons name="arrow-back" size={18} color={colors.text} />
+            <Icon name="arrow-back" size={18} color={colors.text} />
           </Pressable>
           <View>
             <Text
@@ -211,7 +212,7 @@ export default function ResetPasswordScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="Email"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -223,7 +224,7 @@ export default function ResetPasswordScreen() {
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   fontSize: 15,
-                  color: "#1F2937",
+                  color: colors.text,
                 }}
               />
               <Text style={{ color: colors.muted, lineHeight: 21 }}>
@@ -236,7 +237,7 @@ export default function ResetPasswordScreen() {
                 value={otp}
                 onChangeText={(value) => setOtp(value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="6-digit code"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.muted}
                 keyboardType="number-pad"
                 maxLength={6}
                 editable={!done}
@@ -249,7 +250,7 @@ export default function ResetPasswordScreen() {
                   paddingVertical: 14,
                   fontSize: 20,
                   letterSpacing: 6,
-                  color: "#1F2937",
+                  color: colors.text,
                   textAlign: "center",
                 }}
               />
@@ -287,7 +288,7 @@ export default function ResetPasswordScreen() {
                   value={password}
                   onChangeText={setPassword}
                   placeholder="New password"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.muted}
                   secureTextEntry={!showPassword}
                   editable={!done}
                   style={{
@@ -295,7 +296,7 @@ export default function ResetPasswordScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 14,
                     fontSize: 15,
-                    color: "#1F2937",
+                    color: colors.text,
                   }}
                 />
                 <Pressable
@@ -306,10 +307,10 @@ export default function ResetPasswordScreen() {
                     showPassword ? "Hide password" : "Show password"
                   }
                 >
-                  <Ionicons
+                  <Icon
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color="#7A8093"
+                    color={colors.muted}
                   />
                 </Pressable>
               </View>
@@ -328,7 +329,7 @@ export default function ResetPasswordScreen() {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Confirm new password"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.muted}
                   secureTextEntry={!showConfirmPassword}
                   editable={!done}
                   style={{
@@ -336,7 +337,7 @@ export default function ResetPasswordScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 14,
                     fontSize: 15,
-                    color: "#1F2937",
+                    color: colors.text,
                   }}
                 />
                 <Pressable
@@ -347,12 +348,12 @@ export default function ResetPasswordScreen() {
                     showConfirmPassword ? "Hide password" : "Show password"
                   }
                 >
-                  <Ionicons
+                  <Icon
                     name={
                       showConfirmPassword ? "eye-off-outline" : "eye-outline"
                     }
                     size={20}
-                    color="#7A8093"
+                    color={colors.muted}
                   />
                 </Pressable>
               </View>
@@ -360,7 +361,7 @@ export default function ResetPasswordScreen() {
           )}
 
           {error ? (
-            <Text style={{ color: "#EF4444", fontSize: 13, textAlign: "center" }}>
+            <Text style={{ color: colors.danger, fontSize: 13, textAlign: "center" }}>
               {error}
             </Text>
           ) : null}

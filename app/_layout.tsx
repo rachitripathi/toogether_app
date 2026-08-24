@@ -5,13 +5,14 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { AppProvider, useApp } from '@/providers/AppProvider';
 import AuthProvider from '@/providers/auth-provider';
+import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
 import { GradientButton } from '@/components/GradientButton';
 import { SuccessToast } from '@/components/SuccessToast';
-import { colors } from '@/lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function VerificationPrompt() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { currentUser, shouldShowVerificationPrompt, dismissVerificationPrompt } = useApp();
 
   if (!currentUser || currentUser.verified || !shouldShowVerificationPrompt) {
@@ -23,7 +24,7 @@ function VerificationPrompt() {
       <View
         style={{
           flex: 1,
-          backgroundColor: 'rgba(12, 18, 38, 0.45)',
+          backgroundColor: colors.overlay,
           justifyContent: 'center',
           paddingHorizontal: 20,
           paddingTop: insets.top + 20,
@@ -32,7 +33,7 @@ function VerificationPrompt() {
       >
         <View
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.card,
             borderRadius: 28,
             padding: 24,
             gap: 18,
@@ -60,13 +61,13 @@ function VerificationPrompt() {
                     width: 22,
                     height: 22,
                     borderRadius: 11,
-                    backgroundColor: '#DCFCE7',
+                    backgroundColor: colors.status.success.bg,
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginTop: 1,
                   }}
                 >
-                  <Text style={{ color: '#15803D', fontWeight: '900' }}>+</Text>
+                  <Text style={{ color: colors.status.success.text, fontWeight: '900' }}>+</Text>
                 </View>
                 <Text style={{ flex: 1, color: colors.text, lineHeight: 21 }}>{item}</Text>
               </View>
@@ -83,11 +84,13 @@ function VerificationPrompt() {
   );
 }
 
-export default function RootLayout() {
+function ThemedApp() {
+  const { colors, scheme } = useTheme();
+
   return (
     <AuthProvider>
       <AppProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.page } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="auth" />
@@ -107,8 +110,16 @@ export default function RootLayout() {
         </Stack>
         <VerificationPrompt />
         <SuccessToast />
-        <StatusBar style="dark" />
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       </AppProvider>
     </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
   );
 }

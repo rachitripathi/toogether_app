@@ -2,13 +2,13 @@ import { useCallback, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/store/locationPickerStore';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,7 @@ function formatDate(value: Date | null) {
 }
 
 function formatTime(value: Date | null) {
-  return value ? value.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Select exact time';
+  return value ? value.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : 'Select time';
 }
 
 function combineDateAndTime(date: Date, time: Date) {
@@ -59,6 +59,7 @@ function googleMapsUrl(latitude: number, longitude: number) {
 
 export default function CreateEventScreen() {
   const { createEvent, currentUser, getUsageSummary, shouldShowPaywallForCreate } = useApp();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -217,7 +218,7 @@ export default function CreateEventScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         }}
@@ -233,7 +234,7 @@ export default function CreateEventScreen() {
             justifyContent: 'center',
           }}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <Icon name="arrow-back" size={18} color={colors.text} />
         </Pressable>
         <Text style={{ fontSize: 22, fontWeight: '900', color: colors.text }}>Create a Plan</Text>
       </View>
@@ -245,23 +246,23 @@ export default function CreateEventScreen() {
           <Pressable
             onPress={usage.createLimitReached ? () => router.push('/paywall') : undefined}
             style={{
-              backgroundColor: usage.createLimitReached ? '#FFF7E8' : colors.surface,
+              backgroundColor: usage.createLimitReached ? colors.status.warning.bg : colors.surface,
               borderRadius: 18,
               borderWidth: 1,
-              borderColor: usage.createLimitReached ? '#FDE7B3' : colors.border,
+              borderColor: usage.createLimitReached ? colors.status.warning.border : colors.border,
               padding: 14,
               gap: 8,
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name="calendar-outline" size={18} color={usage.createLimitReached ? '#B45309' : colors.primary} />
+              <Icon name="calendar-outline" size={18} color={usage.createLimitReached ? colors.status.warning.text : colors.primary} />
               <Text style={{ color: colors.text, fontWeight: '800', flex: 1 }}>
                 {usage.createUsed}/{usage.createLimit} plans created this month
               </Text>
               <Text style={{ color: colors.muted, fontWeight: '800' }}>{usage.credits} credits</Text>
             </View>
             {usage.createLimitReached ? (
-              <Text style={{ color: '#B45309', fontSize: 12, fontWeight: '700' }}>
+              <Text style={{ color: colors.status.warning.text, fontSize: 12, fontWeight: '700' }}>
                 Limit reached. Tap here to get more credits and keep creating plans.
               </Text>
             ) : null}
@@ -279,7 +280,7 @@ export default function CreateEventScreen() {
                   onPress={() => setCategory(item.id)}
                   style={{
                     width: '22%',
-                    backgroundColor: active ? '#EEF2FF' : colors.surface,
+                    backgroundColor: active ? colors.status.info.bg : colors.surface,
                     borderRadius: 18,
                     borderWidth: 1,
                     borderColor: active ? colors.primary : colors.border,
@@ -325,8 +326,10 @@ export default function CreateEventScreen() {
                 gap: 10,
               }}
             >
-              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-              <Text style={{ color: eventDate ? colors.text : colors.muted, fontWeight: '700' }}>{formatDate(eventDate)}</Text>
+              <Icon name="calendar-outline" size={18} color={colors.primary} />
+              <Text numberOfLines={1} style={{ flexShrink: 1, color: eventDate ? colors.text : colors.muted, fontWeight: '700' }}>
+                {formatDate(eventDate)}
+              </Text>
             </Pressable>
             <Pressable
               onPress={openTimePicker}
@@ -343,8 +346,10 @@ export default function CreateEventScreen() {
                 gap: 10,
               }}
             >
-              <Ionicons name="time-outline" size={18} color={colors.primary} />
-              <Text style={{ color: eventTime ? colors.text : colors.muted, fontWeight: '700' }}>{formatTime(eventTime)}</Text>
+              <Icon name="time-outline" size={18} color={colors.primary} />
+              <Text numberOfLines={1} style={{ flexShrink: 1, color: eventTime ? colors.text : colors.muted, fontWeight: '700' }}>
+                {formatTime(eventTime)}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -374,12 +379,12 @@ export default function CreateEventScreen() {
                   width: 42,
                   height: 42,
                   borderRadius: 21,
-                  backgroundColor: '#E0F2FE',
+                  backgroundColor: colors.status.info.bg,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="map-outline" size={20} color={colors.skyDark} />
+                <Icon name="map-outline" size={20} color={colors.skyDark} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>
@@ -389,7 +394,7 @@ export default function CreateEventScreen() {
                   {area ? `${area} shown publicly` : 'Only locality is visible before approval'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              <Icon name="chevron-forward" size={18} color={colors.muted} />
             </View>
           </Pressable>
         </View>
@@ -424,10 +429,10 @@ export default function CreateEventScreen() {
           <Pressable
             onPress={() => setWomenOnly((value) => !value)}
             style={{
-              backgroundColor: womenOnly ? '#FCE7F3' : colors.surface,
+              backgroundColor: womenOnly ? colors.status.danger.bg : colors.surface,
               borderRadius: 18,
               borderWidth: 1,
-              borderColor: womenOnly ? '#FBCFE8' : colors.border,
+              borderColor: womenOnly ? colors.status.danger.border : colors.border,
               padding: 16,
               flexDirection: 'row',
               alignItems: 'center',
@@ -440,10 +445,10 @@ export default function CreateEventScreen() {
                 Only women should be able to view and request this plan.
               </Text>
             </View>
-            <Ionicons
+            <Icon
               name={womenOnly ? 'checkmark-circle' : 'ellipse-outline'}
               size={24}
-              color={womenOnly ? '#DB2777' : '#98A2B3'}
+              color={womenOnly ? colors.status.danger.text : colors.muted}
             />
           </Pressable>
         ) : null}
@@ -461,7 +466,7 @@ export default function CreateEventScreen() {
       {Platform.OS !== 'android' && showDatePicker ? (
         <Modal transparent animationType="fade" visible={showDatePicker}>
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
-            <View style={{ backgroundColor: '#FFFFFF', padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+            <View style={{ backgroundColor: colors.card, padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
               <DateTimePicker
                 value={eventDate ?? new Date()}
                 mode="date"
@@ -480,7 +485,7 @@ export default function CreateEventScreen() {
       {Platform.OS !== 'android' && showTimePicker ? (
         <Modal transparent animationType="fade" visible={showTimePicker}>
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
-            <View style={{ backgroundColor: '#FFFFFF', padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+            <View style={{ backgroundColor: colors.card, padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
               <DateTimePicker
                 value={eventTime ?? new Date()}
                 mode="time"

@@ -1,17 +1,18 @@
 import { useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { GradientButton } from '@/components/GradientButton';
-import { colors, gradients } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@/lib/types';
 
 function RateModal({ user, visible, onClose }: { user: User | null; visible: boolean; onClose: () => void }) {
   const { getEventsImPartOf, rateUser, getMyRatingForUser } = useApp();
+  const { colors } = useTheme();
   const [stars, setStars] = useState(0);
 
   if (!visible || !user) {
@@ -27,11 +28,11 @@ function RateModal({ user, visible, onClose }: { user: User | null; visible: boo
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>
-        <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 18 }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 18 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Rate {user.name.split(' ')[0]}</Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close" size={22} color={colors.muted} />
+              <Icon name="close" size={22} color={colors.muted} />
             </Pressable>
           </View>
           <View style={{ alignItems: 'center', gap: 12 }}>
@@ -40,10 +41,10 @@ function RateModal({ user, visible, onClose }: { user: User | null; visible: boo
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable key={star} onPress={() => setStars(star)}>
-                  <Ionicons
+                  <Icon
                     name={star <= currentValue ? 'star' : 'star-outline'}
                     size={32}
-                    color={star <= currentValue ? '#F59E0B' : '#D0D5DD'}
+                    color={star <= currentValue ? colors.warning : colors.border}
                   />
                 </Pressable>
               ))}
@@ -68,6 +69,7 @@ function RateModal({ user, visible, onClose }: { user: User | null; visible: boo
 
 export default function PeopleScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
   const {
     currentUser,
@@ -112,17 +114,15 @@ export default function PeopleScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
-      <LinearGradient colors={[...gradients.crew]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Animated.View style={{ paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>My Crew</Text>
-          <Animated.Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, opacity: subtitleOpacity }}>
-            {allCrew.length} {allCrew.length === 1 ? 'person' : 'people'} you've connected with
-          </Animated.Text>
-        </Animated.View>
-      </LinearGradient>
+      <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
+        <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>My Crew</Text>
+        <Animated.Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, opacity: subtitleOpacity }}>
+          {allCrew.length} {allCrew.length === 1 ? 'person' : 'people'} you've connected with
+        </Animated.Text>
+      </Animated.View>
 
       {allCrew.length > 0 ? (
-        <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
+        <View style={{ backgroundColor: colors.page, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
           <View
             style={{
               backgroundColor: colors.surface,
@@ -135,17 +135,17 @@ export default function PeopleScreen() {
               gap: 8,
             }}
           >
-            <Ionicons name="search" size={16} color="#9C9AA4" />
+            <Icon name="search" size={16} color={colors.muted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Search by name or username"
-              placeholderTextColor="#A6A2A8"
+              placeholderTextColor={colors.muted}
               style={{ flex: 1, minHeight: 44, color: colors.text, fontSize: 14, fontWeight: '600' }}
             />
             {query ? (
               <Pressable onPress={() => setQuery('')}>
-                <Ionicons name="close-circle" size={16} color={colors.muted} />
+                <Icon name="close-circle" size={16} color={colors.muted} />
               </Pressable>
             ) : null}
           </View>
@@ -189,11 +189,11 @@ export default function PeopleScreen() {
                     <View style={{ flex: 1, gap: 3 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <Text style={{ color: colors.text, fontWeight: '800' }}>{user.name}</Text>
-                        {user.verified ? <Ionicons name="checkmark-circle" size={14} color="#15803D" /> : null}
+                        {user.verified ? <VerifiedBadge size={14} /> : null}
                       </View>
                       <Text style={{ color: colors.muted, fontSize: 13 }}>wants to join your crew</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                        <Ionicons name="star" size={12} color="#F59E0B" />
+                        <Icon name="star" size={12} color={colors.warning} />
                         <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
                           {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedCount} mutual{' '}
                           {sharedCount === 1 ? 'plan' : 'plans'}
@@ -205,15 +205,15 @@ export default function PeopleScreen() {
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <Pressable
                       onPress={() => rejectCrewRequest(request.id)}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: '#FFE4E6', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.status.danger.bg, alignItems: 'center', justifyContent: 'center' }}
                     >
                       <Text style={{ color: colors.danger, fontWeight: '800' }}>Decline</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => acceptCrewRequest(request.id)}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.status.success.bg, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Text style={{ color: '#15803D', fontWeight: '800' }}>Accept</Text>
+                      <Text style={{ color: colors.status.success.text, fontWeight: '800' }}>Accept</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -249,11 +249,11 @@ export default function PeopleScreen() {
                   <View style={{ flex: 1, gap: 3 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>{person.name}</Text>
-                      {person.verified ? <Ionicons name="checkmark-circle" size={14} color="#15803D" /> : null}
+                      {person.verified ? <VerifiedBadge size={14} /> : null}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>@{person.username}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Icon name="star" size={12} color={colors.warning} />
                       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
                         {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedEvents.length} mutual{' '}
                         {sharedEvents.length === 1 ? 'plan' : 'plans'}
@@ -262,9 +262,9 @@ export default function PeopleScreen() {
                   </View>
                   <Pressable
                     onPress={() => router.push(`/user/${person.id}`)}
-                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                    <Icon name="chevron-forward" size={16} color={colors.muted} />
                   </Pressable>
                 </View>
 
@@ -274,7 +274,7 @@ export default function PeopleScreen() {
                       <Pressable
                         key={event.id}
                         onPress={() => router.push(`/event/${event.id}`)}
-                        style={{ backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                        style={{ backgroundColor: colors.card, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                       >
                         <Text>{event.emoji}</Text>
                         <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{event.title}</Text>
@@ -290,15 +290,15 @@ export default function PeopleScreen() {
                     alignItems: 'center',
                     paddingTop: 10,
                     borderTopWidth: 1,
-                    borderTopColor: 'rgba(20, 24, 46, 0.06)',
+                    borderTopColor: colors.border,
                   }}
                 >
                   <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13 }}>{person.city || 'Guwahati'}</Text>
                   <Pressable
                     onPress={() => setRatingTarget(person)}
-                    style={{ backgroundColor: myRating ? '#FEF3C7' : '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
+                    style={{ backgroundColor: myRating ? colors.status.warning.bg : colors.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
                   >
-                    <Text style={{ color: myRating ? '#B45309' : colors.text, fontWeight: '800', fontSize: 12 }}>
+                    <Text style={{ color: myRating ? colors.status.warning.text : colors.text, fontWeight: '800', fontSize: 12 }}>
                       {myRating ? `${myRating}★ Rated` : 'Rate'}
                     </Text>
                   </Pressable>

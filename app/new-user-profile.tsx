@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
-import { colors } from '@/lib/theme';
+import { UsernameStatusIcon, usernameStatusMessage } from '@/components/UsernameStatusIcon';
+import { useTheme } from '@/providers/ThemeProvider';
 import { deleteCurrentAvatar, uploadAvatar } from '@/lib/cloudinary';
+import { normalizeUsername, useUsernameAvailability } from '@/hooks/useUsernameAvailability';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,7 +70,10 @@ const genderOptions: { id: Gender; label: string; emoji: string }[] = [
 export default function NewUserProfileScreen() {
   const insets = useSafeAreaInsets();
   const { currentUser, updateCurrentUser } = useApp();
+  const { colors } = useTheme();
   const [name, setName] = useState(currentUser?.name ?? '');
+  const [username, setUsername] = useState(currentUser?.username ?? '');
+  const usernameStatus = useUsernameAvailability(username, currentUser?.username);
   const [dob, setDob] = useState<Date | null>(currentUser?.dob ? new Date(currentUser.dob) : null);
   const [gender, setGender] = useState<Gender>(currentUser?.gender ?? 'man');
   const [avatarPreviewUri, setAvatarPreviewUri] = useState(currentUser?.avatarUri);
@@ -130,12 +135,28 @@ export default function NewUserProfileScreen() {
 
   const continueToVerification = () => {
     const trimmedName = name.trim();
+    const normalizedUsername = normalizeUsername(username);
     const dobValue = dob ? toDobValue(dob) : '';
     const age = getAgeFromDob(dobValue);
     const dobError = getDobError(dob);
 
     if (!trimmedName) {
       setError('Add your name to continue.');
+      return;
+    }
+
+    if (!normalizedUsername || usernameStatus === 'invalid') {
+      setError('Choose a username — 3-20 characters, letters, numbers, and underscores only.');
+      return;
+    }
+
+    if (usernameStatus === 'checking') {
+      setError('Still checking that username — give it a second.');
+      return;
+    }
+
+    if (usernameStatus === 'taken') {
+      setError('That username is already taken — pick another one.');
       return;
     }
 
@@ -151,6 +172,7 @@ export default function NewUserProfileScreen() {
 
     updateCurrentUser({
       name: trimmedName,
+      username: normalizedUsername,
       dob: dobValue,
       age,
       avatarUri: avatarUrl ?? '',
@@ -166,7 +188,7 @@ export default function NewUserProfileScreen() {
           paddingTop: insets.top + 18,
           paddingHorizontal: 20,
           paddingBottom: 18,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
           gap: 6,
@@ -195,7 +217,7 @@ export default function NewUserProfileScreen() {
               width: 104,
               height: 104,
               borderRadius: 52,
-              backgroundColor: '#EFF6FF',
+              backgroundColor: colors.status.info.bg,
               borderWidth: 1,
               borderColor: avatarPreviewUri ? colors.primary : colors.border,
               alignItems: 'center',
@@ -206,7 +228,7 @@ export default function NewUserProfileScreen() {
             {avatarPreviewUri ? (
               <Image source={{ uri: avatarPreviewUri }} style={{ width: 104, height: 104 }} />
             ) : (
-              <Ionicons name="camera-outline" size={28} color={colors.primary} />
+              <Icon name="camera-outline" size={28} color={colors.primary} />
             )}
             {isUploadingPhoto ? (
               <View
@@ -230,6 +252,16 @@ export default function NewUserProfileScreen() {
 
         <FormField label="Full name" value={name} onChangeText={setName} placeholder="Aisha Thomas" />
 
+        <FormField
+          label="Username"
+          value={username}
+          onChangeText={setUsername}
+          placeholder="username"
+          autoCapitalize="none"
+          rightAccessory={<UsernameStatusIcon status={usernameStatus} />}
+          {...usernameStatusMessage(usernameStatus, normalizeUsername(username))}
+        />
+
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>I am a</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -241,7 +273,7 @@ export default function NewUserProfileScreen() {
                   onPress={() => setGender(option.id)}
                   style={{
                     flex: 1,
-                    backgroundColor: active ? '#EEF6FF' : colors.surface,
+                    backgroundColor: active ? colors.status.info.bg : colors.surface,
                     borderRadius: 18,
                     borderWidth: 1,
                     borderColor: active ? colors.primary : colors.border,
@@ -280,8 +312,8 @@ export default function NewUserProfileScreen() {
               gap: 12,
             }}
           >
-            <Text style={{ color: dob ? colors.text : '#9CA3AF', fontSize: 15 }}>{formatDob(dob)}</Text>
-            <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+            <Text style={{ color: dob ? colors.text : colors.muted, fontSize: 15 }}>{formatDob(dob)}</Text>
+            <Icon name="calendar-outline" size={18} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -293,7 +325,7 @@ export default function NewUserProfileScreen() {
       {Platform.OS !== 'android' && showDatePicker ? (
         <Modal transparent animationType="fade" visible={showDatePicker}>
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
-            <View style={{ backgroundColor: '#FFFFFF', padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+            <View style={{ backgroundColor: colors.card, padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
               <DateTimePicker
                 value={dob ?? new Date(2000, 0, 1)}
                 mode="date"

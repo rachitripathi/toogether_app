@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientButton } from '@/components/GradientButton';
-import { colors, gradients } from '@/lib/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ const perks = [
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, gradients, shadow } = useTheme();
   const { getUsageSummary, buyCreditPack } = useApp();
   const usage = getUsageSummary();
 
@@ -48,7 +49,7 @@ export default function PaywallScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <LinearGradient
-        colors={[...gradients.hero]}
+        colors={gradients.hero}
         style={{
           paddingTop: insets.top + 16,
           paddingHorizontal: 20,
@@ -77,7 +78,7 @@ export default function PaywallScreen() {
               marginLeft: 12,
             }}
           >
-            <Ionicons name="close" size={20} color="#FFFFFF" />
+            <Icon name="close" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
 
@@ -93,7 +94,7 @@ export default function PaywallScreen() {
             YOUR BALANCE
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Ionicons name="flash" size={22} color="#FFBE3D" />
+            <Icon name="flash" size={22} color="#FFBE3D" />
             <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '900' }}>
               {usage.credits} credits remaining
             </Text>
@@ -128,13 +129,13 @@ export default function PaywallScreen() {
                   width: 22,
                   height: 22,
                   borderRadius: 11,
-                  backgroundColor: '#DCFCE7',
+                  backgroundColor: colors.status.success.bg,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginTop: 1,
                 }}
               >
-                <Ionicons name="checkmark" size={13} color="#15803D" />
+                <Icon name="checkmark" size={13} color={colors.status.success.text} />
               </View>
               <Text style={{ flex: 1, color: colors.text, lineHeight: 21 }}>{perk}</Text>
             </View>
@@ -159,11 +160,7 @@ export default function PaywallScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 14,
-                shadowColor: '#D7E6F2',
-                shadowOpacity: 0.14,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 2,
+                ...shadow.card,
               }}
             >
               <View
@@ -171,12 +168,12 @@ export default function PaywallScreen() {
                   width: 48,
                   height: 48,
                   borderRadius: 24,
-                  backgroundColor: '#EFF6FF',
+                  backgroundColor: colors.status.info.bg,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="flash" size={22} color={colors.primary} />
+                <Icon name="flash" size={22} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>{pack.name}</Text>
@@ -203,7 +200,7 @@ export default function PaywallScreen() {
 
         <View
           style={{
-            backgroundColor: '#F8FAFC',
+            backgroundColor: colors.surface,
             borderRadius: 18,
             padding: 16,
             gap: 6,
