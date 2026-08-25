@@ -153,7 +153,21 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { currentUser, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
+  const { currentUser, isAppReady, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
+
+  // Mirrors index.tsx's own gating: wait for isAppReady before treating
+  // `!currentUser` as "actually logged out." This screen shouldn't normally
+  // be the first thing mounted on a cold start (nothing in this app persists
+  // or restores a prior navigation route — a fresh JS start always resolves
+  // through index.tsx first), but redirecting to /auth here with no
+  // readiness check at all was still a real, independent bug: unlike every
+  // other currentUser-gated screen in the app (which just render `null`
+  // while loading), this one force-navigated. Keeping it consistent with the
+  // rest of the app removes that as a possible second path to the "bounced
+  // to /auth while still logged in" issue, regardless of how it'd be reached.
+  if (!isAppReady) {
+    return null;
+  }
 
   if (!currentUser) {
     return <Redirect href="/auth" />;

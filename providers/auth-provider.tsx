@@ -38,15 +38,38 @@ export default function AuthProvider({ children }: PropsWithChildren) {
   // calls racing (e.g. a session refresh landing mid-login) can resolve out of
   // order and let the older one overwrite the newer profile/isLoading state.
   const fetchRequestIdRef = useRef(0);
+  // The retry backoff below can leave a fetchProfile call sleeping in a
+  // setTimeout for up to ~5s; without this, a state update landing after the
+  // provider itself has unmounted throws React's "state update on an
+  // unmounted component" warning.
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  // isLoading exists to gate the app's one-time startup splash (AppProvider's
+  // isAppReady), not to reflect every profile fetch. claims gets a brand-new
+  // object on every onAuthStateChange event — including a routine background
+  // TOKEN_REFRESHED that autoRefreshToken fires periodically for the SAME
+  // still-logged-in user — which re-triggers the [claims] effect below and
+  // re-ran fetchProfile from scratch. Setting isLoading back to true on that
+  // flipped isAppReady back to false well after startup, which visibly reset
+  // the app back to the splash screen during completely normal, idle use —
+  // nothing to do with Expo Go or the OS. Once the very first resolution has
+  // happened, later fetches must update profile/claims quietly in the
+  // background without ever touching isLoading again.
+  const hasLoadedOnceRef = useRef(false);
 
-  const fetchProfile = async (userClaims = claims) => {
-    const requestId = ++fetchRequestIdRef.current;
-    setIsLoading(true);
+  const fetchProfile = async (userClaims = claims, attempt = 0) => {
+    const requestId = attempt === 0 ? ++fetchRequestIdRef.current : fetchRequestIdRef.current;
+    if (attempt === 0 && !hasLoadedOnceRef.current) setIsLoading(true);
 
     if (!userClaims) {
-      if (requestId === fetchRequestIdRef.current) {
+      if (requestId === fetchRequestIdRef.current && isMountedRef.current) {
         setProfile(null);
         setIsLoading(false);
+        hasLoadedOnceRef.current = true;
       }
       return;
     }
@@ -87,16 +110,26 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         nextProfile = createdProfile;
       }
     } else if (error) {
+      // Transient failure (cold-start network not reassociated yet, timeout,
+      // etc.) on the very first fetch for this session, with no prior profile
+      // to fall back on — settling on null here would read as "logged out"
+      // even though the session is fine. Retry with backoff instead, same as
+      // verifyClaims() does for the session check itself.
+      if (!profile && attempt < 2 && isMountedRef.current) {
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 2000 : 5000));
+        return fetchProfile(userClaims, attempt + 1);
+      }
       console.error("Error fetching profile:", error);
     } else {
       nextProfile = data;
     }
 
-    if (requestId !== fetchRequestIdRef.current) {
+    if (requestId !== fetchRequestIdRef.current || !isMountedRef.current) {
       return;
     }
     setProfile(nextProfile);
     setIsLoading(false);
+    hasLoadedOnceRef.current = true;
   };
 
   useEffect(() => {
@@ -155,9 +188,20 @@ export default function AuthProvider({ children }: PropsWithChildren) {
       const storedClaims = await getStoredSessionClaims();
       if (cancelled) return;
       if (storedClaims) {
+        // Deliberately NOT clearing isLoading here. Setting claims triggers
+        // the [claims] effect below, which fetches the profile and clears
+        // isLoading itself once that resolves. Clearing it here instead —
+        // before a profile exists — was the cold-start race that bounced an
+        // already-logged-in user to /auth: AppProvider's isAppReady only
+        // checks this isLoading flag, but currentUser is derived from
+        // profile, so there was a one-frame window where isLoading was false
+        // and profile was still null, which index.tsx read as "ready, and
+        // logged out."
         setClaims(storedClaims);
+      } else {
+        setClaims(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
 
       // Verify/refresh with the server in the background regardless, so a
       // genuinely logged-out device (no local session) still resolves, and a
@@ -188,6 +232,12 @@ export default function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
+    // claims starts as undefined ("not determined yet") and only becomes an
+    // object or null once bootstrap()/verifyClaims() actually resolve.
+    // Fetching with it still undefined would hit fetchProfile's early-return
+    // path and clear isLoading immediately — before the real session lookup
+    // (an async storage read) has had a chance to finish.
+    if (claims === undefined) return;
     fetchProfile();
   }, [claims]);
 

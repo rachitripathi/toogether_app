@@ -49,9 +49,14 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     AsyncStorage.setItem(THEME_PREFERENCE_KEY, next).catch(() => {});
   };
 
-  // Default to light until the persisted preference has loaded, rather than flashing one
-  // scheme then immediately swapping to another the instant AsyncStorage resolves.
-  const scheme: ResolvedScheme = !isLoaded ? 'light' : preference === 'system' ? (systemScheme ?? 'light') : preference;
+  // preference itself already defaults to 'system' before the persisted value has
+  // loaded, so while loading, resolve exactly like 'system' does: follow the live
+  // OS scheme rather than hardcoding light. Hardcoding light here used to mean a
+  // phone in dark mode (system preference, the default — true for nearly every
+  // install) flashed light for the brief moment before the AsyncStorage read
+  // resolved, every single launch. Only once a stored *explicit* light/dark
+  // override loads does this stop tracking the live system scheme.
+  const scheme: ResolvedScheme = preference === 'system' || !isLoaded ? (systemScheme ?? 'light') : preference;
 
   // The gesture-nav pill/button color isn't tied to the app's own colors automatically —
   // Android needs to be told explicitly whether to draw it light or dark, or it defaults

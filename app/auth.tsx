@@ -50,14 +50,21 @@ export default function AuthScreen() {
   // fired onAuthStateChange (confirmed via server logs showing 200s on every
   // attempt while the app kept showing a timeout error). currentUser flips
   // true from that background event regardless, so watch it directly instead
-  // of relying solely on handleEmailAuth's own promise ever resolving. Gated on
-  // attemptInFlightRef so this never fires just from landing on /auth while an
-  // existing session is still loading (index.tsx normally prevents that, but this
-  // guards the edge case of navigating back here manually while already logged in).
+  // of relying solely on handleEmailAuth's own promise ever resolving.
+  //
+  // Also self-heals if this screen is ever reached while already logged in —
+  // e.g. a stale redirect from index.tsx, or the user navigating back here
+  // manually. Only shows the "login/signup successful" toast when there was
+  // an actual in-flight attempt (attemptInFlightRef); otherwise it's a silent
+  // bounce home, since nothing was actually just submitted.
   useEffect(() => {
-    if (currentUser && attemptInFlightRef.current) {
+    if (!currentUser || hasNavigatedRef.current) return;
+    if (attemptInFlightRef.current) {
       completeAuthSuccess(mode === 'signup' ? 'signup' : 'login');
+      return;
     }
+    hasNavigatedRef.current = true;
+    router.replace('/(tabs)/home');
   }, [currentUser]);
 
   const handleModeChange = (nextMode: Mode) => {

@@ -4,15 +4,12 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from '@/components/Icon';
 import { useApp } from '@/providers/AppProvider';
+import { useTheme } from '@/providers/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slide1Illustration from '@/assets/onboarding/slide-1.svg';
 import Slide2Illustration from '@/assets/onboarding/slide-2.svg';
 import Slide3Illustration from '@/assets/onboarding/slide-3.svg';
 
-// This screen's SVG illustrations bake in their own light backgrounds, so it's kept
-// intentionally light-invariant rather than following the app theme — flipping the
-// surrounding chrome dark while the art stays light would look broken, not themed.
-const HERO_GRADIENT = ['#FFFFFF', '#EFF6FF'] as const;
 const LIFT_SHADOW = {
   shadowColor: '#9AACDF',
   shadowOpacity: 0.26,
@@ -52,6 +49,7 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const { completeOnboarding } = useApp();
+  const { colors, gradients, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const IMAGE_HEIGHT = Math.round(SCREEN_HEIGHT * 0.68);
@@ -78,8 +76,8 @@ export default function OnboardingScreen() {
   const current = slides[index];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F6F7FB' }}>
-      <LinearGradient colors={HERO_GRADIENT} style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.page }}>
+      <LinearGradient colors={gradients.hero} style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -94,7 +92,20 @@ export default function OnboardingScreen() {
         >
           {slides.map((slide) => (
             <View key={slide.key} style={{ width: SCREEN_WIDTH, flex: 1 }}>
-              <View style={{ width: SCREEN_WIDTH, height: IMAGE_HEIGHT, overflow: 'hidden' }}>
+              <View
+                style={{
+                  width: SCREEN_WIDTH,
+                  height: IMAGE_HEIGHT,
+                  overflow: 'hidden',
+                  // The illustrations bake in their own light background (no
+                  // dark-mode art), so this stays a deliberately light "framed
+                  // card" — rounded off at the bottom — rather than an abrupt
+                  // light patch dropped onto a dark page.
+                  backgroundColor: '#FFFFFF',
+                  borderBottomLeftRadius: scheme === 'dark' ? 32 : 0,
+                  borderBottomRightRadius: scheme === 'dark' ? 32 : 0,
+                }}
+              >
                 <slide.Illustration
                   width={SCREEN_WIDTH}
                   height={IMAGE_HEIGHT}
@@ -103,10 +114,10 @@ export default function OnboardingScreen() {
               </View>
 
               <View style={{ paddingHorizontal: 28, paddingTop: 28 }}>
-                <Text style={{ fontSize: 31, fontWeight: '900', color: '#1A1A2E', lineHeight: 38 }}>
+                <Text style={{ fontSize: 31, fontWeight: '900', color: colors.text, lineHeight: 38 }}>
                   {slide.title}
                 </Text>
-                <Text style={{ fontSize: 16, color: '#667085', marginTop: 12, lineHeight: 24 }}>
+                <Text style={{ fontSize: 16, color: colors.muted, marginTop: 12, lineHeight: 24 }}>
                   {slide.subtitle}
                 </Text>
               </View>
@@ -125,6 +136,9 @@ export default function OnboardingScreen() {
           }}
         >
           {!isLast ? (
+            // Pinned over the illustration, not the chrome below it — that area stays
+            // a fixed light card in every theme (see the illustration wrapper above),
+            // so this button keeps its light-on-light styling regardless of scheme.
             <Pressable
               onPress={finish}
               style={{
@@ -159,7 +173,7 @@ export default function OnboardingScreen() {
                     width: 8,
                     height: 8,
                     borderRadius: 999,
-                    backgroundColor: dotIndex === index ? '#1A1A2E' : '#D0D5DD',
+                    backgroundColor: dotIndex === index ? colors.text : colors.border,
                   }}
                 />
               </Pressable>
