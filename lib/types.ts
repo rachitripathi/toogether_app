@@ -93,6 +93,25 @@ export interface CrewRequest {
   createdAt: string;
 }
 
+export type NotificationType =
+  | "join_request_received"
+  | "join_request_approved"
+  | "join_request_rejected"
+  | "verification_approved"
+  | "verification_rejected"
+  | "new_message";
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data: { route?: string; eventId?: string; actorId?: string };
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface CategoryTheme {
   label: string;
   chipBackground: string;

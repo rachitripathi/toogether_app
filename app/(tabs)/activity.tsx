@@ -6,135 +6,36 @@ import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
+import { useNotifications } from '@/providers/NotificationsProvider';
+import type { AppNotification, NotificationType } from '@/lib/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type ActivityItem = {
-  id: string;
-  title: string;
-  subtitle: string;
-  helper: string;
-  userId: string;
-  route: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  tone: 'pending' | 'positive' | 'neutral';
+const NOTIFICATION_PRESENTATION: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; tone: 'pending' | 'positive' | 'neutral' }> = {
+  join_request_received: { icon: 'person-add-outline', tone: 'pending' },
+  join_request_approved: { icon: 'checkmark-circle-outline', tone: 'positive' },
+  join_request_rejected: { icon: 'close-circle-outline', tone: 'neutral' },
+  verification_approved: { icon: 'shield-checkmark-outline', tone: 'positive' },
+  verification_rejected: { icon: 'shield-outline', tone: 'neutral' },
+  new_message: { icon: 'chatbubble-ellipses-outline', tone: 'pending' },
 };
 
 export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { currentUser, requests, crewRequests, getUserById, getEventById, getEventsImPartOf, getMyRatingForUser } = useApp();
+  const { currentUser, getUserById, getEventsImPartOf, getMyRatingForUser } = useApp();
+  const { notifications, markAsRead, markAllAsRead } = useNotifications();
   const { colors, shadow } = useTheme();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-
-  const dismiss = (id: string) => {
-    setDismissed((prev) => new Set([...prev, id]));
-  };
 
   const now = new Date();
+  const [dismissedNudges, setDismissedNudges] = useState<Set<string>>(new Set());
+  const dismissNudge = (id: string) => setDismissedNudges((prev) => new Set([...prev, id]));
 
-  const activities: ActivityItem[] = [
-    ...requests.flatMap<ActivityItem>((request) => {
-      const actor = getUserById(request.userId);
-      const event = getEventById(request.eventId);
-      if (!actor || !event || !currentUser) {
-        return [];
-      }
-
-      if (request.status === 'pending' && event.creatorId === currentUser.id && request.userId !== currentUser.id) {
-        return [
-          {
-            id: `${request.id}-pending`,
-            title: `${actor.name.split(' ')[0]} wants to join ${event.title}`,
-            subtitle: `${actor.age} · ${actor.verified ? 'Verified' : 'Unverified'} · ${actor.city}`,
-            helper: 'Open the plan to review this join request.',
-            userId: actor.id,
-            route: `/event/${event.id}`,
-            icon: 'person-add-outline',
-            tone: 'pending',
-          },
-        ];
-      }
-
-      if (request.userId === currentUser.id && request.status === 'approved') {
-        return [
-          {
-            id: `${request.id}-approved`,
-            title: `You're approved for ${event.title}`,
-            subtitle: `${event.area}, Guwahati · ${event.timeSlot}`,
-            helper: 'Open the event to view private details and chat.',
-            userId: event.creatorId,
-            route: `/event/${event.id}`,
-            icon: 'checkmark-circle-outline',
-            tone: 'positive',
-          },
-        ];
-      }
-
-      if (request.userId === currentUser.id && request.status === 'rejected') {
-        return [
-          {
-            id: `${request.id}-rejected`,
-            title: `Join request not approved for ${event.title}`,
-            subtitle: `${event.area}, Guwahati · ${event.timeSlot}`,
-            helper: 'Try another plan or request a different event.',
-            userId: event.creatorId,
-            route: `/event/${event.id}`,
-            icon: 'close-circle-outline',
-            tone: 'neutral',
-          },
-        ];
-      }
-
-      return [];
-    }),
-    ...crewRequests.flatMap<ActivityItem>((request) => {
-      if (!currentUser) {
-        return [];
-      }
-
-      if (request.toUserId === currentUser.id && request.status === 'pending') {
-        const user = getUserById(request.fromUserId);
-        if (!user) {
-          return [];
-        }
-
-        return [
-          {
-            id: `${request.id}-crew-incoming`,
-            title: `${user.name.split(' ')[0]} sent you a crew request`,
-            subtitle: `${user.age} · ${user.verified ? 'Verified' : 'Unverified'} · ${user.city}`,
-            helper: 'Open My Crew to accept or decline.',
-            userId: user.id,
-            route: '/(tabs)/people',
-            icon: 'people-outline',
-            tone: 'pending',
-          },
-        ];
-      }
-
-      if (request.fromUserId === currentUser.id && request.status === 'accepted') {
-        const user = getUserById(request.toUserId);
-        if (!user) {
-          return [];
-        }
-
-        return [
-          {
-            id: `${request.id}-crew-accepted`,
-            title: `${user.name.split(' ')[0]} joined your crew`,
-            subtitle: `${user.age} · ${user.city}`,
-            helper: 'Open their profile or start planning together.',
-            userId: user.id,
-            route: `/user/${user.id}`,
-            icon: 'sparkles-outline',
-            tone: 'positive',
-          },
-        ];
-      }
-
-      return [];
-    }),
-  ].filter((item) => !dismissed.has(item.id));
+  const openNotification = (notification: AppNotification) => {
+    markAsRead(notification.id);
+    if (notification.data.route) {
+      router.push(notification.data.route as never);
+    }
+  };
 
   type RatingNudge = {
     id: string;
@@ -157,7 +58,7 @@ export default function ActivityScreen() {
             .filter((id) => {
               const alreadyRated = getMyRatingForUser(id, event.id) !== null;
               const nudgeId = `nudge-${event.id}-${id}`;
-              return !alreadyRated && !dismissed.has(nudgeId);
+              return !alreadyRated && !dismissedNudges.has(nudgeId);
             })
             .map((id) => ({
               id: `nudge-${event.id}-${id}`,
@@ -169,7 +70,7 @@ export default function ActivityScreen() {
         })
     : [];
 
-  const hasContent = activities.length > 0 || ratingNudges.length > 0;
+  const hasContent = notifications.length > 0 || ratingNudges.length > 0;
 
   const subtitleOpacity = scrollY.interpolate({
     inputRange: [0, 55],
@@ -186,7 +87,14 @@ export default function ActivityScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
-        <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Activity</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Activity</Text>
+          {notifications.some((item) => !item.readAt) ? (
+            <Pressable onPress={markAllAsRead} style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '700' }}>Mark all read</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <Animated.Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, opacity: subtitleOpacity }}>
           Updates and approvals
         </Animated.Text>
@@ -231,7 +139,7 @@ export default function ActivityScreen() {
                     ))}
                   </View>
                   <Pressable
-                    onPress={(e) => { e.stopPropagation(); dismiss(nudge.id); }}
+                    onPress={(e) => { e.stopPropagation(); dismissNudge(nudge.id); }}
                     style={{ padding: 4 }}
                   >
                     <Icon name="close" size={16} color={colors.muted} />
@@ -242,20 +150,19 @@ export default function ActivityScreen() {
           </View>
         ) : null}
 
-        {activities.length ? (
-          activities.map((activity) => {
-            const user = getUserById(activity.userId);
-            const accent =
-              activity.tone === 'positive' ? colors.status.success.bg : activity.tone === 'pending' ? colors.status.warning.bg : colors.status.info.bg;
-            const iconColor =
-              activity.tone === 'positive' ? colors.status.success.text : activity.tone === 'pending' ? colors.status.warning.text : colors.status.info.text;
-            const label =
-              activity.tone === 'positive' ? 'Good news' : activity.tone === 'pending' ? 'Action needed' : 'Update';
+        {notifications.length ? (
+          notifications.map((notification) => {
+            const isUnread = !notification.readAt;
+            const user = notification.data.actorId ? getUserById(notification.data.actorId) : undefined;
+            const { icon, tone } = NOTIFICATION_PRESENTATION[notification.type];
+            const accent = tone === 'positive' ? colors.status.success.bg : tone === 'pending' ? colors.status.warning.bg : colors.status.info.bg;
+            const iconColor = tone === 'positive' ? colors.status.success.text : tone === 'pending' ? colors.status.warning.text : colors.status.info.text;
+            const label = tone === 'positive' ? 'Good news' : tone === 'pending' ? 'Action needed' : 'Update';
 
             return (
               <Pressable
-                key={activity.id}
-                onPress={() => router.push(activity.route as never)}
+                key={notification.id}
+                onPress={() => openNotification(notification)}
                 style={{
                   backgroundColor: colors.surface,
                   borderRadius: 26,
@@ -263,23 +170,31 @@ export default function ActivityScreen() {
                   borderColor: colors.border,
                   padding: 16,
                   gap: 14,
+                  opacity: isUnread ? 1 : 0.6,
                   ...shadow.card,
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ backgroundColor: accent, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
-                    <Text style={{ color: iconColor, fontSize: 11, fontWeight: '800' }}>{label}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {isUnread ? (
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger }} />
+                    ) : null}
+                    <View style={{ backgroundColor: accent, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+                      <Text style={{ color: iconColor, fontSize: 11, fontWeight: '800' }}>{label}</Text>
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name={activity.icon} size={18} color={iconColor} />
+                      <Icon name={icon} size={18} color={iconColor} />
                     </View>
-                    <Pressable
-                      onPress={(e) => { e.stopPropagation(); dismiss(activity.id); }}
-                      style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Icon name="close" size={14} color={colors.muted} />
-                    </Pressable>
+                    {isUnread ? (
+                      <Pressable
+                        onPress={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
+                        style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Icon name="close" size={14} color={colors.muted} />
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
 
@@ -287,29 +202,9 @@ export default function ActivityScreen() {
                   {user ? <AvatarBubble user={user} size={48} /> : null}
                   <View style={{ flex: 1, gap: 5 }}>
                     <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800', lineHeight: 22 }}>
-                      {activity.title}
+                      {notification.title}
                     </Text>
-                    <Text style={{ color: colors.muted }}>{activity.subtitle}</Text>
-                  </View>
-                </View>
-
-                <View
-                  style={{
-                    backgroundColor: colors.status.info.bg,
-                    borderRadius: 18,
-                    borderWidth: 1,
-                    borderColor: colors.status.info.border,
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    gap: 4,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Icon name="arrow-forward-circle" size={20} color={colors.primary} style={{ marginRight: 4 }} />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ color: colors.status.info.text, fontWeight: '700' }}>{activity.helper}</Text>
-                    <Text style={{ color: colors.primary, fontSize: 12 }}>Tap to open the relevant screen.</Text>
+                    <Text style={{ color: colors.muted }}>{notification.body}</Text>
                   </View>
                 </View>
               </Pressable>

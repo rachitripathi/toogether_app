@@ -2,20 +2,16 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import { router, Tabs } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useApp } from '@/providers/AppProvider';
+import { useNotifications } from '@/providers/NotificationsProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CustomTabBar({ state, navigation }: any) {
-  const { currentUser, requests, events } = useApp();
+  const { unreadCount } = useNotifications();
   const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const fadeGradientColors: [string, string] =
     scheme === 'dark' ? ['rgba(11,13,20,0)', 'rgba(11,13,20,0.92)'] : ['rgba(255,255,255,0)', 'rgba(246,247,251,0.9)'];
-  const pendingCount = requests.filter((request) => {
-    const event = events.find((item) => item.id === request.eventId);
-    return request.status === 'pending' && event?.creatorId === currentUser?.id;
-  }).length;
 
   const items = [
     { key: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
@@ -103,7 +99,7 @@ function CustomTabBar({ state, navigation }: any) {
                   size={20}
                   color={isActive ? colors.primary : colors.muted}
                 />
-                {item.key === 'activity' && pendingCount > 0 ? (
+                {item.key === 'activity' && unreadCount > 0 ? (
                   <View
                     style={{
                       position: 'absolute',

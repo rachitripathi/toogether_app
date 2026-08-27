@@ -25,6 +25,7 @@ Its companion doc is [`FUNCTIONALITY.md`](./FUNCTIONALITY.md) (app features/flow
 | `006_add_verification_status.sql` | Added verification columns to `profiles` (status/submitted_at/rejection_reason/document URIs), backfilled `verified=true` rows to `approved`. |
 | `007_secure_verification_admin.sql` | Moved document URIs off `profiles` into `verification_documents`; added `admin_users`, `is_admin()`, `verification_reviews`, `review_verification()` RPC; added a `CHECK` constraint on `verification_status`. |
 | `008_password_reset_otps.sql` | Added `password_reset_otps` (RLS enabled, zero policies) backing the OTP-based forgot-password flow. |
+| `009_notifications.sql` | Added `notifications` + `push_tokens`, `create_notification()`, triggers on `join_requests`/`messages` that call it, extended `review_verification()` to call it too, and added `notifications` to the `supabase_realtime` publication. See §3.10, §3.11, §4, §5. |
 
 Two now-retired docs (`MIGRATION_UPDATES_MAY2026.md`, `DATABASE_DOCUMENTATION_INDEX.md`) previously duplicated this history in prose — this table supersedes them.
 
@@ -49,6 +50,8 @@ verification_documents  verification_reviews (+reviewer_id fk)  events
 
 admin_users — standalone, references auth.users(id), no FK from profiles
 crew_requests — standalone, from_user_id/to_user_id both fk → profiles(id)
+notifications — standalone, user_id fk → profiles(id), written only by create_notification() (§3.10)
+push_tokens — standalone, user_id fk → profiles(id), owner-managed (§3.11)
 ```
 
 **Known mismatch worth flagging**: `ratings` and `crew_requests` exist as real tables with full RLS, but **the app currently never writes to either of them** — `rateUser`/`getUserAverageRating`/`sendCrewRequest`/`acceptCrewRequest`/etc. in `providers/AppProvider.tsx` operate entirely on local React state seeded from `lib/mockData.ts`, not on these tables. See `FUNCTIONALITY.md` §4 for the functional detail. Don't assume these tables have real data — as of this writing they're effectively unused by the live app.
@@ -320,21 +323,74 @@ RLS enabled, **zero policies** — unreachable via the anon/authenticated API in
 
 ---
 
+### 3.10 `public.notifications` (added in 009)
+
+The in-app notification feed. One row per event a user should be told about — see `FUNCTIONALITY.md` §9 for the feature-level picture.
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `id` | `uuid` | `gen_random_uuid()` | PK |
+| `user_id` | `uuid` | — | FK → `profiles(id) ON DELETE CASCADE`, the recipient |
+| `type` | `text`, **CHECK-constrained** | — | `'join_request_received' \| 'join_request_approved' \| 'join_request_rejected' \| 'verification_approved' \| 'verification_rejected' \| 'new_message'` |
+| `title` / `body` | `text` | — | pre-rendered human-readable copy, written by the trigger/function that creates the row — the client never has to reconstruct it from `type` |
+| `data` | `jsonb` | `'{}'` | deep-link payload, always includes `route` (an app path like `/event/<id>` or `/chat/<id>`); `eventId`/`actorId` included where relevant |
+| `read_at` | `timestamptz`, nullable | — | set by the client via `notifications_update_own` when the user opens/dismisses it |
+| `created_at` | `timestamptz` | `now()` | |
+
+**Indexes**: `idx_notifications_user_created` (`user_id, created_at DESC`), partial `idx_notifications_user_unread` (`user_id WHERE read_at IS NULL`).
+
+```sql
+CREATE POLICY "notifications_select_own" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "notifications_update_own" ON public.notifications FOR UPDATE
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+```
+No INSERT/DELETE policy for any client role — rows are written only by `create_notification()` (§4), the same "no direct client write" pattern as `verification_reviews` (§3.8).
+
+---
+
+### 3.11 `public.push_tokens` (added in 009)
+
+Expo push tokens per device. **Schema only as of 009** — nothing sends a push yet; that's a later phase (an Edge Function + Database Webhook on `notifications` INSERT, per `FUNCTIONALITY.md` §9).
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `user_id` | `uuid` | — | FK → `profiles(id) ON DELETE CASCADE` |
+| `token` | `text` | — | Expo push token |
+| `platform` | `text`, CHECK-constrained | — | `'ios' \| 'android'` |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | not trigger-maintained — set by the client on upsert |
+
+PK `(user_id, token)` — supports multiple devices per user.
+
+```sql
+CREATE POLICY "push_tokens_select_own" ON public.push_tokens FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "push_tokens_insert_own" ON public.push_tokens FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "push_tokens_update_own" ON public.push_tokens FOR UPDATE
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "push_tokens_delete_own" ON public.push_tokens FOR DELETE USING (auth.uid() = user_id);
+```
+Fully owner-managed — a device registers and can remove its own token, nothing else touches this table via the client API.
+
+---
+
 ## 4. Functions
 
 | Function | Kind | Purpose |
 |---|---|---|
 | `public.update_updated_at_column()` | `plpgsql` trigger fn | Sets `NEW.updated_at = now()`. Attached to `profiles`, `events`, `join_requests`, `messages`, `crew_requests`. Not attached to `ratings` (no `updated_at` column) or `verification_documents`/`verification_reviews`/`admin_users` (updated_at, where present, is set by the caller, not a trigger). |
 | `public.is_admin()` | `sql`, `SECURITY DEFINER`, `STABLE` | `select exists (select 1 from admin_users where user_id = auth.uid())`. Used inside RLS policies and by `review_verification()`. Granted to `anon, authenticated`. |
-| `public.review_verification(target_user_id uuid, decision text, rejection_reason text default null)` | `plpgsql`, `SECURITY DEFINER` | The only way `profiles.verification_status` can change for a row that isn't your own. Raises `not authorized` if `is_admin()` is false; raises on an invalid `decision`; otherwise inserts a `verification_reviews` snapshot and updates `profiles.verification_status`/`verification_rejection_reason`/`verified` atomically. Granted to `authenticated` only. Call via `supabase.rpc('review_verification', { target_user_id, decision, rejection_reason })`. |
+| `public.review_verification(target_user_id uuid, decision text, rejection_reason text default null)` | `plpgsql`, `SECURITY DEFINER` | The only way `profiles.verification_status` can change for a row that isn't your own. Raises `not authorized` if `is_admin()` is false; raises on an invalid `decision`; otherwise inserts a `verification_reviews` snapshot, updates `profiles.verification_status`/`verification_rejection_reason`/`verified` atomically, and (since 009) calls `create_notification()` so the user sees the decision in their inbox. Granted to `authenticated` only. Call via `supabase.rpc('review_verification', { target_user_id, decision, rejection_reason })`. |
+| `public.create_notification(p_user_id uuid, p_type text, p_title text, p_body text, p_data jsonb default '{}')` | `plpgsql`, `SECURITY DEFINER` | Added in 009. The single write path for `notifications` — plain `INSERT`. Not granted to `anon`/`authenticated`; only called from other `SECURITY DEFINER` functions owned by the same role (the triggers below, and `review_verification()`), which is sufficient for Postgres to allow the call without a public grant. |
+| `public.handle_join_request_insert()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER INSERT ON join_requests`. If the new row is `pending`, notifies the event's `creator_id` ("X wants to join Y"). If it's inserted already `approved` (the auto-approved-invite path in `inviteToEvent`) and the invitee isn't the creator, notifies the invitee directly instead. |
+| `public.handle_join_request_status_change()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER UPDATE OF status ON join_requests`, only when the status actually changed. Notifies `join_requests.user_id` on `approved`/`rejected`. |
+| `public.handle_new_message()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER INSERT ON messages`. Notifies the event's creator plus every `approved` joiner, excluding the sender (dedup via `UNION`). |
 
-`SECURITY DEFINER` here means both functions run with the privileges of their owner (the migration-running role, effectively `postgres`), so they can read `admin_users` / write `profiles` and `verification_reviews` regardless of the *calling* role's own RLS visibility — this is what lets an admin's own logged-in session perform a privileged cross-user write without ever holding the Supabase service-role key.
+`SECURITY DEFINER` here means these functions run with the privileges of their owner (the migration-running role, effectively `postgres`), so they can read/write tables regardless of the *calling* role's own RLS visibility — this is what lets an admin's own logged-in session perform a privileged cross-user write, and what lets a trigger fired by any authenticated user's insert/update write a `notifications` row for a *different* user, without ever handing the Supabase service-role key to a client.
 
 ---
 
 ## 5. Realtime
 
-Only `public.messages` is in the `supabase_realtime` publication (migration 005). No other table streams `postgres_changes` — notably `profiles` does not, so a `verification_status` change made by an admin does **not** push live to the affected user's device; see `FUNCTIONALITY.md` for the app-side implication.
+`public.messages` (migration 005) and `public.notifications` (migration 009) are in the `supabase_realtime` publication. No other table streams `postgres_changes` — notably `profiles` still does not, so a `verification_status` change made by an admin doesn't push live via a `profiles` subscription; the `notifications` row `review_verification()` now writes is how the client actually learns about it live instead (see `FUNCTIONALITY.md` §9).
 
 ---
 

@@ -44,3 +44,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# local planning notes (Claude Code plan-mode output, not canonical docs)
+/plans

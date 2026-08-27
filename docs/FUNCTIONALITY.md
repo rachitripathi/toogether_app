@@ -22,7 +22,7 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 |---|---|
 | App | React Native + Expo (`expo-router`, file-based routes under `app/`) |
 | Backend | Supabase (Postgres + Auth + Realtime + Edge Functions) — see `DATABASE.md` |
-| App state | React Context: `providers/AppProvider.tsx` (events/requests/messages/crew/ratings/verification) + `providers/auth-provider.tsx` (session/profile) |
+| App state | React Context: `providers/AppProvider.tsx` (events/requests/messages/crew/ratings/verification) + `providers/auth-provider.tsx` (session/profile) + `providers/NotificationsProvider.tsx` (in-app notification feed, §9) |
 | Local-only state | Zustand: `store/verificationDraftStore.ts` (§7), `store/locationPickerStore.ts` (below) |
 | Images | Cloudinary, unsigned client uploads — see `DATABASE.md` §7 |
 | Web admin panel | Does not exist yet — greenfield, see §8 |
@@ -41,10 +41,10 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 - `app/new-user-profile.tsx` — post-signup profile completion (name, DOB/age 18+, gender, city, bio, avatar).
 - `app/new-user-verification.tsx` — post-profile upsell: "Get verified" → `/verification/capture-aadhaar`, or "Skip for now."
 
-**Tabs** (`app/(tabs)/_layout.tsx`, custom floating tab bar with a pending-request badge)
+**Tabs** (`app/(tabs)/_layout.tsx`, custom floating tab bar; the Activity tab shows a dot when `NotificationsProvider`'s `unreadCount` is nonzero, §9)
 - `home.tsx` — discovery feed: search, category chips, event cards, create button.
 - `people.tsx` — crew tab: crew members, incoming requests, rate-user modal.
-- `activity.tsx` — inbox built from join requests + crew requests.
+- `activity.tsx` — real notification inbox (§9), backed by `notifications` + `NotificationsProvider`, plus a locally-computed "rate your crew" nudge section (unrelated, stays local — ratings are still mock per §4).
 - `profile.tsx` — own profile, hosting/joined/past sections, settings entry.
 
 **Event / chat**
@@ -154,7 +154,7 @@ Full route group `app/verification/` (`index`, `capture-aadhaar`, `liveness`, `r
 - **Real admin path**: `review_verification(target_user_id, decision, rejection_reason)` RPC (`DATABASE.md` §4) — gated by `is_admin()`, snapshots the decision into `verification_reviews`, keeps `verified` in sync with `verification_status`. Call via `supabase.rpc('review_verification', {...})` using the admin's own logged-in session — no service-role key needed.
 - **Dev-only self-test path**: `setVerificationStatusDev()` in `AppProvider.tsx`, gated behind `DEV_TOOLS_ENABLED`, lets a user flip their **own** status for local testing. Not usable as real moderation (RLS blocks touching another user's row outside the RPC).
 
-**Known gap — no live notification on decision**: no push library, no realtime subscription on `profiles` (only `messages` streams — `DATABASE.md` §5), no verification entry in the activity feed (`app/(tabs)/activity.tsx`). A user only sees a status change on their next `refreshProfile()` call (app reopen, or any other profile-mutating action). Cheapest fix: call `refreshProfile()` when the `/verification` pending screen regains focus. Bigger fixes: a Realtime subscription filtered to the user's own `profiles.id`, or `expo-notifications` + device token storage + a push send from `review_verification()`.
+**Live notification on decision (fixed 2026-08-27)**: `review_verification()` now calls `create_notification()` (`DATABASE.md` §4) as part of the same transaction that updates `profiles.verification_status`, so an approve/reject shows up in the user's Activity tab (§9) live via the `notifications` Realtime subscription — no more waiting on the next `refreshProfile()`. Out-of-app push for this (and other) notification types is not built yet — see §9's "not yet built" note.
 
 **Known inconsistency**: `app/new-user-verification.tsx`'s "Get verified" path and the legacy quick-toggle it originally offered both ultimately funnel into the same `capture-aadhaar` flow today — but be aware a user could historically end up `verified=true` with `verification_status` still `unverified` if that screen's old direct-toggle behavior is ever reintroduced. Worth a quick look before trusting `verified` and `verification_status` to always agree.
 
@@ -174,6 +174,24 @@ No admin/web code exists anywhere in the repo yet — this is a from-scratch bui
    - **Review detail**: render the 3 document URLs as `<img>` (still public Cloudinary URLs — the §7 caveat still applies even with DB access locked down), plus profile fields for cross-checking. Approve/Reject buttons call `review_verification()`.
    - **History** (optional): `select * from verification_reviews order by reviewed_at desc` joined to `profiles`, for "who approved this and when."
 5. **The admin panel never needs the Supabase service-role key.** Keep it that way. If a future admin feature genuinely needs to bypass RLS for something `is_admin()` + a `SECURITY DEFINER` RPC can't express, follow the `delete-avatar` Edge Function template (`DATABASE.md` §6) instead of shipping the service-role key to a browser.
+
+---
+
+## 9. Notifications
+
+**Real, Supabase-backed** — added 2026-08-27, replacing what used to be a client-computed, non-persistent "activity" list. Schema/RLS/triggers are `DATABASE.md` §3.10–§3.11, §4, §5; this section covers the app-side behavior.
+
+**In-app inbox (built, no native rebuild needed)**: `providers/NotificationsProvider.tsx`, mounted in `app/_layout.tsx` inside `AppProvider` (so it can read `currentUser`). On login it fetches the last 100 rows of `notifications` for the current user and opens a Realtime channel (`notifications-realtime-<userId>`, filtered `user_id=eq.<id>`, mirroring the `messages-realtime` pattern) so new rows appear live without a refetch. Exposes `notifications`, `unreadCount`, `markAsRead(id)`, `markAllAsRead()`. `app/(tabs)/activity.tsx` renders `notifications` directly (title/body are pre-rendered server-side by the trigger/function that created the row — the client doesn't reconstruct copy from `type`, just picks an icon/tone/accent color per `type` via a small local lookup table); tapping a card marks it read and, if `data.route` is set, navigates there. `app/(tabs)/_layout.tsx`'s tab-bar dot is driven by `unreadCount` instead of the old locally-computed pending-join-request count, so it now reflects every notification type, not just pending joins.
+
+**What generates a notification today** — all server-side (Postgres triggers + `review_verification()`), never inserted directly by the client (`notifications` has no client INSERT policy — see `DATABASE.md` §3.10):
+- A join request is created (`join_requests` INSERT) → the event's host, unless it's an auto-approved invite, in which case the invitee is notified directly instead.
+- A join request is approved/rejected (`join_requests` UPDATE OF status) → the requester.
+- A verification decision (`review_verification()` RPC) → the reviewed user.
+- A new chat message (`messages` INSERT) → every other approved participant of that event (host + approved joiners, sender excluded).
+
+Crew requests are **not** included — `crew_requests` is still mock/local-only (§4), so there's nothing real to trigger off yet; wiring that up needs the crew system to move off `MOCK_RATINGS`/in-memory state first.
+
+**Not yet built — push notifications**: no `expo-notifications`, no `push_tokens` writer, no send path. The `push_tokens` table (`DATABASE.md` §3.11) exists but nothing writes to it yet. The planned shape (not implemented): `expo-notifications` + a config plugin in `app.json`, permission request + Expo push token registration into `push_tokens` on login, a Supabase Database Webhook on `notifications` INSERT calling a new Edge Function (`send-push`, following the `delete-avatar` template — `DATABASE.md` §6) that POSTs to Expo's hosted push API. This needs a new custom-dev-client/EAS build once added (native module — Expo Go doesn't support remote push since SDK 53), plus an FCM v1 service-account key and an APNs key configured via `eas credentials` before delivery actually works on either platform.
 
 ---
 
