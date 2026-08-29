@@ -63,7 +63,8 @@
         {
           "locationWhenInUsePermission": "Toogether uses your location to help you pin exact meeting spots for plans."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

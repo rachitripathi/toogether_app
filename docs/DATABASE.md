@@ -26,6 +26,7 @@ Its companion doc is [`FUNCTIONALITY.md`](./FUNCTIONALITY.md) (app features/flow
 | `007_secure_verification_admin.sql` | Moved document URIs off `profiles` into `verification_documents`; added `admin_users`, `is_admin()`, `verification_reviews`, `review_verification()` RPC; added a `CHECK` constraint on `verification_status`. |
 | `008_password_reset_otps.sql` | Added `password_reset_otps` (RLS enabled, zero policies) backing the OTP-based forgot-password flow. |
 | `009_notifications.sql` | Added `notifications` + `push_tokens`, `create_notification()`, triggers on `join_requests`/`messages` that call it, extended `review_verification()` to call it too, and added `notifications` to the `supabase_realtime` publication. See §3.10, §3.11, §4, §5. |
+| `010_push_notifications_webhook.sql` | Scriptable version of a Database Webhook trigger (`send_push_on_notification`) that calls the new `send-push` Edge Function on every `notifications` INSERT. On *this* project, Webhooks had never been provisioned, so running it as raw SQL failed with `schema "supabase_functions" does not exist` — the actual webhook here was created via the Dashboard's **Integrations > Webhooks** instead (moved there from Database in a 2026 dashboard reorg — same name/table/URL, see the file's header comment). The SQL is a no-op-with-notice, not an error, on any project without the schema, so it's still safe to run. See §4, §6. |
 
 Two now-retired docs (`MIGRATION_UPDATES_MAY2026.md`, `DATABASE_DOCUMENTATION_INDEX.md`) previously duplicated this history in prose — this table supersedes them.
 
@@ -350,7 +351,7 @@ No INSERT/DELETE policy for any client role — rows are written only by `create
 
 ### 3.11 `public.push_tokens` (added in 009)
 
-Expo push tokens per device. **Schema only as of 009** — nothing sends a push yet; that's a later phase (an Edge Function + Database Webhook on `notifications` INSERT, per `FUNCTIONALITY.md` §9).
+Expo push tokens per device. Populated by `providers/NotificationsProvider.tsx` on login (owner upserts its own row) and read by the `send-push` Edge Function (§6, added in 010) via a service-role client to relay a push.
 
 | Column | Type | Default | Notes |
 |---|---|---|---|
@@ -383,6 +384,7 @@ Fully owner-managed — a device registers and can remove its own token, nothing
 | `public.handle_join_request_insert()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER INSERT ON join_requests`. If the new row is `pending`, notifies the event's `creator_id` ("X wants to join Y"). If it's inserted already `approved` (the auto-approved-invite path in `inviteToEvent`) and the invitee isn't the creator, notifies the invitee directly instead. |
 | `public.handle_join_request_status_change()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER UPDATE OF status ON join_requests`, only when the status actually changed. Notifies `join_requests.user_id` on `approved`/`rejected`. |
 | `public.handle_new_message()` | `plpgsql` trigger fn, `SECURITY DEFINER` | Added in 009. `AFTER INSERT ON messages`. Notifies the event's creator plus every `approved` joiner, excluding the sender (dedup via `UNION`). |
+| `supabase_functions.http_request(...)` (trigger `send_push_on_notification`) | built-in trigger fn (not app-authored) | `AFTER INSERT ON notifications`. The standard mechanism behind Supabase's Database Webhooks — fires an async HTTP POST (via `pg_net`) to the `send-push` Edge Function (§6) with the new row as payload. Never blocks or fails the triggering `INSERT`, even if the function call errors. Created via the Dashboard's Database > Webhooks UI on this project (see 010's migration-history note above); `010_push_notifications_webhook.sql` is the scriptable equivalent for a project where Webhooks is already provisioned. |
 
 `SECURITY DEFINER` here means these functions run with the privileges of their owner (the migration-running role, effectively `postgres`), so they can read/write tables regardless of the *calling* role's own RLS visibility — this is what lets an admin's own logged-in session perform a privileged cross-user write, and what lets a trigger fired by any authenticated user's insert/update write a `notifications` row for a *different* user, without ever handing the Supabase service-role key to a client.
 
@@ -396,11 +398,10 @@ Fully owner-managed — a device registers and can remove its own token, nothing
 
 ## 6. Edge Functions
 
-Only one exists: `supabase/functions/delete-avatar/index.ts`.
+Two exist:
 
-- Deletes the calling user's Cloudinary avatar. Verifies the caller's JWT via a service-role Supabase client's `auth.getUser()`, looks up `profiles.avatar_uri` for that user only (never accepts a target id from the request body), derives the Cloudinary `public_id` from the URL, signs a `destroy` call with `CLOUDINARY_API_SECRET`, then clears `profiles.avatar_uri`.
-- Deploy: `supabase functions deploy delete-avatar`. Secrets: `supabase secrets set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...`.
-- This is the template to copy for any *future* action that genuinely needs the service-role key (i.e., something `is_admin()` + a `SECURITY DEFINER` RPC can't express) — the verification admin flow deliberately did **not** need one; see §4.
+- `supabase/functions/delete-avatar/index.ts` — deletes the calling user's Cloudinary avatar. Verifies the caller's JWT via a service-role Supabase client's `auth.getUser()`, looks up `profiles.avatar_uri` for that user only (never accepts a target id from the request body), derives the Cloudinary `public_id` from the URL, signs a `destroy` call with `CLOUDINARY_API_SECRET`, then clears `profiles.avatar_uri`. Deploy: `supabase functions deploy delete-avatar`. Secrets: `supabase secrets set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...`. This is the template to copy for any *future* action that genuinely needs the service-role key (i.e., something `is_admin()` + a `SECURITY DEFINER` RPC can't express) — the verification admin flow deliberately did **not** need one; see §4.
+- `supabase/functions/send-push/index.ts` (added in 010) — invoked by the `send_push_on_notification` Database Webhook (§4) on every `notifications` INSERT. Uses a service-role client to read the recipient's `push_tokens` (§3.11), then POSTs to Expo's hosted push API (`https://exp.host/--/api/v2/push/send`) — Expo's own documented endpoint, which relays to FCM v1 (Android) and APNs (iOS) from a single call; nothing here is platform-specific. Deletes any token Expo reports back as `DeviceNotRegistered`. No custom secrets to set — `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are auto-injected into every Edge Function. Deploy: `supabase functions deploy send-push`.
 
 The forgot-password OTP flow (§3.9) is the one other place that needs the service-role key, but it deliberately does **not** live here as an Edge Function — it's two Next.js Route Handlers in the separate `together-admin` project (`app/api/forgot-password/send-otp` and `verify-otp`), which already holds the admin panel for this same Supabase project. `app/reset-password.tsx` in this app calls those two endpoints over plain HTTP.
 

@@ -1,7 +1,23 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useApp } from '@/providers/AppProvider';
 import type { AppNotification } from '@/lib/types';
+
+// Standard Expo-recommended foreground behavior (show the OS banner/sound like any other
+// app) — no per-screen suppression or other custom logic layered on top.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const mapNotificationRow = (row: any): AppNotification => ({
   id: row.id,
@@ -29,6 +45,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const userId = currentUser?.id;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const registeredTokenRef = useRef<{ userId: string; token: string } | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -75,6 +92,93 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channel);
     };
   }, [userId]);
+
+  // Android requires a notification channel before any notification can be shown
+  // (platform requirement since API 26) — not app-specific behavior.
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+  }, []);
+
+  // Register/unregister this device's Expo push token for the signed-in user. Uses only
+  // expo-notifications' standard permission + token APIs (no custom pre-permission UI).
+  // Wrapped so a missing platform credential (e.g. no APNs key configured for iOS yet)
+  // just skips registration instead of throwing — the rest of the app keeps working, and
+  // nothing here needs to change once that credential is added later.
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const registerForPushNotifications = async () => {
+      if (!Device.isDevice) {
+        return;
+      }
+
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== 'granted' || cancelled) {
+          return;
+        }
+
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        if (!projectId) {
+          return;
+        }
+
+        const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+        if (cancelled || !token) {
+          return;
+        }
+
+        registeredTokenRef.current = { userId, token };
+        const { error } = await supabase
+          .from('push_tokens')
+          .upsert(
+            { user_id: userId, token, platform: Platform.OS, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,token' }
+          );
+        if (error) {
+          console.error('Error saving push token:', error);
+        }
+      } catch (err) {
+        console.log('Push notification registration skipped:', err);
+      }
+    };
+
+    registerForPushNotifications();
+
+    return () => {
+      cancelled = true;
+      const registered = registeredTokenRef.current;
+      if (registered && registered.userId === userId) {
+        registeredTokenRef.current = null;
+        supabase.from('push_tokens').delete().eq('user_id', registered.userId).eq('token', registered.token);
+      }
+    };
+  }, [userId]);
+
+  // Standard tap-to-open handling — deep-links using the same `route` the in-app list uses.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const route = response.notification.request.content.data?.route as string | undefined;
+      if (route) {
+        router.push(route as never);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   const markAsRead = (id: string) => {
     const target = notifications.find((item) => item.id === id);

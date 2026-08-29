@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { FormField } from '@/components/FormField';
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<Notifications.PermissionStatus | null>(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -53,6 +55,10 @@ export default function SettingsScreen() {
     setBio(currentUser.bio ?? '');
     setCity(currentUser.city ?? '');
   }, [currentUser]);
+
+  useEffect(() => {
+    Notifications.getPermissionsAsync().then(({ status }) => setNotificationPermission(status));
+  }, []);
 
   if (!currentUser) {
     return null;
@@ -301,6 +307,41 @@ export default function SettingsScreen() {
               );
             })}
           </View>
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Notifications</Text>
+          <Pressable
+            onPress={notificationPermission === 'granted' ? undefined : () => Linking.openSettings()}
+            disabled={notificationPermission === 'granted'}
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Icon
+              name={notificationPermission === 'granted' ? 'notifications-outline' : 'notifications-off-outline'}
+              size={20}
+              color={notificationPermission === 'granted' ? colors.status.success.text : colors.muted}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.text, fontWeight: '800' }}>
+                {notificationPermission === 'granted' ? 'Notifications on' : 'Notifications off'}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {notificationPermission === 'granted'
+                  ? "You'll get updates for join requests, approvals, and messages."
+                  : 'Turn on notifications in system settings to get updates for join requests, approvals, and messages.'}
+              </Text>
+            </View>
+            {notificationPermission !== 'granted' ? <Icon name="chevron-forward" size={16} color={colors.muted} /> : null}
+          </Pressable>
         </View>
 
         <View style={{ gap: 12 }}>
