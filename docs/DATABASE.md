@@ -27,6 +27,7 @@ Its companion doc is [`FUNCTIONALITY.md`](./FUNCTIONALITY.md) (app features/flow
 | `008_password_reset_otps.sql` | Added `password_reset_otps` (RLS enabled, zero policies) backing the OTP-based forgot-password flow. |
 | `009_notifications.sql` | Added `notifications` + `push_tokens`, `create_notification()`, triggers on `join_requests`/`messages` that call it, extended `review_verification()` to call it too, and added `notifications` to the `supabase_realtime` publication. See §3.10, §3.11, §4, §5. |
 | `010_push_notifications_webhook.sql` | Scriptable version of a Database Webhook trigger (`send_push_on_notification`) that calls the new `send-push` Edge Function on every `notifications` INSERT. On *this* project, Webhooks had never been provisioned, so running it as raw SQL failed with `schema "supabase_functions" does not exist` — the actual webhook here was created via the Dashboard's **Integrations > Webhooks** instead (moved there from Database in a 2026 dashboard reorg — same name/table/URL, see the file's header comment). The SQL is a no-op-with-notice, not an error, on any project without the schema, so it's still safe to run. See §4, §6. |
+| `011_soft_delete_and_retention.sql` | Replaced hard-delete of `events` with a soft delete (`deleted_at`) plus a bounded retention window; tightened `events_select_all`, `events_delete_creator` (now admin-only), `join_requests_insert_own`/`select_own`, `messages_select_approved`. See §3.2. |
 
 Two now-retired docs (`MIGRATION_UPDATES_MAY2026.md`, `DATABASE_DOCUMENTATION_INDEX.md`) previously duplicated this history in prose — this table supersedes them.
 
@@ -121,21 +122,40 @@ CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT
 | `max_people` | `int`, nullable | — | `NULL` = unlimited |
 | `women_only` | `boolean` | `false` | |
 | `pinned` | `boolean` | `false` | |
+| `deleted_at` | `timestamptz`, nullable | — | added in `011`; set (not `DELETE`d) when a creator cancels a plan — see retention model below |
 | `created_at` / `updated_at` | `timestamptz` | `now()` | `updated_at` trigger-maintained |
 
-**Indexes**: `idx_events_creator`, `idx_events_category`, `idx_events_datetime`, `idx_events_location` (on `area`), `idx_events_geo` (lat/long), `idx_events_search` (`area, date_time DESC, category`).
+**Indexes**: `idx_events_creator`, `idx_events_category`, `idx_events_datetime`, `idx_events_location` (on `area`), `idx_events_geo` (lat/long), `idx_events_search` (`area, date_time DESC, category`), `idx_events_deleted_at` (partial, `WHERE deleted_at IS NOT NULL`, added in `011`).
 
 **RLS**:
 ```sql
-CREATE POLICY "events_select_all" ON public.events FOR SELECT USING (true);
+CREATE POLICY "events_select_all" ON public.events FOR SELECT
+  USING (
+    public.is_admin()
+    OR (deleted_at IS NULL AND date_time >= now() - interval '48 hours')
+  );
 CREATE POLICY "events_insert_authenticated" ON public.events FOR INSERT
   WITH CHECK (auth.role() = 'authenticated' AND creator_id = auth.uid());
 CREATE POLICY "events_update_creator" ON public.events FOR UPDATE
   USING (auth.uid() = creator_id) WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "events_delete_creator" ON public.events FOR DELETE
-  USING (auth.uid() = creator_id);
+CREATE POLICY "events_delete_admin_only" ON public.events FOR DELETE
+  USING (public.is_admin());
 ```
 Note `exact_location` is readable by anyone via `events_select_all` at the DB level — the "private until approved" behavior is enforced only in the app UI (`app/event/[id].tsx`), not by RLS. Worth knowing if you ever build a second client against this DB.
+
+**Soft delete + retention (added in `011`)**: `deleteEvent` (`providers/AppProvider.tsx`) no longer issues a `DELETE` — it `UPDATE`s `deleted_at = now()` (allowed by the existing `events_update_creator` policy, no separate policy needed for that direction). Regular hard `DELETE` is now admin-only, so a plain client-side cancel can never destroy the row. Two independent retention windows, purge is **manual only** (no cron/Edge Function wired up):
+
+- **Manually deleted** (`deleted_at` set): hidden from every non-admin user immediately (same as a hard delete looked before, with no visible trace); admin-queryable until purged; eligible for purge once `deleted_at < now() - interval '72 hours'`.
+- **Naturally completed** (`date_time` passed, never deleted): stays normally visible to all users for 48h after `date_time`, then becomes admin-only visible for a further 72h (120h total); eligible for purge once `date_time < now() - interval '120 hours'`.
+
+Because `join_requests_select_own`/`insert_own` and `messages_select_approved` (§3.3, §3.4) gate visibility through a subquery into `events`, and Postgres RLS subqueries are themselves subject to the referenced table's policies, tightening `events_select_all` alone also cuts off a regular user's visibility into a deleted/expired event's join requests and chat — those tables only needed an added `OR public.is_admin()` so admins retain the full picture (event + requests + chat) during the retention window, for the "investigate a complaint" case.
+
+Purge is manual — run this (as an admin/service role) when ready to actually remove old rows (cascades to `join_requests`/`messages`/`notifications`/`ratings` via their FKs):
+```sql
+DELETE FROM public.events
+WHERE (deleted_at IS NOT NULL AND deleted_at < now() - interval '72 hours')
+   OR (deleted_at IS NULL AND date_time < now() - interval '120 hours');
+```
 
 ---
 
@@ -156,13 +176,21 @@ Note `exact_location` is readable by anyone via `events_select_all` at the DB le
 **RLS**:
 ```sql
 CREATE POLICY "join_requests_select_own" ON public.join_requests FOR SELECT
-  USING (auth.uid() = user_id OR EXISTS(SELECT 1 FROM events WHERE id = event_id AND creator_id = auth.uid()));
+  USING (
+    auth.uid() = user_id
+    OR EXISTS(SELECT 1 FROM events WHERE id = event_id AND creator_id = auth.uid())
+    OR public.is_admin()
+  );
 CREATE POLICY "join_requests_insert_own" ON public.join_requests FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS(SELECT 1 FROM events WHERE id = event_id AND date_time > now())
+  );
 CREATE POLICY "join_requests_update_creator" ON public.join_requests FOR UPDATE
   USING (EXISTS(SELECT 1 FROM events WHERE id = event_id AND creator_id = auth.uid()))
   WITH CHECK (EXISTS(SELECT 1 FROM events WHERE id = event_id AND creator_id = auth.uid()));
 ```
+`insert_own` (added in `011`) blocks new join requests once the event's `date_time` has passed — mirrors the app-level check in `requestToJoin` (`providers/AppProvider.tsx`). `select_own`'s `is_admin()` clause (also `011`) is for the deleted/completed-event retention window — see §3.2.
 
 ---
 
@@ -183,14 +211,18 @@ CREATE POLICY "join_requests_update_creator" ON public.join_requests FOR UPDATE
 **RLS**:
 ```sql
 CREATE POLICY "messages_select_approved" ON public.messages FOR SELECT
-  USING (EXISTS(SELECT 1 FROM events e LEFT JOIN join_requests jr ON e.id = jr.event_id
+  USING (
+    public.is_admin()
+    OR EXISTS(SELECT 1 FROM events e LEFT JOIN join_requests jr ON e.id = jr.event_id
          WHERE e.id = messages.event_id
-         AND (e.creator_id = auth.uid() OR (jr.user_id = auth.uid() AND jr.status = 'approved'))));
+         AND (e.creator_id = auth.uid() OR (jr.user_id = auth.uid() AND jr.status = 'approved')))
+  );
 CREATE POLICY "messages_insert_approved" ON public.messages FOR INSERT
   WITH CHECK (auth.uid() = user_id AND EXISTS(SELECT 1 FROM events e LEFT JOIN join_requests jr ON e.id = jr.event_id
               WHERE e.id = messages.event_id
               AND (e.creator_id = auth.uid() OR (jr.user_id = auth.uid() AND jr.status = 'approved'))));
 ```
+`select_approved`'s `is_admin()` clause (added in `011`) is for the deleted/completed-event retention window — see §3.2.
 
 ---
 

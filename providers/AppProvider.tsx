@@ -728,7 +728,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     (async () => {
-      const { error } = await supabase.from('events').delete().eq('id', eventId);
+      const { error } = await supabase
+        .from('events')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', eventId);
       if (error) {
         console.error('Error deleting event:', error);
         if (previousEvent) {
@@ -769,6 +772,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
         throw new Error('This plan is already full.');
+      }
+
+      if (event && new Date(event.dateTime).getTime() < Date.now()) {
+        throw new Error('This plan has already happened.');
       }
 
       const usage = getUsageSummaryForUser(currentUser);

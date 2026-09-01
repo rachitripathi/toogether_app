@@ -31,6 +31,12 @@ const defaultRegion: MapRegion = {
   longitudeDelta: 0.08,
 };
 
+function getMaxEventDate() {
+  const maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() + 2);
+  return maxDate;
+}
+
 function formatDate(value: Date | null) {
   return value ? value.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Select date';
 }
@@ -125,6 +131,7 @@ export default function CreateEventScreen() {
         value: eventDate ?? new Date(),
         mode: 'date',
         minimumDate: new Date(),
+        maximumDate: getMaxEventDate(),
         onChange: (_event, selectedDate) => {
           if (selectedDate) setEventDate(selectedDate);
         },
@@ -472,6 +479,7 @@ export default function CreateEventScreen() {
                 mode="date"
                 display="spinner"
                 minimumDate={new Date()}
+                maximumDate={getMaxEventDate()}
                 onChange={(_event, selectedDate) => {
                   if (selectedDate) setEventDate(selectedDate);
                 }}
