@@ -120,6 +120,7 @@ export default function ChatScreen() {
 
       <ScrollView
         ref={scrollRef}
+        style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
