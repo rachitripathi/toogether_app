@@ -1,5 +1,6 @@
 import 'react-native-url-polyfill/auto';
-import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Modal, Pressable, Text, View } from 'react-native';
 import 'react-native-reanimated';
@@ -9,6 +10,7 @@ import { NotificationsProvider } from '@/providers/NotificationsProvider';
 import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
 import { GradientButton } from '@/components/GradientButton';
 import { SuccessToast } from '@/components/SuccessToast';
+import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function VerificationPrompt() {
@@ -85,6 +87,27 @@ function VerificationPrompt() {
   );
 }
 
+// Keeps AppProvider's `lastRoute` in sync with wherever the user actually is, so a
+// relaunch that lands back at app/index.tsx (an Android process kill included — the
+// nav stack is gone either way) can restore into that screen instead of always
+// falling back to Home. See the comment on LAST_ROUTE_KEY in AppProvider.tsx.
+function RouteTracker() {
+  const pathname = usePathname();
+  const { currentUser, recordRoute } = useApp();
+
+  useEffect(() => {
+    if (!currentUser) return;
+    recordRoute(pathname);
+  }, [pathname, currentUser]);
+
+  return null;
+}
+
+function SafetyTipsPrompt() {
+  const { shouldShowSafetyTips, dismissSafetyTips } = useApp();
+  return <SafetyTipsSheet visible={shouldShowSafetyTips} onClose={dismissSafetyTips} />;
+}
+
 function ThemedApp() {
   const { colors, scheme } = useTheme();
 
@@ -92,6 +115,7 @@ function ThemedApp() {
     <AuthProvider>
       <AppProvider>
         <NotificationsProvider>
+          <RouteTracker />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.page } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="onboarding" />
@@ -111,6 +135,7 @@ function ThemedApp() {
             <Stack.Screen name="user/[id]" />
           </Stack>
           <VerificationPrompt />
+          <SafetyTipsPrompt />
           <SuccessToast />
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         </NotificationsProvider>

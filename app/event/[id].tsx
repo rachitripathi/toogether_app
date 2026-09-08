@@ -7,6 +7,7 @@ import { FormField } from '@/components/FormField';
 import { GradientButton } from '@/components/GradientButton';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useTheme } from '@/providers/ThemeProvider';
 import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
@@ -86,6 +87,7 @@ export default function EventDetailScreen() {
   const [isJoining, setIsJoining] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showSafetyTips, setShowSafetyTips] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editArea, setEditArea] = useState('');
@@ -313,7 +315,7 @@ export default function EventDetailScreen() {
                     width: 38,
                     height: 38,
                     borderRadius: 19,
-                    backgroundColor: 'rgba(255,80,80,0.15)',
+                    backgroundColor: 'rgba(255,255,255,0.75)',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -488,6 +490,13 @@ export default function EventDetailScreen() {
                   <Icon name="open-outline" size={18} color={colors.skyDark} />
                 </Pressable>
               ) : null}
+              <Pressable
+                onPress={() => setShowSafetyTips(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 4 }}
+              >
+                <Icon name="shield-checkmark-outline" size={16} color={colors.muted} />
+                <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13 }}>Meeting up safely — tips</Text>
+              </Pressable>
             </View>
           ) : (
             <View
@@ -786,6 +795,8 @@ export default function EventDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <SafetyTipsSheet visible={showSafetyTips} onClose={() => setShowSafetyTips(false)} />
     </View>
   );
 }

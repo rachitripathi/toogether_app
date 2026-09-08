@@ -31,7 +31,9 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const systemScheme = useSystemColorScheme();
+  const rawSystemScheme = useSystemColorScheme();
+  const systemScheme: ResolvedScheme | null =
+    rawSystemScheme === 'dark' ? 'dark' : rawSystemScheme === 'light' ? 'light' : null;
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -63,7 +65,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   // to a light-appropriate color that looks wrong once the page itself goes dark.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    NavigationBar.setButtonStyleAsync(scheme === 'dark' ? 'light' : 'dark').catch(() => {});
+    NavigationBar.setStyle(scheme === 'dark' ? 'light' : 'dark');
   }, [scheme]);
 
   const value = useMemo<ThemeContextValue>(

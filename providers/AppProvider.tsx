@@ -77,7 +77,11 @@ type AppContextValue = {
   ratings: Rating[];
   isOnboardingComplete: boolean;
   isAppReady: boolean;
+  lastRoute: string | null;
+  recordRoute: (pathname: string) => void;
   shouldShowVerificationPrompt: boolean;
+  shouldShowSafetyTips: boolean;
+  dismissSafetyTips: () => void;
   successToast: SuccessToast | null;
   showSuccessToast: (title: string, subtitle: string) => void;
   clearSuccessToast: () => void;
@@ -212,6 +216,34 @@ const hydrateEvents = (
 
 const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
 
+// The screen the user was actually looking at, persisted so a relaunch (Android can kill
+// and recreate the process for all sorts of reasons that never touch JS state — e.g. the
+// system backgrounding the app while its Quick Settings panel is open to flip light/dark
+// mode) lands back where the user was instead of always bouncing to Home. app/index.tsx's
+// initial redirect for an already-logged-in, already-onboarded user reads this instead of
+// hardcoding '/(tabs)/home'. Screens that shouldn't ever be "resumed into" — pre-auth
+// flows and one-off modals whose form state is lost anyway — are filtered out below.
+const LAST_ROUTE_KEY = 'last_route';
+const NON_RESTORABLE_ROUTE_PREFIXES = [
+  '/onboarding',
+  '/auth',
+  '/reset-password',
+  '/new-user-profile',
+  '/new-user-verification',
+  '/create-event',
+  '/location-picker',
+  '/paywall',
+];
+const isRestorableRoute = (pathname: string) =>
+  pathname !== '/' && !NON_RESTORABLE_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
+// Shown once, the first time it's actually relevant — either the user creates their
+// first plan (as a host, about to meet whoever joins) or gets approved into someone
+// else's (as a joiner, about to meet the host/other attendees). After that first time,
+// it's only reachable via the small persistent "Safety tips" link on the event screen
+// and the reminder banner in chat — never nagged again automatically.
+const SAFETY_TIPS_SEEN_KEY = 'safety_tips_seen';
+
 const AUTH_TIMEOUT_MS = 15000;
 
 const withAuthTimeout = <T,>(promise: Promise<T>): Promise<T> =>
@@ -251,7 +283,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isOnboardingLoaded, setIsOnboardingLoaded] = useState(false);
+  const [lastRoute, setLastRoute] = useState<string | null>(null);
+  const [isLastRouteLoaded, setIsLastRouteLoaded] = useState(false);
   const [shouldShowVerificationPrompt, setShouldShowVerificationPrompt] = useState(false);
+  const [shouldShowSafetyTips, setShouldShowSafetyTips] = useState(false);
+  // Ref, not state — read synchronously from triggerSafetyTips() so two trigger calls
+  // in quick succession (e.g. creating an event right as an old approval also resolves)
+  // can't both slip through before the AsyncStorage write from the first one lands.
+  const hasSeenSafetyTipsRef = useRef(false);
   const [successToast, setSuccessToast] = useState<SuccessToast | null>(null);
   const showSuccessToast = (title: string, subtitle: string) => setSuccessToast({ title, subtitle });
   const clearSuccessToast = () => setSuccessToast(null);
@@ -262,11 +301,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsOnboardingLoaded(true));
   }, []);
 
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_ROUTE_KEY)
+      .then((value) => setLastRoute(value))
+      .finally(() => setIsLastRouteLoaded(true));
+  }, []);
+
+  const recordRoute = (pathname: string) => {
+    if (!isRestorableRoute(pathname)) return;
+    setLastRoute(pathname);
+    AsyncStorage.setItem(LAST_ROUTE_KEY, pathname).catch(() => {});
+  };
+
+  useEffect(() => {
+    AsyncStorage.getItem(SAFETY_TIPS_SEEN_KEY).then((value) => {
+      if (value === 'true') hasSeenSafetyTipsRef.current = true;
+    });
+  }, []);
+
+  const triggerSafetyTips = () => {
+    if (hasSeenSafetyTipsRef.current) return;
+    hasSeenSafetyTipsRef.current = true;
+    setShouldShowSafetyTips(true);
+    AsyncStorage.setItem(SAFETY_TIPS_SEEN_KEY, 'true').catch(() => {});
+  };
+
+  const dismissSafetyTips = () => setShouldShowSafetyTips(false);
+
   // Onboarding is considered "loaded" once we've read the persisted flag, and the
   // app is "ready" once we also know whether there's a logged-in session — index.tsx
   // waits on this so it never briefly redirects to /auth for an already-logged-in
   // user before the session has had a chance to load.
-  const isAppReady = isOnboardingLoaded && !isAuthLoading;
+  const isAppReady = isOnboardingLoaded && isLastRouteLoaded && !isAuthLoading;
   const [devAppMode, setDevAppMode] = useState<DevAppMode>(getDefaultAppMode);
   const [unlockedAttendeeEventIds, setUnlockedAttendeeEventIds] = useState<string[]>([]);
   const [usageState, setUsageState] = useState<
@@ -308,6 +374,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUsageState({});
   }, [baseUser?.id]);
+
+  // Joiner side of the safety-tips trigger: the moment one of the current user's own
+  // join requests turns 'approved', they know they're about to meet the host/other
+  // attendees in person. Runs regardless of which screen they're on when it happens
+  // (the sheet itself is rendered once, globally, in app/_layout.tsx) — no need to
+  // wire this into every screen that can show a request status.
+  useEffect(() => {
+    if (!currentUser) return;
+    const hasApprovedRequest = requests.some(
+      (request) => request.userId === currentUser.id && request.status === 'approved'
+    );
+    if (hasApprovedRequest) triggerSafetyTips();
+  }, [requests, currentUser?.id]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -469,6 +548,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     markExplicitSignOut();
     await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
+    setLastRoute(null);
+    AsyncStorage.removeItem(LAST_ROUTE_KEY).catch(() => {});
   };
 
   const completeOnboarding = () => {
@@ -681,6 +762,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
       };
     });
+
+    triggerSafetyTips();
 
     return event;
   };
@@ -1257,6 +1340,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ratings,
         isOnboardingComplete,
         isAppReady,
+        lastRoute,
+        recordRoute,
+        shouldShowSafetyTips,
+        dismissSafetyTips,
         shouldShowVerificationPrompt,
         successToast,
         showSuccessToast,

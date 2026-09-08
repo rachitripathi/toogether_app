@@ -6,6 +6,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function formatMessageTime(value: string) {
@@ -24,6 +25,8 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showSafetyBanner, setShowSafetyBanner] = useState(true);
+  const [showSafetyTips, setShowSafetyTips] = useState(false);
   const event = getEventById(id ?? '');
 
   useEffect(() => {
@@ -117,6 +120,33 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </View>
+
+      {canChat && showSafetyBanner ? (
+        <Pressable
+          onPress={() => setShowSafetyTips(true)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            marginHorizontal: 16,
+            marginTop: 12,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 16,
+            backgroundColor: colors.status.info.bg,
+            borderWidth: 1,
+            borderColor: colors.status.info.border,
+          }}
+        >
+          <Icon name="shield-checkmark-outline" size={16} color={colors.status.info.text} />
+          <Text style={{ flex: 1, color: colors.status.info.text, fontSize: 12, fontWeight: '700' }}>
+            Meeting up? Keep it public and don't share personal info here — tap for tips
+          </Text>
+          <Pressable hitSlop={8} onPress={() => setShowSafetyBanner(false)}>
+            <Icon name="close" size={16} color={colors.status.info.text} />
+          </Pressable>
+        </Pressable>
+      ) : null}
 
       <ScrollView
         ref={scrollRef}
@@ -260,6 +290,8 @@ export default function ChatScreen() {
           </View>
         )}
       </View>
+
+      <SafetyTipsSheet visible={showSafetyTips} onClose={() => setShowSafetyTips(false)} />
     </View>
   );
 }

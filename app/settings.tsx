@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Text, View } 
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import * as ImagePicker from 'expo-image-picker';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsType from 'expo-notifications';
 import Constants from 'expo-constants';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { FormField } from '@/components/FormField';
@@ -44,7 +44,9 @@ export default function SettingsScreen() {
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState<Notifications.PermissionStatus | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationsType.PermissionStatus | null>(
+    null
+  );
 
   useEffect(() => {
     if (!currentUser) {
@@ -57,6 +59,12 @@ export default function SettingsScreen() {
   }, [currentUser]);
 
   useEffect(() => {
+    // expo-notifications must not be imported at all in Expo Go on Android — its import-time
+    // push-token auto-registration side effect throws there (removed from Expo Go in SDK 53).
+    if (Constants.appOwnership === 'expo') {
+      return;
+    }
+    const Notifications: typeof NotificationsType = require('expo-notifications');
     Notifications.getPermissionsAsync().then(({ status }) => setNotificationPermission(status));
   }, []);
 

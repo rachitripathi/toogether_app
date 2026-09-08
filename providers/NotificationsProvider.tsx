@@ -2,15 +2,23 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useApp } from '@/providers/AppProvider';
 import type { AppNotification } from '@/lib/types';
 
+// expo-notifications registers a device push-token listener as an import-time side effect
+// (DevicePushTokenAutoRegistration.fx), which throws on Android in Expo Go — remote push was
+// removed from Expo Go in SDK 53. Load the module lazily and only outside Expo Go so merely
+// opening the app in Expo Go doesn't crash; dev/standalone builds get full functionality.
+const isExpoGo = Constants.appOwnership === 'expo';
+const Notifications: typeof import('expo-notifications') | null = isExpoGo
+  ? null
+  : require('expo-notifications');
+
 // Standard Expo-recommended foreground behavior (show the OS banner/sound like any other
 // app) — no per-screen suppression or other custom logic layered on top.
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -96,7 +104,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Android requires a notification channel before any notification can be shown
   // (platform requirement since API 26) — not app-specific behavior.
   useEffect(() => {
-    if (Platform.OS === 'android') {
+    if (Notifications && Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.DEFAULT,
@@ -117,7 +125,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     const registerForPushNotifications = async () => {
-      if (!Device.isDevice) {
+      if (!Notifications || !Device.isDevice) {
         return;
       }
 
@@ -171,6 +179,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   // Standard tap-to-open handling — deep-links using the same `route` the in-app list uses.
   useEffect(() => {
+    if (!Notifications) return;
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const route = response.notification.request.content.data?.route as string | undefined;
       if (route) {

@@ -5,7 +5,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import splashIllustration from '@/assets/images/splash-icon.png';
 
 export default function Index() {
-  const { isAppReady, isOnboardingComplete, currentUser } = useApp();
+  const { isAppReady, isOnboardingComplete, currentUser, lastRoute } = useApp();
   const { colors } = useTheme();
 
   // Wait until we know both whether onboarding was already completed and whether
@@ -31,5 +31,10 @@ export default function Index() {
     return <Redirect href="/auth" />;
   }
 
-  return <Redirect href="/(tabs)/home" />;
+  // A relaunch (including one Android triggers on its own — e.g. process death while
+  // its Quick Settings panel is open to flip light/dark mode — doesn't only clear
+  // JS state, it also throws away the whole navigation stack) always starts back here
+  // at "/". Restoring to the last screen the user was actually on, instead of always
+  // redirecting to Home, is what keeps that from reading as "the app reset itself."
+  return <Redirect href={(lastRoute ?? '/(tabs)/home') as never} />;
 }
