@@ -50,7 +50,7 @@ Safety/trust model by design: a plan's locality + time-of-day are public, but it
 **Event / chat**
 - `app/create-event.tsx` — modal create-plan form, real Supabase insert. Its "pin exact location" row pushes `/location-picker` (see below) rather than opening an in-screen map modal.
 - `app/event/[id].tsx` — event detail; public info vs. private (post-approval) info; host approve/reject; attendee-list unlock (credits).
-- `app/chat/[id].tsx` — per-event chat, gated to host + approved members.
+- `app/chat/[id].tsx` — per-event chat, gated to host + approved members. The composer is pinned to the bottom and lifts itself over the keyboard via `utils/keyboardInset.ts` (`composerBottomInset`) driven by `Keyboard` events, on **both** platforms. It deliberately does not use `KeyboardAvoidingView`, whose padding compounds with this screen's own safe-area padding. Do not "simplify" this back to an iOS-only lift (fixed 2026-09-13, the second time this broke): the manifest still says `windowSoftInputMode="adjustResize"`, but Android runs edge-to-edge (mandatory since SDK 54, `edgeToEdgeEnabled=true`), so the window no longer shrinks for the keyboard and Android needs the lift just as much as iOS. The two platforms need different amounts — Android reports keyboard height *minus* the nav bar and so must add `insets.bottom` back, iOS does not — which is the whole reason the helper exists; see its comment for the source references.
 
 **Profile / people**
 - `app/user/[id].tsx` — another user's public profile (crew request, invite-to-event, mutual plans).

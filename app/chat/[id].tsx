@@ -8,6 +8,7 @@ import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { composerBottomInset } from '@/utils/keyboardInset';
 
 function formatMessageTime(value: string) {
   const date = new Date(value);
@@ -43,7 +44,10 @@ export default function ChatScreen() {
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
     const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
     return () => {
       showSub.remove();
@@ -219,13 +223,11 @@ export default function ChatScreen() {
       <View
         style={{
           paddingHorizontal: 16,
-          // Android's root view already resizes to exclude the keyboard (Expo's default
-          // windowSoftInputMode is "resize"), so the composer is already flush above it
-          // with no help needed — adding keyboardHeight here too would double it up. iOS
-          // never resizes the screen for the keyboard (it's an overlay), so it still
-          // needs the manual boost while the keyboard is visible.
-          paddingBottom:
-            Platform.OS === 'ios' && keyboardHeight > 0 ? keyboardHeight + 12 : Math.max(insets.bottom, 16) + 12,
+          // Both platforms need the manual lift: Android runs edge-to-edge, so its window
+          // does not resize for the keyboard any more (see composerBottomInset), and iOS
+          // never did. Growing this padding shrinks the flex:1 ScrollView above by the
+          // same amount, so the messages stay visible rather than sliding under the IME.
+          paddingBottom: composerBottomInset({ os: Platform.OS, keyboardHeight, bottomInset: insets.bottom }) + 12,
           paddingTop: 10,
         }}
       >
