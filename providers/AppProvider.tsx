@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { markExplicitSignOut } from '@/providers/auth-provider';
 import { supabase } from '@/utils/supabase';
+import { wasRestoredBySystem } from '@/modules/launch-state';
+import { unregisterPushToken } from '@/lib/pushToken';
 import { uploadVerificationDocument } from '@/lib/cloudinary';
 import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
 import { randomUUID } from '@/lib/uuid';
@@ -216,13 +218,15 @@ const hydrateEvents = (
 
 const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
 
-// The screen the user was actually looking at, persisted so a relaunch (Android can kill
-// and recreate the process for all sorts of reasons that never touch JS state — e.g. the
-// system backgrounding the app while its Quick Settings panel is open to flip light/dark
-// mode) lands back where the user was instead of always bouncing to Home. app/index.tsx's
-// initial redirect for an already-logged-in, already-onboarded user reads this instead of
-// hardcoding '/(tabs)/home'. Screens that shouldn't ever be "resumed into" — pre-auth
-// flows and one-off modals whose form state is lost anyway — are filtered out below.
+// The screen the user was actually looking at, persisted so that when Android reclaims the
+// process in the background (e.g. while its Quick Settings panel is open to flip light/dark
+// mode) and the user comes back to the app from recents, it lands back where they were
+// instead of bouncing to Home. It is only honoured for that system-initiated relaunch
+// (wasRestoredBySystem, modules/launch-state): a launch after the user swiped the app out of
+// recents is a deliberate fresh start and goes to Home, like a first launch. app/index.tsx's
+// initial redirect for an already-logged-in, already-onboarded user reads this. Screens that
+// shouldn't ever be "resumed into" — pre-auth flows and one-off modals whose form state is
+// lost anyway — are filtered out below.
 const LAST_ROUTE_KEY = 'last_route';
 const NON_RESTORABLE_ROUTE_PREFIXES = [
   '/onboarding',
@@ -303,7 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(LAST_ROUTE_KEY)
-      .then((value) => setLastRoute(value))
+      .then((value) => setLastRoute(wasRestoredBySystem() ? value : null))
       .finally(() => setIsLastRouteLoaded(true));
   }, []);
 
@@ -545,6 +549,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    // Before signOut: the push_tokens delete needs the still-valid session (see lib/pushToken.ts).
+    await unregisterPushToken();
     markExplicitSignOut();
     await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);

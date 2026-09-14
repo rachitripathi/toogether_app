@@ -87,10 +87,10 @@ function VerificationPrompt() {
   );
 }
 
-// Keeps AppProvider's `lastRoute` in sync with wherever the user actually is, so a
-// relaunch that lands back at app/index.tsx (an Android process kill included — the
-// nav stack is gone either way) can restore into that screen instead of always
-// falling back to Home. See the comment on LAST_ROUTE_KEY in AppProvider.tsx.
+// Keeps AppProvider's `lastRoute` in sync with wherever the user actually is, so that
+// if Android reclaims the process in the background and the user returns from recents,
+// app/index.tsx can restore into that screen. Swiping the app away still starts on
+// Home. See the comment on LAST_ROUTE_KEY in AppProvider.tsx.
 function RouteTracker() {
   const pathname = usePathname();
   const { currentUser, recordRoute } = useApp();

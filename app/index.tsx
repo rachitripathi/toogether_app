@@ -31,10 +31,9 @@ export default function Index() {
     return <Redirect href="/auth" />;
   }
 
-  // A relaunch (including one Android triggers on its own — e.g. process death while
-  // its Quick Settings panel is open to flip light/dark mode — doesn't only clear
-  // JS state, it also throws away the whole navigation stack) always starts back here
-  // at "/". Restoring to the last screen the user was actually on, instead of always
-  // redirecting to Home, is what keeps that from reading as "the app reset itself."
+  // Every cold start lands here at "/" with the navigation stack gone. If Android
+  // reclaimed the process in the background and the user came back from recents,
+  // lastRoute is their last screen, so the app doesn't read as "reset itself." After a
+  // swipe out of recents (or on iOS / Expo Go) it is null, and the user starts on Home.
   return <Redirect href={(lastRoute ?? '/(tabs)/home') as never} />;
 }

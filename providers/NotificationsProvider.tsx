@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useApp } from '@/providers/AppProvider';
+import { setRegisteredPushToken } from '@/lib/pushToken';
 import type { AppNotification } from '@/lib/types';
 
 // expo-notifications registers a device push-token listener as an import-time side effect
@@ -53,7 +54,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const userId = currentUser?.id;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const registeredTokenRef = useRef<{ userId: string; token: string } | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -150,7 +150,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        registeredTokenRef.current = { userId, token };
+        // Dev builds only: the token alone is enough to send pushes to this device, so keep it
+        // out of release logs. Paste it into https://expo.dev/notifications to test delivery.
+        if (__DEV__) {
+          console.log('[push] Expo push token:', token);
+        }
+
+        setRegisteredPushToken({ userId, token });
         const { error } = await supabase
           .from('push_tokens')
           .upsert(
@@ -167,13 +173,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     registerForPushNotifications();
 
+    // Removing the token isn't done here: by the time userId goes null the session is already
+    // gone and the delete would be refused by RLS. AppProvider.logout() calls
+    // unregisterPushToken() before signing out instead.
     return () => {
       cancelled = true;
-      const registered = registeredTokenRef.current;
-      if (registered && registered.userId === userId) {
-        registeredTokenRef.current = null;
-        supabase.from('push_tokens').delete().eq('user_id', registered.userId).eq('token', registered.token);
-      }
     };
   }, [userId]);
 

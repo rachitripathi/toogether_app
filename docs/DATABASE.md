@@ -383,7 +383,7 @@ No INSERT/DELETE policy for any client role — rows are written only by `create
 
 ### 3.11 `public.push_tokens` (added in 009)
 
-Expo push tokens per device. Populated by `providers/NotificationsProvider.tsx` on login (owner upserts its own row) and read by the `send-push` Edge Function (§6, added in 010) via a service-role client to relay a push.
+Expo push tokens per device. Populated by `providers/NotificationsProvider.tsx` on login (owner upserts its own row), removed by `AppProvider.logout()` via `lib/pushToken.ts` while the session is still valid (the delete policy needs `auth.uid()`, so it must run before `signOut()`), and read by the `send-push` Edge Function (§6, added in 010) via a service-role client to relay a push.
 
 | Column | Type | Default | Notes |
 |---|---|---|---|
