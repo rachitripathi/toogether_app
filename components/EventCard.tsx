@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useApp } from '@/providers/AppProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import type { Event } from '@/lib/types';
-import { categoryFontFamily, categoryVisuals } from '@/lib/categoryVisuals';
+import { categoryFontFamily, categoryFontWeight, categoryVisuals } from '@/lib/categoryVisuals';
 import { AvatarBubble } from './AvatarBubble';
 import { PinMark } from './PinMark';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -124,11 +124,11 @@ export function EventCard({ event }: EventCardProps) {
               gap: 6,
             }}
           >
-            <Text style={{ color: theme.chipText, fontSize: 12, fontWeight: '800', fontFamily: categoryFontFamily }}>
+            <Text style={{ color: theme.chipText, fontSize: 12, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>
               {config.label}
             </Text>
             {event.womenOnly ? (
-              <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: '800', fontFamily: categoryFontFamily }}>Women only</Text>
+              <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>Women only</Text>
             ) : null}
           </View>
 
@@ -147,7 +147,7 @@ export function EventCard({ event }: EventCardProps) {
                 paddingVertical: 6,
               }}
             >
-              <Text style={{ color: theme.title, fontSize: 11, fontWeight: '800', fontFamily: categoryFontFamily }}>
+              <Text style={{ color: theme.title, fontSize: 11, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>
                 {spotsLeft} spots left
               </Text>
             </View>
@@ -155,19 +155,19 @@ export function EventCard({ event }: EventCardProps) {
         </View>
 
         <View style={{ width: '68%', gap: 8 }}>
-          <Text style={{ color: theme.title, fontSize: 23, fontWeight: '900', lineHeight: 28, fontFamily: categoryFontFamily }}>
+          <Text style={{ color: theme.title, fontSize: 23, fontWeight: categoryFontWeight('900'), lineHeight: 28, fontFamily: categoryFontFamily }}>
             {event.title}
           </Text>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon name="calendar-outline" size={14} color={theme.meta} />
-              <Text style={{ color: theme.meta, fontWeight: '800', fontFamily: categoryFontFamily }}>
+              <Text style={{ color: theme.meta, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>
                 {dateLabel} · {event.timeSlot}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon name="location-outline" size={14} color={theme.meta} />
-              <Text style={{ color: theme.meta, fontWeight: '800', fontFamily: categoryFontFamily }}>{event.area}, Guwahati</Text>
+              <Text style={{ color: theme.meta, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>{event.area}, Guwahati</Text>
             </View>
           </View>
         </View>
@@ -187,13 +187,13 @@ export function EventCard({ event }: EventCardProps) {
             {creator ? <AvatarBubble user={creator} size={30} /> : null}
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={{ color: theme.title, fontWeight: '900', fontFamily: categoryFontFamily }}>
+                <Text style={{ color: theme.title, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>
                   {isCreator ? 'You' : creator?.name.split(' ')[0]}
                 </Text>
                 {creator?.verified ? <VerifiedBadge size={14} /> : null}
               </View>
               {creator ? (
-                <Text style={{ color: theme.meta, fontSize: 11, fontWeight: '700', fontFamily: categoryFontFamily }}>
+                <Text style={{ color: theme.meta, fontSize: 11, fontWeight: categoryFontWeight('700'), fontFamily: categoryFontFamily }}>
                   {creator.age} · {averageRating ? `${averageRating.toFixed(1)}★ karma` : 'New'}
                 </Text>
               ) : null}
@@ -215,7 +215,7 @@ export function EventCard({ event }: EventCardProps) {
               elevation: requestStatus === 'rejected' || isFull ? 1 : 3,
             }}
           >
-            <Text style={{ color: actionTextColor, fontWeight: '900', fontSize: 12, fontFamily: categoryFontFamily }}>
+            <Text style={{ color: actionTextColor, fontWeight: categoryFontWeight('900'), fontSize: 12, fontFamily: categoryFontFamily }}>
               {actionLabel}
             </Text>
           </Pressable>

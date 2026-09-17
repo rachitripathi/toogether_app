@@ -1,4 +1,4 @@
-import { Platform, type ImageSourcePropType } from 'react-native';
+import { Platform, type ImageSourcePropType, type TextStyle } from 'react-native';
 import type { EventCategory } from '@/lib/types';
 
 export type CategoryVisualTheme = {
@@ -17,6 +17,13 @@ export const categoryFontFamily = Platform.select({
   android: 'sans-serif-medium',
   default: 'System',
 });
+
+// iOS can't resolve `fontFamily: 'AvenirNext-DemiBold'` (a fixed font face, not a
+// weight-variable family) when a numeric `fontWeight` is also set on the same text style —
+// it silently falls back to the bold system font instead. Android/web resolve fontWeight
+// against their generic family names fine, so only iOS needs the weight dropped.
+export const categoryFontWeight = (weight: TextStyle['fontWeight']): TextStyle['fontWeight'] =>
+  Platform.OS === 'ios' ? undefined : weight;
 
 export const categoryVisuals: Record<EventCategory, CategoryVisualTheme> = {
   movies: {

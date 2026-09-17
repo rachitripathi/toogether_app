@@ -12,7 +12,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans.",
         "NSCameraUsageDescription": "Toogether uses your camera to capture your ID and a selfie during account verification."
-      }
+      },
+      "bundleIdentifier": "com.toogether.app"
     },
     "android": {
       "package": "com.toogether.app",
@@ -62,7 +63,8 @@
           "locationWhenInUsePermission": "Toogether uses your location to help you pin exact meeting spots for plans."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "./plugins/withIosSceneDelegate"
     ],
     "experiments": {
       "typedRoutes": true,
