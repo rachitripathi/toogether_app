@@ -5,5 +5,33 @@
     "source.sortMembers": "explicit"
   },
   "deno.enablePaths": ["supabase/functions"],
-  "deno.lint": true
+  "deno.lint": true,
+
+  // --- Gradle: stop the extension configuring node_modules as root projects ---
+  // The repo root has no build.gradle/settings.gradle (they are in android/), so
+  // vscode-gradle falls back to a `**/{build.gradle,...}` scan. That scan honours
+  // only `files.exclude`, whose default does not cover node_modules -- so it found
+  // 45 RN/Expo module build.gradle files and looped on "Plugin 'com.android.library'
+  // was not found". Excluding node_modules here stops the discovery at the source.
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "gradle.autoDetect": "off",
+  "gradle.nestedProjects": false,
+
+  // --- Reduce file-watching / search load on this tree (53k files) ---
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/android/build/**": true,
+    "**/android/.gradle/**": true,
+    "**/android/app/build/**": true,
+    "**/.expo/**": true,
+    "**/.git/objects/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/android/build": true,
+    "**/android/.gradle": true,
+    "**/.expo": true
+  }
 }

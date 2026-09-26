@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "602589410492",
+    "project_id": "together-25cdb",
+    "storage_bucket": "together-25cdb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:602589410492:android:6459477e952be8248d0cb9",
+        "android_client_info": {
+          "package_name": "com.toogether.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnbPFeMfN3Mk9MMJVKFcNK4LybUZ6rr9k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
