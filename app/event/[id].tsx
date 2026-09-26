@@ -9,7 +9,7 @@ import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useTheme } from '@/providers/ThemeProvider';
-import { categoryFontFamily, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
+import { categoryFontFamily, categoryFontWeight, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -66,7 +66,7 @@ function ThemedActionButton({
         elevation: 4,
       }}
     >
-      <Text style={{ color: visual.buttonText, fontSize: 16, fontWeight: '900', fontFamily: categoryFontFamily }}>
+      <Text style={{ color: visual.buttonText, fontSize: 16, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>
         {label}
       </Text>
     </Pressable>
@@ -339,7 +339,7 @@ export default function EventDetailScreen() {
                   elevation: 3,
                 }}
               >
-                <Text style={{ color: visual.buttonText, fontWeight: '900', fontFamily: categoryFontFamily }}>Open Chat</Text>
+                <Text style={{ color: visual.buttonText, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>Open Chat</Text>
               </Pressable>
             ) : null}
           </View>
@@ -360,13 +360,13 @@ export default function EventDetailScreen() {
                   gap: 6,
                 }}
               >
-                <Text style={{ color: visual.chipText, fontSize: 12, fontWeight: '800', fontFamily: categoryFontFamily }}>{config.label}</Text>
+                <Text style={{ color: visual.chipText, fontSize: 12, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>{config.label}</Text>
                 {event.womenOnly ? (
                   <Text style={{ color: '#BE185D', fontSize: 12, fontWeight: '700' }}>Women only</Text>
                 ) : null}
               </View>
             </Animated.View>
-            <Animated.Text style={{ fontSize: titleFontSize, fontWeight: '900', color: visual.title, fontFamily: categoryFontFamily }}>{event.title}</Animated.Text>
+            <Animated.Text style={{ fontSize: titleFontSize, fontWeight: categoryFontWeight('900'), color: visual.title, fontFamily: categoryFontFamily }}>{event.title}</Animated.Text>
             <View
               style={{
                 alignSelf: 'flex-start',
@@ -381,7 +381,7 @@ export default function EventDetailScreen() {
                 elevation: 2,
               }}
             >
-              <Text style={{ color: statusTone.text, fontSize: 12, fontWeight: '900', fontFamily: categoryFontFamily }}>{statusTone.label}</Text>
+              <Text style={{ color: statusTone.text, fontSize: 12, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>{statusTone.label}</Text>
             </View>
           </View>
         </View>
