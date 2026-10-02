@@ -6,15 +6,18 @@ import { useApp } from '@/providers/AppProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import type { Event } from '@/lib/types';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals } from '@/lib/categoryVisuals';
+import { formatDistance } from '@/lib/geo';
 import { AvatarBubble } from './AvatarBubble';
 import { PinMark } from './PinMark';
 import { VerifiedBadge } from './VerifiedBadge';
 
 type EventCardProps = {
   event: Event;
+  // From the viewer's chosen Home location; null/omitted when either side has no coordinates.
+  distanceKm?: number | null;
 };
 
-export function EventCard({ event }: EventCardProps) {
+export function EventCard({ event, distanceKm }: EventCardProps) {
   const {
     currentUser,
     getRequestStatus,
@@ -167,7 +170,9 @@ export function EventCard({ event }: EventCardProps) {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon name="location-outline" size={14} color={theme.meta} />
-              <Text style={{ color: theme.meta, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>{event.area}, Guwahati</Text>
+              <Text numberOfLines={1} style={{ color: theme.meta, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily, flexShrink: 1 }}>
+                {event.area}, Guwahati{distanceKm != null ? ` · ${formatDistance(distanceKm)}` : ''}
+              </Text>
             </View>
           </View>
         </View>

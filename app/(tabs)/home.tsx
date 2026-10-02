@@ -15,7 +15,8 @@ import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleto
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
-import { hasEventStarted } from '@/lib/eventTime';
+import { TIME_BUCKETS, getTimeBucket, hasEventStarted } from '@/lib/eventTime';
+import { distanceKm } from '@/lib/geo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const HOME_LOCATION_KEY = 'home_location';
@@ -192,6 +193,35 @@ export default function HomeScreen() {
       !event.womenOnly || currentUser?.gender === 'woman' || event.creatorId === currentUser?.id;
     return matchesCategory && matchesSearch && matchesVisibility;
   });
+
+  // Feed order, the way event apps usually rank spontaneous plans: *when* first, then
+  // *where*. Plans are grouped into Today / Tomorrow / This week / Later, and each group is
+  // nearest-first from the location in the header pill — so a plan 3 km away tonight never
+  // gets buried under one 1 km away next month. Every plan is still shown; distance only
+  // orders. Plans without a map pin (optional when creating) have no distance and sit at the
+  // end of their group; ties, and everything when no location is set, go soonest first.
+  // Distances are computed once per event, not per comparison.
+  const ranked = filtered
+    .map((event) => ({
+      event,
+      distance:
+        locationCoordinate && event.latitude != null && event.longitude != null
+          ? distanceKm(locationCoordinate, { latitude: event.latitude, longitude: event.longitude })
+          : null,
+      startsAt: new Date(event.dateTime).getTime(),
+    }))
+    .sort((a, b) => {
+      if (a.distance !== b.distance) {
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      }
+      return a.startsAt - b.startsAt;
+    });
+  const sections = TIME_BUCKETS.map((bucket) => ({
+    title: bucket,
+    items: ranked.filter((item) => getTimeBucket(item.startsAt, now) === bucket),
+  })).filter((section) => section.items.length);
 
   const pinnedCount = filtered.filter((event) => event.pinned).length;
   const usage = getUsageSummary();
@@ -374,7 +404,9 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
               <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '500', flex: 1 }}>
                 {activeCategory === 'all'
-                  ? 'Best nearby options right now.'
+                  ? locationCoordinate
+                    ? `Closest to ${locationLabel ?? 'you'} first.`
+                    : 'Set your location to see what’s closest.'
                   : `Showing ${categories.find((item) => item.id === activeCategory)?.label?.toLowerCase()} plans.`}
               </Text>
               {pinnedCount ? <PinMark size={14} /> : null}
@@ -411,7 +443,17 @@ export default function HomeScreen() {
                 <EventCardSkeleton />
               </>
             ) : filtered.length ? (
-              filtered.map((event) => <EventCard key={event.id} event={event} />)
+              sections.map((section) => (
+                <View key={section.title} style={{ gap: 16 }}>
+                  {/* A lone "Today"/"Later" heading adds nothing — only label days once there's more than one. */}
+                  {sections.length > 1 ? (
+                    <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800', marginTop: 4 }}>{section.title}</Text>
+                  ) : null}
+                  {section.items.map(({ event, distance }) => (
+                    <EventCard key={event.id} event={event} distanceKm={distance} />
+                  ))}
+                </View>
+              ))
             ) : (
               <View
                 style={{
