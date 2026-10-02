@@ -28,6 +28,7 @@ Its companion doc is [`FUNCTIONALITY.md`](./FUNCTIONALITY.md) (app features/flow
 | `009_notifications.sql` | Added `notifications` + `push_tokens`, `create_notification()`, triggers on `join_requests`/`messages` that call it, extended `review_verification()` to call it too, and added `notifications` to the `supabase_realtime` publication. See §3.10, §3.11, §4, §5. |
 | `010_push_notifications_webhook.sql` | Scriptable version of a Database Webhook trigger (`send_push_on_notification`) that calls the new `send-push` Edge Function on every `notifications` INSERT. On *this* project, Webhooks had never been provisioned, so running it as raw SQL failed with `schema "supabase_functions" does not exist` — the actual webhook here was created via the Dashboard's **Integrations > Webhooks** instead (moved there from Database in a 2026 dashboard reorg — same name/table/URL, see the file's header comment). The SQL is a no-op-with-notice, not an error, on any project without the schema, so it's still safe to run. See §4, §6. |
 | `011_soft_delete_and_retention.sql` | Replaced hard-delete of `events` with a soft delete (`deleted_at`) plus a bounded retention window; tightened `events_select_all`, `events_delete_creator` (now admin-only), `join_requests_insert_own`/`select_own`, `messages_select_approved`. See §3.2. |
+| `012_enable_feed_realtime.sql` | Added `join_requests` and `events` to the `supabase_realtime` publication, for AppProvider's `feed-realtime` channel (live join requests/approvals and feed updates). See §5. |
 
 Two now-retired docs (`MIGRATION_UPDATES_MAY2026.md`, `DATABASE_DOCUMENTATION_INDEX.md`) previously duplicated this history in prose — this table supersedes them.
 
@@ -206,7 +207,7 @@ CREATE POLICY "join_requests_update_creator" ON public.join_requests FOR UPDATE
 
 **Indexes**: `idx_messages_event`, `idx_messages_user`, `idx_messages_created_at`, `idx_messages_recent` (`event_id, created_at DESC`).
 
-**Realtime**: added to the `supabase_realtime` publication (migration 005) — the only table in the app with live `postgres_changes` streaming enabled.
+**Realtime**: added to the `supabase_realtime` publication (migration 005). See §5 for the other streamed tables.
 
 **RLS**:
 ```sql
@@ -424,7 +425,7 @@ Fully owner-managed — a device registers and can remove its own token, nothing
 
 ## 5. Realtime
 
-`public.messages` (migration 005) and `public.notifications` (migration 009) are in the `supabase_realtime` publication. No other table streams `postgres_changes` — notably `profiles` still does not, so a `verification_status` change made by an admin doesn't push live via a `profiles` subscription; the `notifications` row `review_verification()` now writes is how the client actually learns about it live instead (see `FUNCTIONALITY.md` §9).
+`public.messages` (migration 005), `public.notifications` (migration 009), and `public.join_requests` + `public.events` (migration 012) are in the `supabase_realtime` publication. Realtime filters every change through the table's SELECT RLS per subscriber, so a join request only reaches its requester and the event's host. A soft-delete (`deleted_at` set) makes the row invisible under `events_select_all`, so that UPDATE usually isn't delivered at all; the client's foreground resync drops such rows instead. No other table streams `postgres_changes` — notably `profiles` still does not, so a `verification_status` change made by an admin doesn't push live via a `profiles` subscription; the `notifications` row `review_verification()` now writes is how the client actually learns about it live instead (see `FUNCTIONALITY.md` §9).
 
 ---
 

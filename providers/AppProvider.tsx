@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthContext } from '@/hooks/use-auth-context';
 import { markExplicitSignOut } from '@/providers/auth-provider';
@@ -156,7 +157,10 @@ const mapProfileRowToUser = (row: any): User => ({
   verificationRejectionReason: row.verification_rejection_reason ?? undefined,
 });
 
-const mapEventRow = (row: any): Omit<Event, 'approvedUserIds' | 'requestUserIds'> => ({
+// An event as stored — attendee/request id lists are derived from `requests`, never stored.
+type EventRow = Omit<Event, 'approvedUserIds' | 'requestUserIds'>;
+
+const mapEventRow = (row: any): EventRow => ({
   id: row.id,
   title: row.title,
   description: row.description ?? '',
@@ -202,19 +206,37 @@ const groupMessagesByEvent = (rows: Message[]): Record<string, Message[]> => {
   return grouped;
 };
 
-const hydrateEvents = (
-  rawEvents: Omit<Event, 'approvedUserIds' | 'requestUserIds'>[],
-  rawRequests: JoinRequest[]
-): Event[] =>
-  rawEvents.map((event) => ({
-    ...event,
-    approvedUserIds: rawRequests
-      .filter((request) => request.eventId === event.id && request.status === 'approved')
-      .map((request) => request.userId),
-    requestUserIds: rawRequests
-      .filter((request) => request.eventId === event.id && request.status === 'pending')
-      .map((request) => request.userId),
-  }));
+// Single pass over requests (O(events + requests)) instead of filtering the whole request
+// list once per event.
+const hydrateEvents = (rawEvents: EventRow[], rawRequests: JoinRequest[]): Event[] => {
+  const byEvent = new Map<string, { approved: string[]; pending: string[] }>();
+  for (const request of rawRequests) {
+    if (request.status === 'rejected') continue;
+    let bucket = byEvent.get(request.eventId);
+    if (!bucket) {
+      bucket = { approved: [], pending: [] };
+      byEvent.set(request.eventId, bucket);
+    }
+    (request.status === 'approved' ? bucket.approved : bucket.pending).push(request.userId);
+  }
+  return rawEvents.map((event) => {
+    const bucket = byEvent.get(event.id);
+    return { ...event, approvedUserIds: bucket?.approved ?? [], requestUserIds: bucket?.pending ?? [] };
+  });
+};
+
+// Insert-or-replace by id, keeping list order (new items go to the front/back as asked).
+const upsertById = <T extends { id: string }>(list: T[], item: T, prepend = false): T[] => {
+  const index = list.findIndex((existing) => existing.id === item.id);
+  if (index === -1) return prepend ? [item, ...list] : [...list, item];
+  const next = [...list];
+  next[index] = item;
+  return next;
+};
+
+// Don't re-sync on every brief background→foreground flip (e.g. a quick app switch);
+// a resume after this long is worth a fresh fetch.
+const RESUME_SYNC_MIN_INTERVAL_MS = 5000;
 
 const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
 
@@ -262,11 +284,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { profile, isLoggedIn, isLoading: isAuthLoading, refreshProfile } = useAuthContext();
 
   const [users, setUsers] = useState<User[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
+  // Events and join requests are stored once each; every event's approvedUserIds /
+  // requestUserIds is derived from `requests` below, so a request change (local mutation,
+  // realtime push, or resync) can never leave the two out of step.
+  const [rawEvents, setRawEvents] = useState<EventRow[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const events = useMemo(() => hydrateEvents(rawEvents, requests), [rawEvents, requests]);
   const pendingJoinEventIds = useRef<Set<string>>(new Set());
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [refreshFeedToken, setRefreshFeedToken] = useState(0);
+  // Profile ids already loaded or currently being fetched — keeps ensureUsers() from
+  // re-requesting the same profile for every realtime event that mentions it.
+  const knownUserIds = useRef<Set<string>>(new Set());
+  // Monotonic id so an older, slower events/requests fetch can't overwrite a newer one.
+  const eventsSyncSeq = useRef(0);
+  const lastEventsSyncAt = useRef(0);
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
     {
       id: 'c1',
@@ -392,6 +424,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (hasApprovedRequest) triggerSafetyTips();
   }, [requests, currentUser?.id]);
 
+  // Loads any profiles we don't have yet. The full profile list is only fetched at login,
+  // so someone who signs up afterwards and then requests to join (or creates a plan)
+  // would otherwise be unknown here — and the event screen skips rows it can't resolve
+  // to a user, which made fresh join requests invisible until a manual refresh.
+  const ensureUsers = async (ids: Iterable<string>) => {
+    const missing = [...new Set(ids)].filter((id) => !knownUserIds.current.has(id));
+    if (!missing.length) return;
+    missing.forEach((id) => knownUserIds.current.add(id));
+
+    const { data, error } = await supabase.from('profiles').select('*').in('id', missing);
+    if (error || !data) {
+      if (error) console.error('Error fetching profiles:', error);
+      missing.forEach((id) => knownUserIds.current.delete(id)); // allow a later retry
+      return;
+    }
+    const fetched = data.map(mapProfileRowToUser);
+    setUsers((prev) => fetched.reduce((list, user) => upsertById(list, user), prev));
+  };
+
+  // Fetches events + join requests together. Used for the initial load, pull-to-refresh,
+  // and every return to the foreground: realtime (below) can't deliver anything while the
+  // app is backgrounded/its socket is down, so a resume — e.g. tapping a "wants to join"
+  // push — must re-read the source of truth rather than trust in-memory state.
+  const syncEventsAndRequests = async () => {
+    const seq = ++eventsSyncSeq.current;
+    lastEventsSyncAt.current = Date.now();
+    setIsLoadingEvents(true);
+    const [eventsRes, requestsRes] = await Promise.all([
+      supabase.from('events').select('*').order('created_at', { ascending: false }),
+      supabase.from('join_requests').select('*'),
+    ]);
+
+    if (seq !== eventsSyncSeq.current) {
+      return []; // superseded by a newer sync (or logout)
+    }
+
+    if (!eventsRes.error && !requestsRes.error && eventsRes.data && requestsRes.data) {
+      const mappedRequests = requestsRes.data.map(mapRequestRow);
+      const mappedEvents = eventsRes.data.map(mapEventRow);
+      setRequests(mappedRequests);
+      setRawEvents(mappedEvents);
+      setIsLoadingEvents(false);
+      // Profile ids this data references, for the caller to pass to ensureUsers().
+      return [...mappedRequests.map((r) => r.userId), ...mappedEvents.map((e) => e.creatorId)];
+    }
+    if (eventsRes.error) console.error('Error fetching events:', eventsRes.error);
+    if (requestsRes.error) console.error('Error fetching join requests:', requestsRes.error);
+    setIsLoadingEvents(false);
+    return [];
+  };
+
   useEffect(() => {
     if (!isLoggedIn) {
       return;
@@ -402,7 +485,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const fetchUsers = async () => {
       const { data, error } = await supabase.from('profiles').select('*');
       if (!cancelled && !error && data) {
-        setUsers(data.map(mapProfileRowToUser));
+        const mapped = data.map(mapProfileRowToUser);
+        mapped.forEach((user) => knownUserIds.current.add(user.id));
+        setUsers(mapped);
       }
     };
 
@@ -415,38 +500,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const fetchEventsAndRequests = async () => {
-      setIsLoadingEvents(true);
-      const [eventsRes, requestsRes] = await Promise.all([
-        supabase.from('events').select('*').order('created_at', { ascending: false }),
-        supabase.from('join_requests').select('*'),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (!eventsRes.error && !requestsRes.error && eventsRes.data && requestsRes.data) {
-        const mappedRequests = requestsRes.data.map(mapRequestRow);
-        setRequests(mappedRequests);
-        setEvents(hydrateEvents(eventsRes.data.map(mapEventRow), mappedRequests));
-      } else {
-        if (eventsRes.error) console.error('Error fetching events:', eventsRes.error);
-        if (requestsRes.error) console.error('Error fetching join requests:', requestsRes.error);
-      }
-      setIsLoadingEvents(false);
-    };
-
-    fetchUsers();
-    fetchEventsAndRequests();
     fetchMessages();
+    // Resolve profiles only after the full list lands, so the initial load doesn't
+    // re-fetch profiles that fetchUsers() is already bringing in.
+    Promise.all([fetchUsers(), syncEventsAndRequests()]).then(([, referencedUserIds]) => {
+      if (!cancelled) ensureUsers(referencedUserIds);
+    });
 
     return () => {
       cancelled = true;
+      eventsSyncSeq.current++; // drop any in-flight events/requests response
     };
   }, [isLoggedIn, refreshFeedToken]);
 
   const refreshFeed = () => setRefreshFeedToken((token) => token + 1);
+
+  // Resync on return to the foreground (see syncEventsAndRequests for why).
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const resumed = previousState !== 'active' && nextState === 'active';
+      previousState = nextState;
+      if (resumed && Date.now() - lastEventsSyncAt.current > RESUME_SYNC_MIN_INTERVAL_MS) {
+        syncEventsAndRequests().then(ensureUsers);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isLoggedIn]);
+
+  // Live join-request and event changes while the app is open, so a host sees a new
+  // request (and a requester sees approve/reject) without refreshing. Rows arrive filtered
+  // by each table's SELECT RLS policy, so this only ever delivers what the user could
+  // fetch anyway. Requires migration 012 (adds both tables to supabase_realtime).
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    const channel = supabase
+      .channel('feed-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'join_requests' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = (payload.old as { id?: string }).id;
+          if (removedId) setRequests((prev) => prev.filter((request) => request.id !== removedId));
+          return;
+        }
+        const request = mapRequestRow(payload.new);
+        setRequests((prev) => upsertById(prev, request));
+        ensureUsers([request.userId]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = (payload.old as { id?: string }).id;
+          if (removedId) setRawEvents((prev) => prev.filter((event) => event.id !== removedId));
+          return;
+        }
+        const row = payload.new as { deleted_at?: string | null };
+        const event = mapEventRow(payload.new);
+        if (row.deleted_at) {
+          setRawEvents((prev) => prev.filter((item) => item.id !== event.id));
+          return;
+        }
+        setRawEvents((prev) => upsertById(prev, event, true));
+        ensureUsers([event.creatorId]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -758,7 +886,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw new Error(error.message);
     }
 
-    setEvents((prev) => [event, ...prev]);
+    setRawEvents((prev) => upsertById(prev, event, true));
     updateCurrentUserUsage((user) => {
       const shouldSpendCredit = usage.monetisationEnabled && (user.plansCreatedThisMonth ?? 0) >= FREE_CREATE_LIMIT;
       return {
@@ -778,8 +906,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     eventId: string,
     data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
   ) => {
-    const previous = events.find((event) => event.id === eventId);
-    setEvents((prev) => prev.map((event) => (event.id === eventId ? { ...event, ...data } : event)));
+    const previous = rawEvents.find((event) => event.id === eventId);
+    setRawEvents((prev) => prev.map((event) => (event.id === eventId ? { ...event, ...data } : event)));
 
     (async () => {
       const { error } = await supabase
@@ -798,17 +926,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error('Error updating event:', error);
         if (previous) {
-          setEvents((prev) => prev.map((event) => (event.id === eventId ? previous : event)));
+          setRawEvents((prev) => prev.map((event) => (event.id === eventId ? previous : event)));
         }
       }
     })();
   };
 
   const deleteEvent = (eventId: string) => {
-    const previousEvent = events.find((event) => event.id === eventId);
+    const previousEvent = rawEvents.find((event) => event.id === eventId);
+    const previousRequests = requests.filter((request) => request.eventId === eventId);
     const previousMessages = messages[eventId];
 
-    setEvents((prev) => prev.filter((event) => event.id !== eventId));
+    setRawEvents((prev) => prev.filter((event) => event.id !== eventId));
     setRequests((prev) => prev.filter((request) => request.eventId !== eventId));
     setMessages((prev) => {
       const next = { ...prev };
@@ -824,7 +953,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error('Error deleting event:', error);
         if (previousEvent) {
-          setEvents((prev) => [previousEvent, ...prev]);
+          setRawEvents((prev) => upsertById(prev, previousEvent, true));
+          setRequests((prev) => previousRequests.reduce((list, request) => upsertById(list, request), prev));
         }
         if (previousMessages) {
           setMessages((prev) => ({ ...prev, [eventId]: previousMessages }));
@@ -903,18 +1033,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
           if (existingRow) {
             setRequests((prev) =>
-              prev.some((request) => request.id === existingRow.id)
-                ? prev
-                : [
-                    ...prev,
-                    {
-                      id: existingRow.id,
-                      userId: currentUser.id,
-                      eventId,
-                      status: existingRow.status as RequestStatus,
-                      createdAt: existingRow.created_at,
-                    },
-                  ]
+              upsertById(prev, {
+                id: existingRow.id,
+                userId: currentUser.id,
+                eventId,
+                status: existingRow.status as RequestStatus,
+                createdAt: existingRow.created_at,
+              })
             );
           }
           return;
@@ -924,12 +1049,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error(error.message);
       }
 
-      setRequests((prev) => [...prev, nextRequest]);
-      setEvents((prev) =>
-        prev.map((item) =>
-          item.id === eventId ? { ...item, requestUserIds: [...item.requestUserIds, currentUser.id] } : item
-        )
-      );
+      // upsert, not append: the realtime echo of this same insert may already have landed.
+      setRequests((prev) => upsertById(prev, nextRequest));
       updateCurrentUserUsage((user) => {
         const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
         const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
@@ -1001,17 +1122,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : request
       )
     );
-    setEvents((prev) =>
-      prev.map((event) =>
-        event.id === eventId
-          ? {
-              ...event,
-              requestUserIds: event.requestUserIds.filter((id) => id !== userId),
-              approvedUserIds: [...event.approvedUserIds, userId],
-            }
-          : event
-      )
-    );
   };
 
   const rejectRequest = async (eventId: string, userId: string): Promise<void> => {
@@ -1031,13 +1141,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         request.eventId === eventId && request.userId === userId
           ? { ...request, status: 'rejected' }
           : request
-      )
-    );
-    setEvents((prev) =>
-      prev.map((event) =>
-        event.id === eventId
-          ? { ...event, requestUserIds: event.requestUserIds.filter((id) => id !== userId) }
-          : event
       )
     );
   };
@@ -1064,18 +1167,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw new Error(error.message);
     }
 
-    setRequests((prev) => [
-      ...prev,
-      { id: inviteId, eventId, userId, status, createdAt: new Date().toISOString() },
-    ]);
-    setEvents((prev) =>
-      prev.map((item) =>
-        item.id === eventId
-          ? status === 'approved'
-            ? { ...item, approvedUserIds: [...item.approvedUserIds, userId] }
-            : { ...item, requestUserIds: [...item.requestUserIds, userId] }
-          : item
-      )
+    setRequests((prev) =>
+      upsertById(prev, { id: inviteId, eventId, userId, status, createdAt: new Date().toISOString() })
     );
   };
 

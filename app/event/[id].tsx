@@ -8,6 +8,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
+import { EventDetailSkeleton } from '@/components/SkeletonLoaders/EventDetailSkeleton';
 import { useTheme } from '@/providers/ThemeProvider';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
@@ -114,10 +115,20 @@ export default function EventDetailScreen() {
     monetisationEnabled,
     isAttendeesUnlocked,
     unlockAttendees,
+    isLoadingEvents,
   } = useApp();
 
   const event = getEventById(id ?? '');
   if (!event) {
+    // Opened straight from a push (cold start or resume), this screen can mount before the
+    // feed sync finishes — only call it "not found" once that sync has actually come back.
+    if (isLoadingEvents) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.page, paddingTop: insets.top }}>
+          <EventDetailSkeleton />
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.page }}>
         <Text style={{ color: colors.text, fontWeight: '800' }}>Event not found</Text>

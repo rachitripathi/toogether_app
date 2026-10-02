@@ -15,6 +15,7 @@ import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleto
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
+import { hasEventStarted } from '@/lib/eventTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const HOME_LOCATION_KEY = 'home_location';
@@ -175,8 +176,12 @@ export default function HomeScreen() {
     }, [consumeLocationResult])
   );
 
+  // The events RLS policy keeps finished plans readable for 48h (Activity's rating nudges
+  // and Profile > Past plans need them), so the feed has to drop them itself.
+  const now = Date.now();
+  const normalizedQuery = query.toLowerCase();
   const filtered = events.filter((event) => {
-    const normalizedQuery = query.toLowerCase();
+    if (hasEventStarted(event, now)) return false;
     const matchesCategory = activeCategory === 'all' || event.category === activeCategory;
     const matchesSearch =
       !query ||
