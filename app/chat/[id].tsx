@@ -1,9 +1,10 @@
-import { useLocalSearchParams, router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
+import { dismissChatPushes, setActiveChatEventId, useNotifications } from '@/providers/NotificationsProvider';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
@@ -22,6 +23,7 @@ export default function ChatScreen() {
   const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage, refreshEventMessages } =
     useApp();
   const { colors } = useTheme();
+  const { getUnreadChatCount, markChatRead } = useNotifications();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -35,6 +37,26 @@ export default function ChatScreen() {
       refreshEventMessages(event.id);
     }
   }, [event?.id]);
+
+  const eventId = event?.id;
+
+  // Suppresses the foreground push banner for this chat only while it's the focused screen.
+  useFocusEffect(
+    useCallback(() => {
+      if (!eventId) return;
+      setActiveChatEventId(eventId);
+      dismissChatPushes(eventId);
+      return () => setActiveChatEventId(null);
+    }, [eventId])
+  );
+
+  // Being on this screen counts as reading its messages, including ones that arrive while open.
+  const hasUnreadChat = !!eventId && getUnreadChatCount(eventId) > 0;
+  useEffect(() => {
+    if (eventId && hasUnreadChat) {
+      markChatRead(eventId);
+    }
+  }, [eventId, hasUnreadChat]);
 
   // Driving the composer's bottom padding from real keyboard-height events instead of
   // KeyboardAvoidingView: that component's own dynamic padding compounds with this

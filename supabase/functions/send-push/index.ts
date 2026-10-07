@@ -13,6 +13,54 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+const MAX_CHAT_LINES = 5;
+
+type SupabaseAdmin = ReturnType<typeof createClient>;
+
+// Chat pushes are shown one per plan, WhatsApp-style: each new message re-renders a summary of
+// every still-unread message in that plan (read = chat opened, see markChatRead in
+// NotificationsProvider), and `tag` (Android) replaces the one already on screen while
+// `threadId` (iOS) stacks them. Falls back to the row's own title/body on any lookup failure.
+async function buildChatPush(
+  supabaseAdmin: SupabaseAdmin,
+  notification: WebhookPayload["record"],
+  eventId: string
+) {
+  const fallback = { title: notification.title, body: notification.body };
+
+  const { data: unread, error } = await supabaseAdmin
+    .from("notifications")
+    .select("body, data, created_at")
+    .eq("user_id", notification.user_id)
+    .eq("type", "new_message")
+    .eq("data->>eventId", eventId)
+    .is("read_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error || !unread || unread.length <= 1) {
+    return fallback;
+  }
+
+  const { data: event } = await supabaseAdmin.from("events").select("title").eq("id", eventId).maybeSingle();
+  if (!event) {
+    return fallback;
+  }
+
+  const recent = unread.slice(-MAX_CHAT_LINES);
+  const senderIds = [...new Set(recent.map((row) => (row.data as { actorId?: string } | null)?.actorId).filter(Boolean))];
+  const { data: senders } = await supabaseAdmin.from("profiles").select("id, name").in("id", senderIds);
+  const firstNames = new Map((senders ?? []).map((p) => [p.id, String(p.name ?? "").split(" ")[0] || "Someone"]));
+
+  const lines = recent.map((row) => {
+    const senderId = (row.data as { actorId?: string } | null)?.actorId;
+    return `${(senderId && firstNames.get(senderId)) || "Someone"}: ${row.body}`;
+  });
+
+  return {
+    title: `${event.title} (${unread.length} messages)`,
+    body: lines.join("\n"),
+  };
+}
 
 type WebhookPayload = {
   type: "INSERT";
@@ -20,6 +68,7 @@ type WebhookPayload = {
   record: {
     id: string;
     user_id: string;
+    type: string;
     title: string;
     body: string;
     data: Record<string, unknown> | null;
@@ -48,11 +97,19 @@ Deno.serve(async (req) => {
       return new Response("no push tokens", { status: 200 });
     }
 
+    const chatEventId =
+      notification.type === "new_message" ? (notification.data as { eventId?: string } | null)?.eventId : undefined;
+    const content = chatEventId
+      ? await buildChatPush(supabaseAdmin, notification, chatEventId)
+      : { title: notification.title, body: notification.body };
+    const grouping = chatEventId ? { tag: `chat-${chatEventId}`, threadId: `chat-${chatEventId}` } : {};
+
     const messages = tokens.map((row) => ({
       to: row.token,
-      title: notification.title,
-      body: notification.body,
+      title: content.title,
+      body: content.body,
       data: notification.data ?? {},
+      ...grouping,
     }));
 
     const pushResponse = await fetch(EXPO_PUSH_URL, {

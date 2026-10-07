@@ -3,6 +3,8 @@ import { ImageBackground, Pressable, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { useApp } from '@/providers/AppProvider';
+import { useNotifications } from '@/providers/NotificationsProvider';
+import { useTapWithoutDrag } from '@/hooks/useTapWithoutDrag';
 import { useTheme } from '@/providers/ThemeProvider';
 import type { Event } from '@/lib/types';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals } from '@/lib/categoryVisuals';
@@ -28,7 +30,10 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
     shouldShowPaywallForJoin,
   } = useApp();
   const { colors, shadow } = useTheme();
+  const { getUnreadChatCount } = useNotifications();
+  const unreadChatCount = getUnreadChatCount(event.id);
   const [isJoining, setIsJoining] = useState(false);
+  const openEvent = useTapWithoutDrag(() => router.push(`/event/${event.id}`));
   const creator = getUserById(event.creatorId);
   const isCreator = currentUser?.id === event.creatorId;
   const requestStatus = getRequestStatus(event.id);
@@ -101,7 +106,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/event/${event.id}`)}
+      {...openEvent}
       style={{
         borderRadius: 28,
         minHeight: 230,
@@ -204,6 +209,27 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
               ) : null}
             </View>
           </View>
+
+          {unreadChatCount > 0 ? (
+            <Pressable
+              onPress={() => router.push(`/chat/${event.id}`)}
+              hitSlop={6}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.88)',
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Icon name="chatbubble-ellipses-outline" size={14} color={colors.danger} />
+              <Text style={{ color: colors.danger, fontWeight: categoryFontWeight('900'), fontSize: 12, fontFamily: categoryFontFamily }}>
+                {unreadChatCount > 99 ? '99+' : unreadChatCount} new
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={handleAction}

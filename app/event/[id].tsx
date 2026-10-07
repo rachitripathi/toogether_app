@@ -12,6 +12,8 @@ import { EventDetailSkeleton } from '@/components/SkeletonLoaders/EventDetailSke
 import { useTheme } from '@/providers/ThemeProvider';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
+import { useNotifications } from '@/providers/NotificationsProvider';
+import { UnreadBadge } from '@/components/UnreadBadge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // The back/edit buttons sit on translucent white chips (rgba(255,255,255,0.75)) laid
@@ -43,11 +45,13 @@ function ThemedActionButton({
   onPress,
   visual,
   disabled,
+  badgeCount = 0,
 }: {
   label: string;
   onPress: () => void;
   visual: CategoryVisualTheme;
   disabled?: boolean;
+  badgeCount?: number;
 }) {
   return (
     <Pressable
@@ -57,6 +61,8 @@ function ThemedActionButton({
         minHeight: 56,
         borderRadius: 28,
         backgroundColor: visual.buttonBackground,
+        flexDirection: 'row',
+        gap: 8,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: disabled ? 0.6 : 1,
@@ -70,6 +76,7 @@ function ThemedActionButton({
       <Text style={{ color: visual.buttonText, fontSize: 16, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>
         {label}
       </Text>
+      <UnreadBadge count={badgeCount} />
     </Pressable>
   );
 }
@@ -77,6 +84,7 @@ function ThemedActionButton({
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { getUnreadChatCount } = useNotifications();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const headerPaddingBottom = scrollY.interpolate({ inputRange: [0, 80], outputRange: [24, 10], extrapolate: 'clamp' });
@@ -270,13 +278,16 @@ export default function EventDetailScreen() {
     );
   }
 
+  // This pill sits on the category header image, which looks the same in light and dark mode, so
+  // the approved/declined tones are solid and theme-independent. The theme's status tokens are
+  // translucent in dark mode and turned into faint text over the image.
   const statusTone =
     requestStatus === 'approved'
-      ? { bg: colors.status.success.bg, text: colors.status.success.text, label: 'Approved member', shadow: colors.status.success.border }
+      ? { bg: '#15803D', text: '#FFFFFF', label: 'Approved member', shadow: '#15803D' }
       : requestStatus === 'pending'
         ? { bg: colors.warning, text: '#FFFFFF', label: 'Approval pending', shadow: colors.status.warning.border }
         : requestStatus === 'rejected'
-          ? { bg: colors.border, text: colors.muted, label: 'Request declined', shadow: colors.border }
+          ? { bg: 'rgba(255,255,255,0.9)', text: '#475569', label: 'Request declined', shadow: '#64748B' }
           : isCreator
             ? { bg: visual.buttonBackground, text: visual.buttonText, label: 'You are hosting', shadow: visual.buttonShadow }
             : { bg: visual.buttonBackground, text: visual.buttonText, label: 'Open for requests', shadow: visual.buttonShadow };
@@ -334,24 +345,6 @@ export default function EventDetailScreen() {
                   <Icon name="trash-outline" size={18} color={colors.danger} />
                 </Pressable>
               </>
-            ) : null}
-            {(isCreator || requestStatus === 'approved') ? (
-              <Pressable
-                onPress={() => router.push(`/chat/${event.id}`)}
-                style={{
-                  backgroundColor: visual.buttonBackground,
-                  borderRadius: 999,
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  shadowColor: visual.buttonShadow,
-                  shadowOpacity: 0.26,
-                  shadowRadius: 9,
-                  shadowOffset: { width: 0, height: 5 },
-                  elevation: 3,
-                }}
-              >
-                <Text style={{ color: visual.buttonText, fontWeight: categoryFontWeight('900'), fontFamily: categoryFontFamily }}>Open Chat</Text>
-              </Pressable>
             ) : null}
           </View>
         </View>
@@ -683,7 +676,17 @@ export default function EventDetailScreen() {
         ) : null}
       </ScrollView>
 
-      {!isCreator ? (
+      {/* One Open Chat entry point for host and approved members alike, pinned at the bottom. */}
+      {isCreator ? (
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(insets.bottom, 16) + 12 }}>
+          <ThemedActionButton
+            label="Open Chat"
+            onPress={() => router.push(`/chat/${event.id}`)}
+            visual={visual}
+            badgeCount={getUnreadChatCount(event.id)}
+          />
+        </View>
+      ) : (
         <View style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(insets.bottom, 16) + 12, gap: 8 }}>
           {joinError ? (
             <View
@@ -704,7 +707,12 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
           {requestStatus === 'approved' ? (
-            <ThemedActionButton label="Open Chat" onPress={() => router.push(`/chat/${event.id}`)} visual={visual} />
+            <ThemedActionButton
+              label="Open Chat"
+              onPress={() => router.push(`/chat/${event.id}`)}
+              visual={visual}
+              badgeCount={getUnreadChatCount(event.id)}
+            />
           ) : requestStatus === 'pending' ? (
             <View style={{ backgroundColor: colors.warning, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
               <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Request Pending</Text>
@@ -726,7 +734,7 @@ export default function EventDetailScreen() {
             />
           )}
         </View>
-      ) : null}
+      )}
 
       <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
         <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>

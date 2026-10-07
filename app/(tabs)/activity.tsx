@@ -8,6 +8,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useNotifications } from '@/providers/NotificationsProvider';
 import type { AppNotification, NotificationType } from '@/lib/types';
+import { TapPressable } from '@/components/TapPressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const NOTIFICATION_PRESENTATION: Record<NotificationType, { icon: keyof typeof Ionicons.glyphMap; tone: 'pending' | 'positive' | 'neutral' }> = {
@@ -112,7 +113,7 @@ export default function ActivityScreen() {
               const user = getUserById(nudge.userId);
               if (!user) return null;
               return (
-                <Pressable
+                <TapPressable
                   key={nudge.id}
                   onPress={() => router.push(nudge.route as never)}
                   style={{
@@ -144,7 +145,7 @@ export default function ActivityScreen() {
                   >
                     <Icon name="close" size={16} color={colors.muted} />
                   </Pressable>
-                </Pressable>
+                </TapPressable>
               );
             })}
           </View>
@@ -160,7 +161,7 @@ export default function ActivityScreen() {
             const label = tone === 'positive' ? 'Good news' : tone === 'pending' ? 'Action needed' : 'Update';
 
             return (
-              <Pressable
+              <TapPressable
                 key={notification.id}
                 onPress={() => openNotification(notification)}
                 style={{
@@ -207,7 +208,7 @@ export default function ActivityScreen() {
                     <Text style={{ color: colors.muted }}>{notification.body}</Text>
                   </View>
                 </View>
-              </Pressable>
+              </TapPressable>
             );
           })
         ) : null}

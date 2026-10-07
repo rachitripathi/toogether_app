@@ -199,7 +199,7 @@ export default function ProfileScreen() {
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable onPress={() => router.push('/settings')}>
+          <Pressable onPress={() => router.push('/edit-profile')}>
             <AvatarBubble user={currentUser} size={52} />
           </Pressable>
           <View style={{ flex: 1, gap: 2 }}>
@@ -210,12 +210,22 @@ export default function ProfileScreen() {
               {currentUser.city ?? 'Guwahati'} · @{currentUser.username}
             </Animated.Text>
           </View>
-          <Pressable
-            onPress={() => router.push('/settings')}
-            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon name="settings-outline" size={18} color="#FFFFFF" />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => router.push('/edit-profile')}
+              accessibilityLabel="Edit profile"
+              style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="create-outline" size={18} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              accessibilityLabel="Settings"
+              style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="settings-outline" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
         </View>
       </Animated.View>
 
@@ -281,7 +291,7 @@ export default function ProfileScreen() {
             <TrustChip
               icon="location-outline"
               label={currentUser.city ?? 'Guwahati'}
-              onPress={() => router.push('/settings')}
+              onPress={() => router.push('/edit-profile')}
             />
           </ScrollView>
         </View>
@@ -368,8 +378,14 @@ export default function ProfileScreen() {
 
         <ListGroup title="Account">
           <ListRow
-            label="Edit profile & settings"
-            helper="Photo, username, bio, app details"
+            label="Edit profile"
+            helper="Photo, name, username, city, bio"
+            icon="create-outline"
+            onPress={() => router.push('/edit-profile')}
+          />
+          <ListRow
+            label="Settings"
+            helper="Appearance, notifications, app details"
             icon="settings-outline"
             onPress={() => router.push('/settings')}
           />

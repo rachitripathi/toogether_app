@@ -3,6 +3,9 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
+import { useNotifications } from '@/providers/NotificationsProvider';
+import { UnreadBadge } from '@/components/UnreadBadge';
+import { TapPressable } from '@/components/TapPressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Section = 'hosting' | 'joined' | 'past';
@@ -11,6 +14,7 @@ export default function ProfilePlansScreen() {
   const { section } = useLocalSearchParams<{ section: Section }>();
   const { currentUser, events } = useApp();
   const { colors } = useTheme();
+  const { getUnreadChatCount } = useNotifications();
   const insets = useSafeAreaInsets();
 
   if (!currentUser || !section) {
@@ -74,7 +78,7 @@ export default function ProfilePlansScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 40 }}>
         {current.items.length ? (
           current.items.map((event) => (
-            <Pressable
+            <TapPressable
               key={event.id}
               onPress={() => router.push(`/event/${event.id}`)}
               style={{
@@ -95,8 +99,9 @@ export default function ProfilePlansScreen() {
                   {event.area}, Guwahati · {event.timeSlot}
                 </Text>
               </View>
+              <UnreadBadge count={getUnreadChatCount(event.id)} />
               <Icon name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
+            </TapPressable>
           ))
         ) : (
           <View

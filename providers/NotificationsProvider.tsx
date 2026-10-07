@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -17,15 +17,44 @@ const Notifications: typeof import('expo-notifications') | null = isExpoGo
   ? null
   : require('expo-notifications');
 
-// Standard Expo-recommended foreground behavior (show the OS banner/sound like any other
-// app) — no per-screen suppression or other custom logic layered on top.
+// The chat screen currently in focus, set by app/chat/[id].tsx. Module-level because the
+// foreground handler below is registered once at module scope, outside React.
+let activeChatEventId: string | null = null;
+
+export function setActiveChatEventId(eventId: string | null) {
+  activeChatEventId = eventId;
+}
+
+// Clears this plan's grouped chat push (send-push tags them per plan) from the system tray once
+// the chat is opened, the same way opening a WhatsApp chat clears its notification.
+export async function dismissChatPushes(eventId: string) {
+  if (!Notifications) return;
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all(
+      presented
+        .filter((item) => item.request.content.data?.route === `/chat/${eventId}`)
+        .map((item) => Notifications.dismissNotificationAsync(item.request.identifier))
+    );
+  } catch (err) {
+    console.log('Could not dismiss chat notifications:', err);
+  }
+}
+
+// Standard Expo-recommended foreground behavior (show the OS banner/sound like any other app),
+// except a chat push for the chat that's already open on screen: no banner or sound, since the
+// message is already visible there.
 Notifications?.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const route = notification.request.content.data?.route;
+    const isOpenChat = !!activeChatEventId && route === `/chat/${activeChatEventId}`;
+    return {
+      shouldShowBanner: !isOpenChat,
+      shouldShowList: !isOpenChat,
+      shouldPlaySound: !isOpenChat,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 const mapNotificationRow = (row: any): AppNotification => ({
@@ -39,12 +68,19 @@ const mapNotificationRow = (row: any): AppNotification => ({
   createdAt: row.created_at,
 });
 
+// `new_message` rows exist so the push webhook fires for chat, but they don't belong in the
+// Activity inbox. They're kept separately and only surface as an unread dot on the plan
+// (`getUnreadChatCount`), cleared when that plan's chat is opened (`markChatRead`).
+const isChatNotification = (notification: AppNotification) => notification.type === 'new_message';
+
 type NotificationsContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
   isLoading: boolean;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  getUnreadChatCount: (eventId: string) => number;
+  markChatRead: (eventId: string) => void;
 };
 
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
@@ -53,11 +89,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { currentUser } = useApp();
   const userId = currentUser?.id;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadChatNotifications, setUnreadChatNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) {
       setNotifications([]);
+      setUnreadChatNotifications([]);
       setIsLoading(false);
       return;
     }
@@ -65,10 +103,27 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     setIsLoading(true);
 
+    // Fetched separately so a busy chat can't push real inbox items out of the 100-row window.
     supabase
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
+      .eq('type', 'new_message')
+      .is('read_at', null)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error('Error fetching unread chat notifications:', error);
+        } else if (data) {
+          setUnreadChatNotifications(data.map(mapNotificationRow));
+        }
+      });
+
+    supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .neq('type', 'new_message')
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
@@ -88,6 +143,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const notification = mapNotificationRow(payload.new);
+          if (isChatNotification(notification)) {
+            setUnreadChatNotifications((prev) =>
+              prev.some((item) => item.id === notification.id) ? prev : [...prev, notification]
+            );
+            return;
+          }
           setNotifications((prev) =>
             prev.some((item) => item.id === notification.id) ? prev : [notification, ...prev]
           );
@@ -220,16 +281,44 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       .from('notifications')
       .update({ read_at: readAt })
       .eq('user_id', userId)
+      .neq('type', 'new_message')
       .is('read_at', null)
       .then(({ error }) => {
         if (error) console.error('Error marking all notifications as read:', error);
       });
   };
 
+  const markChatRead = (eventId: string) => {
+    if (!userId || !unreadChatNotifications.some((item) => item.data.eventId === eventId)) {
+      return;
+    }
+    setUnreadChatNotifications((prev) => prev.filter((item) => item.data.eventId !== eventId));
+    supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('type', 'new_message')
+      .eq('data->>eventId', eventId)
+      .is('read_at', null)
+      .then(({ error }) => {
+        if (error) console.error('Error marking chat notifications as read:', error);
+      });
+  };
+
   const unreadCount = notifications.filter((item) => !item.readAt).length;
+  const unreadChatCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of unreadChatNotifications) {
+      if (item.data.eventId) counts.set(item.data.eventId, (counts.get(item.data.eventId) ?? 0) + 1);
+    }
+    return counts;
+  }, [unreadChatNotifications]);
+  const getUnreadChatCount = (eventId: string) => unreadChatCounts.get(eventId) ?? 0;
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, isLoading, markAsRead, markAllAsRead }}>
+    <NotificationsContext.Provider
+      value={{ notifications, unreadCount, isLoading, markAsRead, markAllAsRead, getUnreadChatCount, markChatRead }}
+    >
       {children}
     </NotificationsContext.Provider>
   );

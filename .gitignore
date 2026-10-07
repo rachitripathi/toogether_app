@@ -47,3 +47,4 @@ app-example
 
 # local planning notes (Claude Code plan-mode output, not canonical docs)
 /plans
+supabase/.temp/

@@ -128,6 +128,7 @@ function ThemedApp() {
             <Stack.Screen name="location-picker" options={{ presentation: 'modal' }} />
             <Stack.Screen name="verification" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
             <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
             <Stack.Screen name="profile-plans/[section]" />
             <Stack.Screen name="event/[id]" />
