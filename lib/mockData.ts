@@ -11,7 +11,6 @@ export const MOCK_USERS: User[] = [
     age: 23,
     city: 'Guwahati',
     verified: false,
-    bio: 'Living for spontaneous plans.',
   },
   {
     id: 'u2',
@@ -23,7 +22,6 @@ export const MOCK_USERS: User[] = [
     age: 24,
     city: 'Guwahati',
     verified: true,
-    bio: 'Film nerd and chai addict.',
   },
   {
     id: 'u3',
@@ -35,7 +33,6 @@ export const MOCK_USERS: User[] = [
     age: 27,
     city: 'Guwahati',
     verified: true,
-    bio: 'Coffee shop philosopher.',
   },
   {
     id: 'u4',
@@ -47,7 +44,6 @@ export const MOCK_USERS: User[] = [
     age: 22,
     city: 'Guwahati',
     verified: false,
-    bio: 'Musician and wanderer.',
   },
   {
     id: 'u5',
@@ -59,7 +55,6 @@ export const MOCK_USERS: User[] = [
     age: 26,
     city: 'Guwahati',
     verified: false,
-    bio: 'Early bird and badminton pro.',
   },
 ];
 

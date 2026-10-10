@@ -2,12 +2,14 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { AvatarBubble } from '@/components/AvatarBubble';
-import { GradientButton } from '@/components/GradientButton';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
+import { hasEventStarted } from '@/lib/eventTime';
+import { RatingBadge } from '@/components/RatingBadge';
+import { formatRating, ratingColor } from '@/lib/rating';
 
 function InviteToEventModal({
   visible,
@@ -17,7 +19,8 @@ function InviteToEventModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  events: { id: string; title: string; emoji: string; location: string }[];
+  // `status` is set when this person already has a request on that plan, which disables the row.
+  events: { id: string; title: string; emoji: string; area: string; status?: string }[];
   onSelect: (eventId: string) => void;
 }) {
   const { colors } = useTheme();
@@ -31,10 +34,12 @@ function InviteToEventModal({
               <Icon name="close" size={22} color={colors.muted} />
             </Pressable>
           </View>
+          <Text style={{ color: colors.muted, marginTop: -8 }}>They&apos;ll get a notification and can accept or decline.</Text>
           {events.map((event) => (
             <Pressable
               key={event.id}
               onPress={() => onSelect(event.id)}
+              disabled={!!event.status}
               style={{
                 backgroundColor: colors.page,
                 borderRadius: 18,
@@ -42,14 +47,19 @@ function InviteToEventModal({
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 12,
+                opacity: event.status ? 0.55 : 1,
               }}
             >
               <Text style={{ fontSize: 24 }}>{event.emoji}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.title}</Text>
-                <Text style={{ color: colors.muted }}>{event.location}</Text>
+                <Text style={{ color: colors.muted }}>{event.area}</Text>
               </View>
-              <Icon name="chevron-forward" size={18} color={colors.muted} />
+              {event.status ? (
+                <Text style={{ color: colors.muted, fontWeight: '800', fontSize: 12.5 }}>{event.status}</Text>
+              ) : (
+                <Icon name="chevron-forward" size={18} color={colors.muted} />
+              )}
             </Pressable>
           ))}
         </View>
@@ -82,7 +92,12 @@ export default function UserProfileScreen() {
     getUserAverageRating,
     getCrewStatus,
     sendCrewRequest,
+    acceptCrewRequest,
+    removeFromCrew,
+    crewRequests,
+    requests,
     inviteToEvent,
+    showSuccessToast,
   } = useApp();
   const { colors } = useTheme();
   const user = getUserById(id ?? '');
@@ -121,12 +136,78 @@ export default function UserProfileScreen() {
 
   const isSelf = currentUser.id === user.id;
   const theirEvents = events.filter((event) => event.creatorId === user.id);
-  const myCreatedEvents = events.filter((event) => event.creatorId === currentUser.id);
+  // Only plans that haven't started can take new people.
+  const myCreatedEvents = events.filter((event) => event.creatorId === currentUser.id && !hasEventStarted(event));
+  const INVITE_STATUS_LABEL: Partial<Record<string, string>> = {
+    invited: 'Invited',
+    approved: 'Going',
+    pending: 'Asked to join',
+  };
+  const invitableEvents = myCreatedEvents.map((event) => ({
+    ...event,
+    status: INVITE_STATUS_LABEL[
+      requests.find((request) => request.eventId === event.id && request.userId === user.id)?.status ?? ''
+    ],
+  }));
+  const runCrewAction = (action: () => Promise<void>) => async () => {
+    try {
+      await action();
+    } catch (err) {
+      Alert.alert('Something went wrong', err instanceof Error ? err.message : 'Please try again.');
+    }
+  };
   const mutualEvents = getEventsImPartOf().filter(
     (event) => event.creatorId === user.id || event.approvedUserIds.includes(user.id)
   );
   const rating = getUserAverageRating(user.id);
   const crewStatus = getCrewStatus(user.id);
+  const incomingCrewRequest = crewRequests.find(
+    (request) => request.fromUserId === user.id && request.toUserId === currentUser.id && request.status === 'pending'
+  );
+  const firstName = user.name.split(' ')[0];
+  const confirmThen = (title: string, message: string, confirmLabel: string, action: () => Promise<void>) => () =>
+    Alert.alert(title, message, [
+      { text: 'Keep', style: 'cancel' },
+      { text: confirmLabel, style: 'destructive', onPress: runCrewAction(action) },
+    ]);
+  // Primary action, pinned in the header so it's always on screen. What it does depends on
+  // where the two of you stand. The settled states ("In your crew", "Request sent") render as
+  // a quieter outline button and tapping them offers to undo.
+  const crewAction =
+    crewStatus === 'connected'
+      ? {
+          label: 'In your crew',
+          icon: 'checkmark-circle' as const,
+          settled: true,
+          onPress: confirmThen(
+            `Remove ${firstName} from your crew?`,
+            "They won't be told. Any invites you haven't heard back on are withdrawn, but plans they've already joined aren't affected.",
+            'Remove',
+            () => removeFromCrew(user.id)
+          ),
+        }
+      : crewStatus === 'pending_outgoing'
+        ? {
+            label: 'Crew request sent',
+            icon: 'time-outline' as const,
+            settled: true,
+            onPress: confirmThen('Cancel your crew request?', `${firstName} won't see it anymore.`, 'Cancel request', () =>
+              removeFromCrew(user.id)
+            ),
+          }
+        : crewStatus === 'pending_incoming'
+          ? {
+              label: 'Accept crew request',
+              icon: 'person-add-outline' as const,
+              settled: false,
+              onPress: incomingCrewRequest ? runCrewAction(() => acceptCrewRequest(incomingCrewRequest.id)) : undefined,
+            }
+          : {
+              label: 'Add to my crew',
+              icon: 'person-add-outline' as const,
+              settled: false,
+              onPress: runCrewAction(() => sendCrewRequest(user.id)),
+            };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -163,22 +244,49 @@ export default function UserProfileScreen() {
               ) : null}
             </View>
             <Text style={{ color: colors.muted }}>@{user.username} · {user.city}</Text>
-            {user.bio ? <Text style={{ color: colors.muted }}>{user.bio}</Text> : null}
           </View>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           {[
-            { label: 'Plans', value: theirEvents.length },
-            { label: 'Mutual', value: mutualEvents.length },
-            { label: 'Karma', value: rating ? rating.toFixed(1) : 'New' },
+            { label: 'Plans', value: theirEvents.length, color: colors.text },
+            { label: 'Mutual', value: mutualEvents.length, color: colors.text },
+            { label: 'Rating', value: rating ? `★ ${formatRating(rating)}` : 'New', color: ratingColor(colors, rating) },
           ].map((item) => (
             <View key={item.label} style={{ flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 18 }}>{item.value}</Text>
+              <Text style={{ color: item.color, fontWeight: '900', fontSize: 18 }}>{item.value}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
             </View>
           ))}
         </View>
+
+        {!isSelf ? (
+          <Pressable
+            onPress={crewAction.onPress}
+            disabled={!crewAction.onPress}
+            style={{
+              minHeight: 52,
+              borderRadius: 26,
+              backgroundColor: crewAction.settled ? colors.card : colors.primary,
+              borderWidth: crewAction.settled ? 1 : 0,
+              borderColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Icon
+              name={crewAction.icon}
+              size={19}
+              color={!crewAction.settled ? '#FFFFFF' : crewStatus === 'connected' ? colors.success : colors.muted}
+            />
+            <Text style={{ color: !crewAction.settled ? '#FFFFFF' : colors.text, fontSize: 15.5, fontWeight: '900' }}>
+              {crewAction.label}
+            </Text>
+            {crewAction.settled ? <Icon name="chevron-down" size={16} color={colors.muted} /> : null}
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
@@ -186,28 +294,12 @@ export default function UserProfileScreen() {
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Trust snapshot</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <TrustPill label={user.verified ? 'ID verified' : 'Verification pending'} tone="accent" />
-            <TrustPill label={rating ? `${rating.toFixed(1)} karma` : 'New to Toogether'} tone="warm" />
+            {rating ? <RatingBadge average={rating} size="md" /> : <TrustPill label="Not rated yet" />}
             <TrustPill label={mutualEvents.length ? `${mutualEvents.length} mutual plans` : 'No mutual plans yet'} />
             <TrustPill label={`${theirEvents.length} hosted plans`} />
           </View>
         </View>
 
-        {!isSelf ? (
-          <GradientButton
-            label={
-              crewStatus === 'connected'
-                ? 'Already in my crew'
-                : crewStatus === 'pending_incoming'
-                  ? 'Crew request waiting for me'
-                  : crewStatus === 'pending_outgoing'
-                    ? 'Crew request sent'
-                    : 'Add to my crew'
-            }
-            onPress={() => sendCrewRequest(user.id)}
-            fullWidth
-            disabled={crewStatus !== 'none'}
-          />
-        ) : null}
 
         {mutualEvents.length ? (
           <View style={{ gap: 12 }}>
@@ -251,35 +343,49 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
 
-        {!isSelf ? (
-          <GradientButton
-            label="Invite to my event"
-            onPress={() => {
-              if (myCreatedEvents.length) {
-                setShowInviteModal(true);
-                return;
-              }
-              router.push('/create-event');
-            }}
-            fullWidth
-          />
-        ) : null}
-        {!isSelf && !myCreatedEvents.length ? (
-          <Text style={{ color: colors.muted, textAlign: 'center' }}>
-            Create an event first, then you can invite people into it.
-          </Text>
+        {/* Secondary: inviting is only offered once they're in your crew. */}
+        {!isSelf && crewStatus === 'connected' ? (
+          <View style={{ gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                if (myCreatedEvents.length) {
+                  setShowInviteModal(true);
+                  return;
+                }
+                router.push('/create-event');
+              }}
+              style={{
+                minHeight: 50,
+                borderRadius: 25,
+                borderWidth: 1.5,
+                borderColor: colors.primary,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              <Icon name="calendar-outline" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '800' }}>Invite to my event</Text>
+            </Pressable>
+            {!myCreatedEvents.length ? (
+              <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 12.5 }}>
+                Create an event first, then you can invite people into it.
+              </Text>
+            ) : null}
+          </View>
         ) : null}
       </ScrollView>
 
       <InviteToEventModal
         visible={showInviteModal}
         onClose={() => setShowInviteModal(false)}
-        events={myCreatedEvents}
+        events={invitableEvents}
         onSelect={async (eventId) => {
           setShowInviteModal(false);
           try {
             await inviteToEvent(eventId, user.id);
-            router.push(`/event/${eventId}`);
+            showSuccessToast('Invite sent', `${user.name.split(' ')[0]} can accept it from the plan page.`);
           } catch (err) {
             Alert.alert('Could not send invite', err instanceof Error ? err.message : 'Please try again.');
           }

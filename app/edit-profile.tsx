@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Icon } from '@/components/Icon';
 import { AvatarBubble } from '@/components/AvatarBubble';
 import { FormField } from '@/components/FormField';
+import { CityPickerField } from '@/components/CityPickerField';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
+import { PROFILE_LIMITS, cleanLine, validateName } from '@/lib/profileFields';
 import { UsernameStatusIcon, usernameStatusMessage } from '@/components/UsernameStatusIcon';
 import { useTheme } from '@/providers/ThemeProvider';
 import { deleteCurrentAvatar, uploadAvatar } from '@/lib/cloudinary';
@@ -24,19 +27,18 @@ export default function EditProfileScreen() {
   const [name, setName] = useState(currentUser?.name ?? '');
   const [username, setUsername] = useState(currentUser?.username ?? '');
   const usernameStatus = useUsernameAvailability(username, currentUser?.username);
-  const [bio, setBio] = useState(currentUser?.bio ?? '');
   const [city, setCity] = useState(currentUser?.city ?? '');
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+  const [nameError, setNameError] = useState('');
 
   if (!currentUser) {
     return null;
   }
 
   const isDirty =
-    name.trim() !== currentUser.name ||
+    cleanLine(name) !== currentUser.name ||
     normalizeUsername(username) !== normalizeUsername(currentUser.username) ||
-    bio.trim() !== (currentUser.bio ?? '') ||
-    city.trim() !== (currentUser.city ?? '');
+    city !== (currentUser.city ?? '');
 
   const close = () => {
     if (!isDirty) {
@@ -79,7 +81,7 @@ export default function EditProfileScreen() {
       // Old asset is looked up server-side from the profile row, so this must run
       // before updateCurrentUser overwrites avatar_uri with the new one.
       await deleteCurrentAvatar();
-      updateCurrentUser({ avatarUri: url });
+      await updateCurrentUser({ avatarUri: url });
     } catch (error) {
       Alert.alert('Upload failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -97,7 +99,7 @@ export default function EditProfileScreen() {
           setIsUpdatingPhoto(true);
           try {
             await deleteCurrentAvatar();
-            updateCurrentUser({ avatarUri: '' });
+            await updateCurrentUser({ avatarUri: '' });
           } catch (error) {
             Alert.alert('Something went wrong', error instanceof Error ? error.message : 'Please try again.');
           } finally {
@@ -108,8 +110,19 @@ export default function EditProfileScreen() {
     ]);
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     const normalizedUsername = normalizeUsername(username);
+
+    // Blank or whitespace-only names used to silently fall back to the old name.
+    const nameProblem = validateName(name);
+    setNameError(nameProblem);
+    if (nameProblem) {
+      return;
+    }
+    if (!normalizedUsername) {
+      Alert.alert('Username needed', "Your username can't be blank.");
+      return;
+    }
 
     if (normalizedUsername && normalizedUsername !== normalizeUsername(currentUser.username)) {
       if (usernameStatus === 'invalid') {
@@ -126,13 +139,16 @@ export default function EditProfileScreen() {
       }
     }
 
-    updateCurrentUser({
-      name: name.trim() || currentUser.name,
-      username: normalizedUsername || currentUser.username,
-      bio: bio.trim(),
-      city: city.trim() || currentUser.city,
-    });
-    router.back();
+    try {
+      await updateCurrentUser({
+        name: cleanLine(name),
+        username: normalizedUsername,
+        city,
+      });
+      router.back();
+    } catch (error) {
+      Alert.alert("Couldn't save", error instanceof Error ? error.message : 'Please try again.');
+    }
   };
 
   return (
@@ -163,8 +179,7 @@ export default function EditProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
       >
         <View style={{ alignItems: 'center', gap: 10, paddingVertical: 6 }}>
@@ -228,7 +243,17 @@ export default function EditProfileScreen() {
             ...shadow.card,
           }}
         >
-          <FormField label="Name" value={name} onChangeText={setName} placeholder="Your name" />
+          <FormField
+            label="Name"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              if (nameError) setNameError('');
+            }}
+            placeholder="Your name"
+            maxLength={PROFILE_LIMITS.name}
+            error={nameError}
+          />
           <FormField
             label="Username"
             value={username}
@@ -238,16 +263,9 @@ export default function EditProfileScreen() {
             rightAccessory={<UsernameStatusIcon status={usernameStatus} />}
             {...usernameStatusMessage(usernameStatus, normalizeUsername(username))}
           />
-          <FormField label="City" value={city} onChangeText={setCity} placeholder="City" />
-          <FormField
-            label="Bio"
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell people a little about yourself"
-            multiline
-          />
+          <CityPickerField value={city} onChange={setCity} />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

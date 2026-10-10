@@ -9,7 +9,9 @@ import { AvatarBubble } from '@/components/AvatarBubble';
 import { useTheme } from '@/providers/ThemeProvider';
 import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
+import { isEventArchived } from '@/lib/eventTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatRating, ratingColor } from '@/lib/rating';
 
 function TrustChip({
   icon,
@@ -51,10 +53,12 @@ function ProfileMetric({
   label,
   value,
   variant = 'surface',
+  valueColor,
 }: {
   label: string;
   value: string | number;
   variant?: 'surface' | 'onSurface';
+  valueColor?: string;
 }) {
   const { colors } = useTheme();
   return (
@@ -69,7 +73,7 @@ function ProfileMetric({
         alignItems: 'center',
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
+      <Text style={{ color: valueColor ?? colors.text, fontSize: 17, fontWeight: '900' }}>
         {value}
       </Text>
       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
@@ -174,9 +178,11 @@ export default function ProfileScreen() {
   }
 
   const now = new Date();
-  const hosting = events.filter(e => e.creatorId === currentUser.id && new Date(e.dateTime) >= now);
-  const joined = events.filter(e => e.approvedUserIds.includes(currentUser.id) && e.creatorId !== currentUser.id && new Date(e.dateTime) >= now);
-  const past = events.filter(e => (e.creatorId === currentUser.id || e.approvedUserIds.includes(currentUser.id)) && new Date(e.dateTime) < now);
+  // A plan counts as hosting/joined until it closes (6h after start, see lib/eventTime.ts), so
+  // one that's happening right now is still under Hosting/Joined, not Past.
+  const hosting = events.filter(e => e.creatorId === currentUser.id && !isEventArchived(e, now.getTime()));
+  const joined = events.filter(e => e.approvedUserIds.includes(currentUser.id) && e.creatorId !== currentUser.id && !isEventArchived(e, now.getTime()));
+  const past = events.filter(e => (e.creatorId === currentUser.id || e.approvedUserIds.includes(currentUser.id)) && isEventArchived(e, now.getTime()));
 
   const rating = getUserAverageRating(currentUser.id);
   const crew = getCrewMembers().length;
@@ -237,7 +243,7 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <ProfileMetric label="Plans" value={totalPlans} />
           <ProfileMetric label="Crew" value={crew} />
-          <ProfileMetric label="Karma" value={rating ? rating.toFixed(1) : 'New'} />
+          <ProfileMetric label="Rating" value={rating ? `★ ${formatRating(rating)}` : 'New'} valueColor={ratingColor(colors, rating)} />
         </View>
 
         {!currentUser.verified ? (
@@ -379,7 +385,7 @@ export default function ProfileScreen() {
         <ListGroup title="Account">
           <ListRow
             label="Edit profile"
-            helper="Photo, name, username, city, bio"
+            helper="Photo, name, username, city"
             icon="create-outline"
             onPress={() => router.push('/edit-profile')}
           />

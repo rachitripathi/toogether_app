@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
 import { Icon } from '@/components/Icon';
@@ -11,6 +12,8 @@ import { useLocationPickerStore, type MapCoordinate, type MapRegion } from '@/st
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
+import { PLAN_LIMITS, cleanLine, cleanMultiline, parseGroupSize } from '@/lib/profileFields';
+import { timeSlotFor } from '@/lib/eventTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const categories: { id: EventCategory; label: string; emoji: string }[] = [
@@ -31,10 +34,27 @@ const defaultRegion: MapRegion = {
   longitudeDelta: 0.08,
 };
 
+// The last day a plan can start on: the same date next month, any time that day.
 function getMaxEventDate() {
-  const maxDate = new Date();
-  maxDate.setFullYear(maxDate.getFullYear() + 2);
-  return maxDate;
+  const today = new Date();
+  // Clamp to the target month's last day (Jan 31 -> Feb 28), like Postgres's `+ interval '1 month'`;
+  // a plain setMonth would roll over into March.
+  const targetMonth = today.getMonth() + PLAN_LIMITS.maxMonthsAhead;
+  const lastDayOfTarget = new Date(today.getFullYear(), targetMonth + 1, 0).getDate();
+  return new Date(today.getFullYear(), targetMonth, Math.min(today.getDate(), lastDayOfTarget), 23, 59, 59, 999);
+}
+
+// What the time picker opens on when no time is picked yet: the next half hour that's at least
+// an hour away. Opening on "now" meant accepting the default made a plan that had already
+// started, and started plans never show on Home.
+function getSuggestedStartTime() {
+  const suggested = new Date(Date.now() + 60 * 60 * 1000);
+  suggested.setMinutes(suggested.getMinutes() <= 30 ? 30 : 60, 0, 0);
+  return suggested;
+}
+
+function getEarliestStart() {
+  return new Date(Date.now() + PLAN_LIMITS.minLeadMinutes * 60 * 1000);
 }
 
 function formatDate(value: Date | null) {
@@ -49,14 +69,6 @@ function combineDateAndTime(date: Date, time: Date) {
   const next = new Date(date);
   next.setHours(time.getHours(), time.getMinutes(), 0, 0);
   return next;
-}
-
-function deriveTimeSlot(time: Date): 'Morning' | 'Afternoon' | 'Evening' | 'Night' {
-  const hour = time.getHours();
-  if (hour >= 5 && hour < 12) return 'Morning';
-  if (hour >= 12 && hour < 17) return 'Afternoon';
-  if (hour >= 17 && hour < 21) return 'Evening';
-  return 'Night';
 }
 
 function googleMapsUrl(latitude: number, longitude: number) {
@@ -86,9 +98,25 @@ export default function CreateEventScreen() {
   const openLocationPicker = useLocationPickerStore((state) => state.open);
   const consumeLocationResult = useLocationPickerStore((state) => state.consumeResult);
 
-  const isFormValid = Boolean(
-    title.trim() && eventDate && eventTime && area.trim() && exactLocation.trim()
-  );
+  // Everything a plan needs before it can go live, in form order. The button stays disabled
+  // until this is empty and the list is shown above it, so it's clear what's missing.
+  // validate_event() (migration 015) enforces the same rules server-side.
+  const startsAt = eventDate && eventTime ? combineDateAndTime(eventDate, eventTime) : null;
+  const missing = [
+    cleanLine(title).length < PLAN_LIMITS.titleMin && `a title (${PLAN_LIMITS.titleMin}+ characters)`,
+    !eventDate && 'a date',
+    !eventTime && 'a time',
+    !cleanLine(area) && 'the public locality',
+    !cleanLine(exactLocation) && 'the exact address',
+    parseGroupSize(maxPeople) === null && `group size (${PLAN_LIMITS.minGroup} to ${PLAN_LIMITS.maxGroup})`,
+  ].filter(Boolean) as string[];
+  const startProblem =
+    startsAt && startsAt < getEarliestStart()
+      ? `Pick a start at least ${PLAN_LIMITS.minLeadMinutes} minutes from now.`
+      : startsAt && startsAt > getMaxEventDate()
+        ? `Plans can be at most ${PLAN_LIMITS.maxMonthsAhead} month ahead.`
+        : '';
+  const isFormValid = !missing.length && !startProblem;
 
   const applyCoordinate = async (nextCoordinate: MapCoordinate) => {
     setCoordinate(nextCoordinate);
@@ -144,7 +172,7 @@ export default function CreateEventScreen() {
   const openTimePicker = () => {
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
-        value: eventTime ?? new Date(),
+        value: eventTime ?? getSuggestedStartTime(),
         mode: 'time',
         onChange: (_event, selectedTime) => {
           if (selectedTime) setEventTime(selectedTime);
@@ -165,40 +193,35 @@ export default function CreateEventScreen() {
       return;
     }
 
-    if (!isFormValid) {
-      setError('Add title, locality, date, exact time, and exact location.');
+    // Re-checked here, not just via the disabled button: time keeps moving while the form is
+    // open, so a start that was 20 minutes away can be 10 minutes away by the time of the tap.
+    if (!isFormValid || !startsAt) {
+      setError(startProblem || `Still needed: ${missing.join(', ')}.`);
       return;
     }
-
-    const parsedMaxPeople = maxPeople ? Number(maxPeople) : undefined;
-    if (
-      parsedMaxPeople !== undefined &&
-      (!Number.isInteger(parsedMaxPeople) || parsedMaxPeople < 2 || parsedMaxPeople > 10)
-    ) {
-      setError('Max people should be a whole number between 2 and 10.');
-      return;
-    }
+    const parsedMaxPeople = parseGroupSize(maxPeople)!;
 
     setError('');
     setIsSubmitting(true);
 
     const selectedCategory = categories.find((item) => item.id === category);
-    const dateTime = combineDateAndTime(eventDate!, eventTime!);
+    const dateTime = startsAt;
+    const cleanExactLocation = cleanLine(exactLocation);
 
     try {
       const event = await createEvent({
-        title,
-        description: description.slice(0, 200),
+        title: cleanLine(title),
+        description: cleanMultiline(description),
         dateTime: dateTime.toISOString(),
-        area,
-        timeSlot: deriveTimeSlot(eventTime!),
+        area: cleanLine(area),
+        timeSlot: timeSlotFor(eventTime!),
         exactTime: formatTime(eventTime),
-        exactLocation,
-        locationNote: locationNote.slice(0, 90),
+        exactLocation: cleanExactLocation,
+        locationNote: cleanLine(locationNote),
         latitude: coordinate?.latitude,
         longitude: coordinate?.longitude,
         mapUrl: coordinate ? googleMapsUrl(coordinate.latitude, coordinate.longitude) : undefined,
-        location: exactLocation,
+        location: cleanExactLocation,
         maxPeople: parsedMaxPeople,
         category,
         emoji: selectedCategory?.emoji ?? '✨',
@@ -246,7 +269,7 @@ export default function CreateEventScreen() {
         <Text style={{ fontSize: 22, fontWeight: '900', color: colors.text }}>Create a Plan</Text>
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
       >
         {usage.monetisationEnabled ? (
@@ -306,13 +329,20 @@ export default function CreateEventScreen() {
           </View>
         </View>
 
-        <FormField label="Title" value={title} onChangeText={setTitle} placeholder="Movie night at City Centre" />
         <FormField
-          label="Description"
+          label="Title"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Movie night at City Centre"
+          maxLength={PLAN_LIMITS.title}
+        />
+        <FormField
+          label="Description (optional)"
           value={description}
           onChangeText={setDescription}
           placeholder="What is the hangout vibe?"
           multiline
+          maxLength={PLAN_LIMITS.description}
         />
 
         <View style={{ gap: 12 }}>
@@ -359,6 +389,7 @@ export default function CreateEventScreen() {
               </Text>
             </Pressable>
           </View>
+          {startProblem ? <Text style={{ color: colors.danger, fontSize: 12 }}>{startProblem}</Text> : null}
         </View>
 
         <View style={{ gap: 10 }}>
@@ -413,23 +444,26 @@ export default function CreateEventScreen() {
           placeholder="Zoo Road / Ganeshguri / Uzan Bazar"
         />
         <FormField
-          label="One line about the location"
+          label="One line about the location (optional)"
           value={locationNote}
           onChangeText={setLocationNote}
           placeholder="Near the main entrance, easy parking"
+          maxLength={PLAN_LIMITS.locationNote}
         />
         <FormField
           label="Private exact address"
           value={exactLocation}
           onChangeText={setExactLocation}
           placeholder="PVR City Centre lobby, Christian Basti"
+          maxLength={PLAN_LIMITS.exactLocation}
         />
         <FormField
-          label="Max People"
+          label="Group size, including you"
           value={maxPeople}
-          onChangeText={setMaxPeople}
+          onChangeText={(text) => setMaxPeople(text.replace(/[^0-9]/g, ''))}
           keyboardType="numeric"
-          placeholder="2 to 10"
+          placeholder={`${PLAN_LIMITS.minGroup} to ${PLAN_LIMITS.maxGroup}`}
+          error={maxPeople && parseGroupSize(maxPeople) === null ? `Enter a number from ${PLAN_LIMITS.minGroup} to ${PLAN_LIMITS.maxGroup}.` : undefined}
         />
 
         {currentUser?.gender === 'woman' ? (
@@ -460,6 +494,11 @@ export default function CreateEventScreen() {
           </Pressable>
         ) : null}
 
+        {missing.length ? (
+          <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+            Still needed: {missing.join(', ')}.
+          </Text>
+        ) : null}
         {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
 
         <GradientButton
@@ -468,7 +507,7 @@ export default function CreateEventScreen() {
           disabled={!isFormValid || isSubmitting}
           fullWidth
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {Platform.OS !== 'android' && showDatePicker ? (
         <Modal transparent animationType="fade" visible={showDatePicker}>
@@ -495,7 +534,7 @@ export default function CreateEventScreen() {
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
             <View style={{ backgroundColor: colors.card, padding: 18, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
               <DateTimePicker
-                value={eventTime ?? new Date()}
+                value={eventTime ?? getSuggestedStartTime()}
                 mode="time"
                 display="spinner"
                 onChange={(_event, selectedTime) => {

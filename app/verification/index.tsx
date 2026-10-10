@@ -312,6 +312,17 @@ export default function VerificationScreen() {
           </Text>
         </View>
 
+        {currentUser.verificationRejectionReason ? (
+          // Left over from a submission that didn't go through (e.g. the old background upload
+          // failing), so the user knows why they're back here instead of being silently reset.
+          <View style={{ backgroundColor: colors.status.danger.bg, borderRadius: 20, borderWidth: 1, borderColor: colors.status.danger.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+            <Icon name="warning-outline" size={20} color={colors.status.danger.text} style={{ marginTop: 1 }} />
+            <Text style={{ color: colors.status.danger.text, lineHeight: 20, flex: 1, fontSize: 13, fontWeight: '700' }}>
+              {currentUser.verificationRejectionReason}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why get verified?</Text>
           {benefits.map((item) => (

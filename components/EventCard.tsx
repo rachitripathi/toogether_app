@@ -3,6 +3,7 @@ import { ImageBackground, Pressable, Text, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { useApp } from '@/providers/AppProvider';
+import { archivesAt, formatClockTime, isHappeningNow } from '@/lib/eventTime';
 import { useNotifications } from '@/providers/NotificationsProvider';
 import { useTapWithoutDrag } from '@/hooks/useTapWithoutDrag';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -12,6 +13,7 @@ import { formatDistance } from '@/lib/geo';
 import { AvatarBubble } from './AvatarBubble';
 import { PinMark } from './PinMark';
 import { VerifiedBadge } from './VerifiedBadge';
+import { RatingBadge } from '@/components/RatingBadge';
 
 type EventCardProps = {
   event: Event;
@@ -45,12 +47,17 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
   const spotsLeft = event.maxPeople ? Math.max(event.maxPeople - attendeeCount, 0) : null;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
   const averageRating = creator ? getUserAverageRating(creator.id) : null;
+  const isClosedForMe = requestStatus === 'rejected' || requestStatus === 'removed';
+  // Only the host's and members' own plans reach Home in this state (see home.tsx).
+  const happeningNow = isHappeningNow(event);
 
   if (event.womenOnly && currentUser?.gender !== 'woman' && !isCreator) {
     return null;
   }
 
-  const actionLabel = isCreator
+  const actionLabel = happeningNow
+    ? 'Open chat'
+    : isCreator
     ? 'Manage'
     : requestStatus === 'approved'
       ? 'Joined'
@@ -58,7 +65,11 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
         ? 'Pending'
         : requestStatus === 'rejected'
           ? 'Declined'
-          : isFull
+          : requestStatus === 'removed'
+            ? 'Removed'
+            : requestStatus === 'invited'
+              ? "You're invited"
+              : isFull
             ? 'Full'
             : 'Request to Join';
 
@@ -68,7 +79,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
       ? theme.buttonBackground
       : requestStatus === 'pending'
         ? colors.warning
-        : requestStatus === 'rejected' || isFull
+        : isClosedForMe || isFull
           ? colors.border
           : theme.buttonBackground;
 
@@ -78,12 +89,18 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
       ? theme.buttonText
       : requestStatus === 'pending'
         ? '#FFFFFF'
-        : requestStatus === 'rejected' || isFull
+        : isClosedForMe || isFull
           ? colors.muted
           : theme.buttonText;
 
   const handleAction = async () => {
-    if (isCreator || requestStatus === 'approved') {
+    if (happeningNow) {
+      router.push(`/chat/${event.id}`);
+      return;
+    }
+
+    // Declined requests can be sent again, and invites answered, from the plan page.
+    if (isCreator || (requestStatus && requestStatus !== 'pending')) {
       router.push(`/event/${event.id}`);
       return;
     }
@@ -146,7 +163,24 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
             </View>
           ) : null}
 
-          {spotsLeft !== null ? (
+          {happeningNow ? (
+            <View
+              style={{
+                backgroundColor: colors.solid.accept,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' }} />
+              <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>
+                Happening now
+              </Text>
+            </View>
+          ) : spotsLeft !== null ? (
             <View
               style={{
                 backgroundColor: 'rgba(255,255,255,0.82)',
@@ -170,7 +204,9 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icon name="calendar-outline" size={14} color={theme.meta} />
               <Text style={{ color: theme.meta, fontWeight: categoryFontWeight('800'), fontFamily: categoryFontFamily }}>
-                {dateLabel} · {event.timeSlot}
+                {happeningNow
+                  ? `Started ${formatClockTime(date)} · chat closes ${formatClockTime(archivesAt(event))}`
+                  : `${dateLabel} · ${event.timeSlot}`}
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -203,9 +239,12 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
                 {creator?.verified ? <VerifiedBadge size={14} /> : null}
               </View>
               {creator ? (
-                <Text style={{ color: theme.meta, fontSize: 11, fontWeight: categoryFontWeight('700'), fontFamily: categoryFontFamily }}>
-                  {creator.age} · {averageRating ? `${averageRating.toFixed(1)}★ karma` : 'New'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  <Text style={{ color: theme.meta, fontSize: 11, fontWeight: categoryFontWeight('700'), fontFamily: categoryFontFamily }}>
+                    {creator.age}
+                  </Text>
+                  <RatingBadge average={averageRating} />
+                </View>
               ) : null}
             </View>
           </View>
@@ -239,11 +278,11 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
               borderRadius: 999,
               paddingHorizontal: 14,
               paddingVertical: 9,
-              shadowColor: requestStatus === 'rejected' || isFull ? colors.border : theme.buttonShadow,
-              shadowOpacity: requestStatus === 'rejected' || isFull ? 0.14 : 0.28,
+              shadowColor: isClosedForMe || isFull ? colors.border : theme.buttonShadow,
+              shadowOpacity: isClosedForMe || isFull ? 0.14 : 0.28,
               shadowRadius: 9,
               shadowOffset: { width: 0, height: 5 },
-              elevation: requestStatus === 'rejected' || isFull ? 1 : 3,
+              elevation: isClosedForMe || isFull ? 1 : 3,
             }}
           >
             <Text style={{ color: actionTextColor, fontWeight: categoryFontWeight('900'), fontSize: 12, fontFamily: categoryFontFamily }}>

@@ -2,13 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { FormField } from '@/components/FormField';
@@ -130,148 +128,145 @@ export default function AuthScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: colors.page }}>
-        <ScrollView
-          style={{ flex: 1, backgroundColor: colors.page }}
-          contentContainerStyle={{
-            padding: 24,
-            paddingTop: insets.top + 12,
-            gap: 14,
-            paddingBottom: Math.max(insets.bottom, 16) + 20,
+    <View style={{ flex: 1, backgroundColor: colors.page }}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1, backgroundColor: colors.page }}
+        contentContainerStyle={{
+          padding: 24,
+          paddingTop: insets.top + 12,
+          gap: 14,
+          paddingBottom: Math.max(insets.bottom, 16) + 20,
+        }}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <Image source={loginIllustration} style={{ width: 220, height: 147 }} resizeMode="contain" />
+        </View>
+
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 26, fontWeight: '900', color: colors.text, textAlign: 'center' }}>
+            {mode === 'login' ? 'Welcome back 👋' : 'Create your account 🎉'}
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 6, textAlign: 'center' }}>
+            {mode === 'login'
+              ? 'Enter your details to access your account'
+              : "Let's get your plans started in a minute"}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 18,
+            padding: 4,
+            flexDirection: 'row',
           }}
-          keyboardShouldPersistTaps="handled"
         >
-          <View style={{ alignItems: 'center' }}>
-            <Image source={loginIllustration} style={{ width: 220, height: 147 }} resizeMode="contain" />
-          </View>
+          {(['login', 'signup'] as Mode[]).map((item) => {
+            const active = item === mode;
+            return (
+              <Pressable
+                key={item}
+                onPress={() => handleModeChange(item)}
+                style={{
+                  flex: 1,
+                  borderRadius: 14,
+                  backgroundColor: active ? colors.card : 'transparent',
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: active ? colors.text : colors.muted, fontWeight: '800' }}>
+                  {item === 'login' ? 'Log In' : 'Sign Up'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 26, fontWeight: '900', color: colors.text, textAlign: 'center' }}>
-              {mode === 'login' ? 'Welcome back 👋' : 'Create your account 🎉'}
-            </Text>
-            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 6, textAlign: 'center' }}>
-              {mode === 'login'
-                ? 'Enter your details to access your account'
-                : "Let's get your plans started in a minute"}
-            </Text>
-          </View>
+        <FormField
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+        />
+        <FormField
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="At least 6 characters"
+          secureTextEntry
+        />
 
-          <View
+        {mode === 'signup' ? (
+          <FormField
+            label="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Re-enter your password"
+            secureTextEntry
+            error={confirmPassword.length > 0 && confirmPassword !== password ? 'Passwords do not match.' : undefined}
+          />
+        ) : null}
+
+        {mode === 'login' ? (
+          <Pressable onPress={() => router.push('/reset-password')} style={{ alignSelf: 'flex-end' }}>
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Forgot Password</Text>
+          </Pressable>
+        ) : null}
+
+        {error ? <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text> : null}
+
+        <GradientButton
+          label={loading ? '' : mode === 'login' ? 'Login' : 'Create Account'}
+          onPress={handleEmailAuth}
+          disabled={loading}
+          fullWidth
+          icon={loading ? <ActivityIndicator color="#FFFFFF" /> : undefined}
+        />
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>or continue with</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
+          <Pressable
+            disabled
+            onPress={() => handleSocialAuth('google')}
             style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
               backgroundColor: colors.surface,
-              borderRadius: 18,
-              padding: 4,
-              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: colors.border,
+              opacity: 0.55,
             }}
           >
-            {(['login', 'signup'] as Mode[]).map((item) => {
-              const active = item === mode;
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() => handleModeChange(item)}
-                  style={{
-                    flex: 1,
-                    borderRadius: 14,
-                    backgroundColor: active ? colors.card : 'transparent',
-                    paddingVertical: 12,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: active ? colors.text : colors.muted, fontWeight: '800' }}>
-                    {item === 'login' ? 'Log In' : 'Sign Up'}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+            <Icon name="logo-google" size={22} color={colors.muted} />
+          </Pressable>
 
-          <FormField
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-          />
-          <FormField
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="At least 6 characters"
-            secureTextEntry
-          />
-
-          {mode === 'signup' ? (
-            <FormField
-              label="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter your password"
-              secureTextEntry
-              error={confirmPassword.length > 0 && confirmPassword !== password ? 'Passwords do not match.' : undefined}
-            />
-          ) : null}
-
-          {mode === 'login' ? (
-            <Pressable onPress={() => router.push('/reset-password')} style={{ alignSelf: 'flex-end' }}>
-              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Forgot Password</Text>
-            </Pressable>
-          ) : null}
-
-          {error ? <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text> : null}
-
-          <GradientButton
-            label={loading ? '' : mode === 'login' ? 'Login' : 'Create Account'}
-            onPress={handleEmailAuth}
-            disabled={loading}
-            fullWidth
-            icon={loading ? <ActivityIndicator color="#FFFFFF" /> : undefined}
-          />
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>or continue with</Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-          </View>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
-            <Pressable
-              disabled
-              onPress={() => handleSocialAuth('google')}
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: colors.surface,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 1,
-                borderColor: colors.border,
-                opacity: 0.55,
-              }}
-            >
-              <Icon name="logo-google" size={22} color={colors.muted} />
-            </Pressable>
-
-            <Pressable
-              disabled
-              onPress={() => handleSocialAuth('apple')}
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: '#4B5563',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.55,
-              }}
-            >
-              <Icon name="logo-apple" size={22} color="#FFFFFF" />
-            </Pressable>
-          </View>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+          <Pressable
+            disabled
+            onPress={() => handleSocialAuth('apple')}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: '#4B5563',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.55,
+            }}
+          >
+            <Icon name="logo-apple" size={22} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }

@@ -103,8 +103,16 @@ Deno.serve(async (req) => {
     }
 
     // Clear the pointer so a retry (or the next call) never re-attempts deleting an asset
-    // that's already gone.
-    await supabaseAdmin.from("profiles").update({ avatar_uri: null }).eq("id", user.id);
+    // that's already gone, but only if it still points at the photo we just deleted. The app
+    // saves the new photo's URL right after calling this; if this request was slow (the app's
+    // call can give up on a bad connection while this keeps running), an unconditional clear
+    // could land after that save and wipe the new photo, which is what made photo changes
+    // sometimes not stick.
+    await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_uri: null })
+      .eq("id", user.id)
+      .eq("avatar_uri", avatarUrl);
 
     return jsonResponse({ deleted: true });
   } catch (error) {

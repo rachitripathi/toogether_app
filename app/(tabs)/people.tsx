@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { router } from 'expo-router';
 import { AvatarBubble } from '@/components/AvatarBubble';
+import { RatingBadge } from '@/components/RatingBadge';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { GradientButton } from '@/components/GradientButton';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -75,19 +76,35 @@ export default function PeopleScreen() {
     currentUser,
     crewRequests,
     getCrewMembers,
-    getInteractedUsers,
     getEventsImPartOf,
     getUserAverageRating,
     getMyRatingForUser,
     getUserById,
     acceptCrewRequest,
     rejectCrewRequest,
+    removeFromCrew,
   } = useApp();
   const [ratingTarget, setRatingTarget] = useState<User | null>(null);
+  const confirmRemove = (person: User) =>
+    Alert.alert(
+      `Remove ${person.name.split(' ')[0]} from your crew?`,
+      "They won't be told. Invites they haven't answered are withdrawn; plans they've joined aren't affected.",
+      [
+        { text: 'Keep', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => respond(() => removeFromCrew(person.id)) },
+      ]
+    );
+  const respond = async (action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch (err) {
+      Alert.alert('Something went wrong', err instanceof Error ? err.message : 'Please try again.');
+    }
+  };
   const [query, setQuery] = useState('');
-  const crewMap = new Map<string, User>();
-  [...getCrewMembers(), ...getInteractedUsers()].forEach((user) => crewMap.set(user.id, user));
-  const allCrew = [...crewMap.values()];
+  // Only accepted crew connections. People you've just shared plans with aren't listed here;
+  // you add them from their profile.
+  const allCrew = getCrewMembers();
   const crew = query
     ? allCrew.filter(
         (user) =>
@@ -117,7 +134,7 @@ export default function PeopleScreen() {
       <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
         <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>My Crew</Text>
         <Animated.Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, opacity: subtitleOpacity }}>
-          {allCrew.length} {allCrew.length === 1 ? 'person' : 'people'} you've connected with
+          {allCrew.length} {allCrew.length === 1 ? 'person' : 'people'} in your crew
         </Animated.Text>
       </Animated.View>
 
@@ -192,10 +209,10 @@ export default function PeopleScreen() {
                         {user.verified ? <VerifiedBadge size={14} /> : null}
                       </View>
                       <Text style={{ color: colors.muted, fontSize: 13 }}>wants to join your crew</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                        <Icon name="star" size={12} color={colors.warning} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <RatingBadge average={average} />
                         <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
-                          {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedCount} mutual{' '}
+                          {sharedCount} mutual{' '}
                           {sharedCount === 1 ? 'plan' : 'plans'}
                           {myRating ? ` · ${myRating}★ from you` : ''}
                         </Text>
@@ -204,16 +221,16 @@ export default function PeopleScreen() {
                   </View>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <Pressable
-                      onPress={() => rejectCrewRequest(request.id)}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.status.danger.bg, alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => respond(() => rejectCrewRequest(request.id))}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.solid.decline, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Text style={{ color: colors.danger, fontWeight: '800' }}>Decline</Text>
+                      <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Decline</Text>
                     </Pressable>
                     <Pressable
-                      onPress={() => acceptCrewRequest(request.id)}
-                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.status.success.bg, alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => respond(() => acceptCrewRequest(request.id))}
+                      style={{ flex: 1, minHeight: 42, borderRadius: 16, backgroundColor: colors.solid.accept, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Text style={{ color: colors.status.success.text, fontWeight: '800' }}>Accept</Text>
+                      <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Accept</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -252,10 +269,10 @@ export default function PeopleScreen() {
                       {person.verified ? <VerifiedBadge size={14} /> : null}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>@{person.username}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                      <Icon name="star" size={12} color={colors.warning} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <RatingBadge average={average} />
                       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
-                        {average ? `${average.toFixed(1)} karma` : 'New connection'} · {sharedEvents.length} mutual{' '}
+                        {sharedEvents.length} mutual{' '}
                         {sharedEvents.length === 1 ? 'plan' : 'plans'}
                       </Text>
                     </View>
@@ -293,15 +310,21 @@ export default function PeopleScreen() {
                     borderTopColor: colors.border,
                   }}
                 >
-                  <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13 }}>{person.city || 'Guwahati'}</Text>
-                  <Pressable
-                    onPress={() => setRatingTarget(person)}
-                    style={{ backgroundColor: myRating ? colors.status.warning.bg : colors.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
-                  >
-                    <Text style={{ color: myRating ? colors.status.warning.text : colors.text, fontWeight: '800', fontSize: 12 }}>
-                      {myRating ? `${myRating}★ Rated` : 'Rate'}
-                    </Text>
+                  <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13, flex: 1 }}>{person.city || 'Guwahati'}</Text>
+                  <Pressable onPress={() => confirmRemove(person)} hitSlop={6} style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
+                    <Text style={{ color: colors.status.danger.text, fontWeight: '800', fontSize: 12 }}>Remove</Text>
                   </Pressable>
+                  {/* A rating is tied to a plan you shared, so it's only offered when there is one. */}
+                  {sharedEvents.length ? (
+                    <Pressable
+                      onPress={() => setRatingTarget(person)}
+                      style={{ backgroundColor: myRating ? colors.status.warning.bg : colors.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
+                    >
+                      <Text style={{ color: myRating ? colors.status.warning.text : colors.text, fontWeight: '800', fontSize: 12 }}>
+                        {myRating ? `${myRating}★ Rated` : 'Rate'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
             );
@@ -319,7 +342,7 @@ export default function PeopleScreen() {
             <Text style={{ fontSize: 48 }}>🌱</Text>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>No crew yet</Text>
             <Text style={{ color: colors.muted, textAlign: 'center' }}>
-              Join or create events to start meeting people.
+              Join or create plans to meet people, then add them to your crew from their profile.
             </Text>
           </View>
         )}

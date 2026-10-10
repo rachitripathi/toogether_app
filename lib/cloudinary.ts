@@ -22,31 +22,66 @@ const extensionToMimeType: Record<string, string> = {
 // MB each) — launchCameraAsync's own `quality` option only controls JPEG compression, not
 // pixel dimensions. Downscaling to a sane max width before upload cuts payload size (and
 // therefore upload time) dramatically while staying plenty legible for ID review.
-async function compressForUpload(localUri: string): Promise<string> {
-  const image = await ImageManipulator.manipulate(localUri).resize({ width: 1600 }).renderAsync();
-  const result = await image.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
-  return result.uri;
+//
+// Returns the shrunk photo as a base64 data URI, or null if shrinking isn't possible (then the
+// original file is uploaded instead). expo-image-manipulator is a native module added on
+// 2026-08-25, so an app binary built before that doesn't have it and the call throws. When this
+// step was mandatory, that blocked every photo upload, avatars and verification alike.
+async function shrinkToDataUri(localUri: string): Promise<string | null> {
+  try {
+    const image = await ImageManipulator.manipulate(localUri).resize({ width: 1600 }).renderAsync();
+    const result = await image.saveAsync({ compress: 0.75, format: SaveFormat.JPEG, base64: true });
+    return result.base64 ? `data:image/jpeg;base64,${result.base64}` : null;
+  } catch (error) {
+    console.warn('Could not shrink photo before upload, sending the original:', error);
+    return null;
+  }
 }
 
+const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+// Two ways to send the photo:
+//   - Preferred: the shrunk photo as a base64 data URI in a plain JSON body, which Cloudinary
+//     accepts for `file`. No local file is involved, which sidesteps React Native's multipart
+//     file upload. That path fails with a bare "Network request failed" (seen in Expo Go on
+//     2026-10-11) whenever the native side can't read or stream the file.
+//   - Fallback, when shrinking isn't available: the original file as multipart form data, the
+//     way uploads worked before 2026-08-25.
 async function uploadToCloudinary(localUri: string, uploadPreset: string, fallbackName: string): Promise<string> {
-  const compressedUri = await compressForUpload(localUri);
-  const filename = compressedUri.split('/').pop() ?? fallbackName;
-  const extension = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase() ?? 'jpg';
-  const mimeType = extensionToMimeType[extension] ?? 'image/jpeg';
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
+  const dataUri = await shrinkToDataUri(localUri);
 
-  const form = new FormData();
-  // React Native's fetch/FormData accepts this {uri,name,type} shape in place of a Blob.
-  form.append('file', { uri: compressedUri, name: filename, type: mimeType } as unknown as Blob);
-  form.append('upload_preset', uploadPreset);
+  let request: RequestInit;
+  if (dataUri) {
+    request = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: dataUri, upload_preset: uploadPreset }),
+    };
+  } else {
+    const filename = localUri.split('/').pop() ?? fallbackName;
+    const extension = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase() ?? 'jpg';
+    const mimeType = extensionToMimeType[extension] ?? 'image/jpeg';
+    const form = new FormData();
+    // React Native's fetch/FormData accepts this {uri,name,type} shape in place of a Blob.
+    form.append('file', { uri: localUri, name: filename, type: mimeType } as unknown as Blob);
+    form.append('upload_preset', uploadPreset);
+    request = { method: 'POST', body: form };
+  }
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: 'POST',
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, request);
+  } catch (error) {
+    // Keep the underlying reason: "Network request failed" vs. a timeout vs. something else
+    // is what tells these failures apart.
+    throw new Error(`Couldn't reach the photo server (${describe(error)}). Check your connection and try again.`);
+  }
 
-  const data = await response.json();
+  const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error?.message ?? 'Failed to upload photo');
+    // Cloudinary's own message (e.g. a preset problem), so it can be reported back as-is.
+    throw new Error(`Photo upload was refused: ${data?.error?.message ?? `HTTP ${response.status}`}`);
   }
 
   return data.secure_url as string;

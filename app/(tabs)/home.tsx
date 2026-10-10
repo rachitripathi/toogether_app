@@ -15,7 +15,7 @@ import { EventCardSkeleton } from '@/components/SkeletonLoaders/EventCardSkeleto
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import type { EventCategory } from '@/lib/types';
-import { TIME_BUCKETS, getTimeBucket, hasEventStarted } from '@/lib/eventTime';
+import { TIME_BUCKETS, getTimeBucket, hasEventStarted, isHappeningNow } from '@/lib/eventTime';
 import { distanceKm } from '@/lib/geo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -177,8 +177,9 @@ export default function HomeScreen() {
     }, [consumeLocationResult])
   );
 
-  // The events RLS policy keeps finished plans readable for 48h (Activity's rating nudges
-  // and Profile > Past plans need them), so the feed has to drop them itself.
+  // The events RLS policy keeps a started plan readable to everyone for 6h, and to its host and
+  // members after that (Activity's rating nudges and Profile > Past plans need them), so the
+  // feed has to drop started plans itself.
   const now = Date.now();
   const normalizedQuery = query.toLowerCase();
   const filtered = events.filter((event) => {
@@ -222,6 +223,19 @@ export default function HomeScreen() {
     title: bucket,
     items: ranked.filter((item) => getTimeBucket(item.startsAt, now) === bucket),
   })).filter((section) => section.items.length);
+
+  // Your own plans that have started but not closed yet (6h window), pinned above the feed so the
+  // host and members can still get to the details and chat on the day. Nobody else sees them:
+  // joining closes at the start time. Not affected by search or category filters.
+  const happeningNow = currentUser
+    ? events
+        .filter(
+          (event) =>
+            isHappeningNow(event, now) &&
+            (event.creatorId === currentUser.id || event.approvedUserIds.includes(currentUser.id))
+        )
+        .sort((a, b) => a.dateTime.localeCompare(b.dateTime))
+    : [];
 
   const pinnedCount = filtered.filter((event) => event.pinned).length;
   const usage = getUsageSummary();
@@ -442,11 +456,25 @@ export default function HomeScreen() {
                 <EventCardSkeleton />
                 <EventCardSkeleton />
               </>
-            ) : filtered.length ? (
+            ) : null}
+
+            {happeningNow.length ? (
+              <View style={{ gap: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.solid.accept }} />
+                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800' }}>Happening now</Text>
+                </View>
+                {happeningNow.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </View>
+            ) : null}
+
+            {isLoadingEvents && !events.length ? null : filtered.length ? (
               sections.map((section) => (
                 <View key={section.title} style={{ gap: 16 }}>
                   {/* A lone "Today"/"Later" heading adds nothing — only label days once there's more than one. */}
-                  {sections.length > 1 ? (
+                  {sections.length > 1 || happeningNow.length ? (
                     <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800', marginTop: 4 }}>{section.title}</Text>
                   ) : null}
                   {section.items.map(({ event, distance }) => (

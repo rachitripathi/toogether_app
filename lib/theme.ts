@@ -19,6 +19,12 @@ export type AppColors = {
   warning: string;
   danger: string;
   overlay: string;
+  // Solid fills for accept / decline / remove buttons, always with white text. The
+  // status.*.bg tints are translucent washes in dark mode and read as see-through buttons.
+  solid: { accept: string; decline: string };
+  // Fill for a card that needs the user's attention (e.g. pending join requests). Strong enough
+  // to stand apart from the page without an outline; page and card are both white in light mode.
+  attention: string;
   status: {
     success: StatusToken;
     warning: StatusToken;
@@ -46,6 +52,8 @@ export const lightColors: AppColors = {
   warning: '#F59E0B',
   danger: '#FB7185',
   overlay: 'rgba(12, 18, 38, 0.52)',
+  solid: { accept: '#16A34A', decline: '#DC2626' },
+  attention: '#FFEDCC',
   status: {
     success: { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' },
     warning: { bg: '#FFF7E8', text: '#B45309', border: '#FDE7B3' },
@@ -83,6 +91,8 @@ export const darkColors: AppColors = {
   warning: '#FBBF24',
   danger: '#FB8B98',
   overlay: 'rgba(0, 0, 0, 0.68)',
+  solid: { accept: '#16A34A', decline: '#DC2626' },
+  attention: '#3A2C12',
   status: {
     success: { bg: 'rgba(52, 211, 153, 0.16)', text: '#4ADE80', border: 'rgba(52, 211, 153, 0.32)' },
     warning: { bg: 'rgba(251, 191, 36, 0.14)', text: '#FBBF24', border: 'rgba(251, 191, 36, 0.32)' },

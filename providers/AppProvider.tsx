@@ -20,6 +20,7 @@ import type {
   User,
   VerificationStatus,
 } from '@/lib/types';
+import { MAX_JOIN_REQUEST_ATTEMPTS } from '@/lib/types';
 import {
   CREDIT_PACKS,
   FREE_CREATE_LIMIT,
@@ -49,6 +50,9 @@ type CreateEventInput = {
   emoji: string;
   womenOnly?: boolean;
 };
+
+// What a host may change after posting (see updateEvent).
+type EventEdit = Partial<Pick<Event, 'description' | 'dateTime' | 'exactTime' | 'timeSlot'>>;
 
 type SocialProvider = 'google' | 'apple';
 
@@ -105,24 +109,31 @@ type AppContextValue = {
   logout: () => Promise<void>;
   dismissVerificationPrompt: () => void;
   updateCurrentUser: (
-    data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
-  ) => void;
-  submitVerification: (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => Promise<void>;
+    data: Partial<Pick<User, 'name' | 'username' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
+  ) => Promise<void>;
+  submitVerification: (
+    data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string },
+    onProgress?: (uploaded: number) => void
+  ) => Promise<void>;
   setVerificationStatusDev: (status: VerificationStatus, reason?: string) => void;
   createEvent: (data: CreateEventInput) => Promise<Event>;
-  updateEvent: (
-    eventId: string,
-    data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
-  ) => void;
+  updateEvent: (eventId: string, data: EventEdit) => Promise<void>;
   deleteEvent: (eventId: string) => void;
   requestToJoin: (eventId: string) => Promise<void>;
+  rerequestToJoin: (eventId: string) => Promise<void>;
+  getRequestAttempts: (eventId: string) => number;
   approveRequest: (eventId: string, userId: string) => Promise<void>;
   rejectRequest: (eventId: string, userId: string) => Promise<void>;
+  removeMember: (eventId: string, userId: string) => Promise<void>;
+  reportMember: (eventId: string, userId: string, reason: string) => Promise<void>;
+  resolveMemberReports: (eventId: string, userId: string, remove: boolean) => Promise<void>;
   inviteToEvent: (eventId: string, userId: string) => Promise<void>;
+  respondToInvite: (eventId: string, accept: boolean) => Promise<void>;
   getRequestStatus: (eventId: string) => RequestStatus | null;
-  sendCrewRequest: (userId: string) => void;
-  acceptCrewRequest: (requestId: string) => void;
-  rejectCrewRequest: (requestId: string) => void;
+  sendCrewRequest: (userId: string) => Promise<void>;
+  acceptCrewRequest: (requestId: string) => Promise<void>;
+  rejectCrewRequest: (requestId: string) => Promise<void>;
+  removeFromCrew: (userId: string) => Promise<void>;
   getCrewStatus: (userId: string) => 'none' | 'pending_incoming' | 'pending_outgoing' | 'connected';
   getCrewMembers: () => User[];
   sendMessage: (eventId: string, text: string) => Promise<void>;
@@ -151,7 +162,6 @@ const mapProfileRowToUser = (row: any): User => ({
   age: row.age ?? 0,
   city: row.city ?? '',
   verified: row.verified ?? false,
-  bio: row.bio ?? '',
   verificationStatus: row.verification_status ?? 'unverified',
   verificationSubmittedAt: row.verification_submitted_at ?? undefined,
   verificationRejectionReason: row.verification_rejection_reason ?? undefined,
@@ -187,6 +197,15 @@ const mapRequestRow = (row: any): JoinRequest => ({
   userId: row.user_id,
   eventId: row.event_id,
   status: row.status,
+  attempts: row.attempts ?? 1,
+  createdAt: row.created_at,
+});
+
+const mapCrewRow = (row: any): CrewRequest => ({
+  id: row.id,
+  fromUserId: row.from_user_id,
+  toUserId: row.to_user_id,
+  status: row.status,
   createdAt: row.created_at,
 });
 
@@ -211,7 +230,7 @@ const groupMessagesByEvent = (rows: Message[]): Record<string, Message[]> => {
 const hydrateEvents = (rawEvents: EventRow[], rawRequests: JoinRequest[]): Event[] => {
   const byEvent = new Map<string, { approved: string[]; pending: string[] }>();
   for (const request of rawRequests) {
-    if (request.status === 'rejected') continue;
+    if (request.status !== 'approved' && request.status !== 'pending') continue;
     let bucket = byEvent.get(request.eventId);
     if (!bucket) {
       bucket = { approved: [], pending: [] };
@@ -299,22 +318,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Monotonic id so an older, slower events/requests fetch can't overwrite a newer one.
   const eventsSyncSeq = useRef(0);
   const lastEventsSyncAt = useRef(0);
-  const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([
-    {
-      id: 'c1',
-      fromUserId: 'u2',
-      toUserId: 'u1',
-      status: 'accepted',
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'c2',
-      fromUserId: 'u4',
-      toUserId: 'u1',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    },
-  ]);
+  // Real crew_requests rows the user is on either side of (RLS: crew_requests_select_own).
+  // Written only through RPCs (migration 014), kept live by the feed-realtime channel below.
+  const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [ratings, setRatings] = useState(MOCK_RATINGS);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
@@ -475,6 +481,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return [];
   };
 
+  // Returns the profile ids involved, for ensureUsers().
+  const syncCrewRequests = async () => {
+    const { data, error } = await supabase.from('crew_requests').select('*');
+    if (error || !data) {
+      if (error) console.error('Error fetching crew requests:', error);
+      return [];
+    }
+    const mapped = data.map(mapCrewRow);
+    setCrewRequests(mapped);
+    return mapped.flatMap((request) => [request.fromUserId, request.toUserId]);
+  };
+
   useEffect(() => {
     if (!isLoggedIn) {
       return;
@@ -503,8 +521,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchMessages();
     // Resolve profiles only after the full list lands, so the initial load doesn't
     // re-fetch profiles that fetchUsers() is already bringing in.
-    Promise.all([fetchUsers(), syncEventsAndRequests()]).then(([, referencedUserIds]) => {
-      if (!cancelled) ensureUsers(referencedUserIds);
+    Promise.all([fetchUsers(), syncEventsAndRequests(), syncCrewRequests()]).then(([, referencedUserIds, crewUserIds]) => {
+      if (!cancelled) ensureUsers([...referencedUserIds, ...crewUserIds]);
     });
 
     return () => {
@@ -527,6 +545,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       previousState = nextState;
       if (resumed && Date.now() - lastEventsSyncAt.current > RESUME_SYNC_MIN_INTERVAL_MS) {
         syncEventsAndRequests().then(ensureUsers);
+        syncCrewRequests().then(ensureUsers);
       }
     });
 
@@ -568,6 +587,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setRawEvents((prev) => upsertById(prev, event, true));
         ensureUsers([event.creatorId]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_requests' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = (payload.old as { id?: string }).id;
+          if (removedId) setCrewRequests((prev) => prev.filter((request) => request.id !== removedId));
+          return;
+        }
+        const request = mapCrewRow(payload.new);
+        setCrewRequests((prev) => upsertById(prev, request));
+        ensureUsers([request.fromUserId, request.toUserId]);
       })
       .subscribe();
 
@@ -682,6 +711,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     markExplicitSignOut();
     await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
+    setCrewRequests([]);
     setLastRoute(null);
     AsyncStorage.removeItem(LAST_ROUTE_KEY).catch(() => {});
   };
@@ -695,87 +725,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setShouldShowVerificationPrompt(false);
   };
 
-  const updateCurrentUser = (
-    data: Partial<Pick<User, 'name' | 'username' | 'bio' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
-  ) => {
+  // Rejects if the save fails. It used to fire and forget and only log the error, so a failed
+  // profile-photo save looked like the photo just "didn't change".
+  const updateCurrentUser = async (
+    data: Partial<Pick<User, 'name' | 'username' | 'city' | 'avatarUri' | 'avatarColors' | 'age' | 'dob' | 'verified' | 'gender'>>
+  ): Promise<void> => {
     if (!currentUser) return;
     const userId = currentUser.id;
 
-    (async () => {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: data.name,
-          username: data.username,
-          bio: data.bio,
-          city: data.city,
-          avatar_uri: data.avatarUri,
-          avatar_colors: data.avatarColors,
-          age: data.age,
-          verified: data.verified,
-          gender: data.gender,
-        })
-        .eq('id', userId);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: data.name,
+        username: data.username,
+        city: data.city,
+        avatar_uri: data.avatarUri,
+        avatar_colors: data.avatarColors,
+        age: data.age,
+        verified: data.verified,
+        gender: data.gender,
+      })
+      .eq('id', userId);
 
-      if (error) {
-        console.error('Error updating profile:', error);
-        return;
-      }
+    if (error) {
+      console.error('Error updating profile:', error);
+      throw new Error(error.message);
+    }
 
-      await refreshProfile();
-      const { data: refreshedRow } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (refreshedRow) {
-        const refreshedUser = mapProfileRowToUser(refreshedRow);
-        setUsers((prev) => {
-          const exists = prev.some((user) => user.id === userId);
-          return exists ? prev.map((user) => (user.id === userId ? refreshedUser : user)) : [...prev, refreshedUser];
-        });
-      }
-    })();
-  };
-
-  // Uploads the (large, multi-MB) camera photos and writes their resulting URLs to
-  // verification_documents. Deliberately NOT awaited by submitVerification below — it's
-  // kicked off from this always-mounted provider rather than from the documents screen,
-  // so it keeps running to completion (success or failure) no matter what the user
-  // navigates to in the meantime.
-  const uploadVerificationDocuments = async (
-    userId: string,
-    data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }
-  ) => {
-    // Sensitive document URLs live in verification_documents (owner/admin-only RLS), separate
-    // from the publicly-readable profiles row — see migrations/007_secure_verification_admin.sql.
-    const [frontUrl, backUrl, selfieUrl] = await Promise.all([
-      uploadVerificationDocument(data.aadhaarFrontUri),
-      uploadVerificationDocument(data.aadhaarBackUri),
-      uploadVerificationDocument(data.selfieUri),
-    ]);
-
-    const { error: docsError } = await supabase
-      .from('verification_documents')
-      .upsert(
-        {
-          user_id: userId,
-          aadhaar_front_uri: frontUrl,
-          aadhaar_back_uri: backUrl,
-          selfie_uri: selfieUrl,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
-
-    if (docsError) {
-      throw docsError;
+    await refreshProfile();
+    const { data: refreshedRow } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (refreshedRow) {
+      const refreshedUser = mapProfileRowToUser(refreshedRow);
+      setUsers((prev) => {
+        const exists = prev.some((user) => user.id === userId);
+        return exists ? prev.map((user) => (user.id === userId ? refreshedUser : user)) : [...prev, refreshedUser];
+      });
     }
   };
 
-  const submitVerification = async (data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string }) => {
+  // Uploads the three photos, records their URLs, and only then marks the profile 'pending'.
+  // This used to flip to 'pending' first and upload in the background; when an upload failed
+  // it quietly reset the user to 'unverified' after they'd left the screen, so to them it looked
+  // like the submission just vanished, and an admin could see 'pending' with no documents.
+  // Doing it in order means a failure is reported on the submit screen with the photos still
+  // there to retry, and 'pending' always has documents behind it. onProgress gets the number of
+  // photos uploaded so far (0-3).
+  const submitVerification = async (
+    data: { aadhaarFrontUri: string; aadhaarBackUri: string; selfieUri: string },
+    onProgress?: (uploaded: number) => void
+  ) => {
     if (!currentUser) return;
     const userId = currentUser.id;
 
-    // Flip to "pending" first — a single small row update — so the user gets instant
-    // feedback instead of sitting on the submit screen waiting for three large photo
-    // uploads to finish. The actual uploads continue below, in the background.
+    let uploaded = 0;
+    onProgress?.(uploaded);
+    const upload = async (uri: string) => {
+      const url = await uploadVerificationDocument(uri);
+      onProgress?.(++uploaded);
+      return url;
+    };
+
+    let urls: string[];
+    try {
+      urls = await Promise.all([upload(data.aadhaarFrontUri), upload(data.aadhaarBackUri), upload(data.selfieUri)]);
+    } catch (uploadError) {
+      console.error('Error uploading verification documents:', uploadError);
+      throw new Error(
+        `We couldn't upload your photos (${uploadError instanceof Error ? uploadError.message : 'network error'}). Check your connection and try again.`
+      );
+    }
+    const [frontUrl, backUrl, selfieUrl] = urls;
+
+    // Sensitive document URLs live in verification_documents (owner/admin-only RLS), separate
+    // from the publicly-readable profiles row — see migrations/007_secure_verification_admin.sql.
+    const { error: docsError } = await supabase.from('verification_documents').upsert(
+      {
+        user_id: userId,
+        aadhaar_front_uri: frontUrl,
+        aadhaar_back_uri: backUrl,
+        selfie_uri: selfieUrl,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
+    if (docsError) {
+      console.error('Error saving verification documents:', docsError);
+      throw new Error(`We couldn't save your documents (${docsError.message}). Please try again.`);
+    }
+
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -787,7 +824,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       console.error('Error submitting verification:', error);
-      throw error;
+      throw new Error(`We couldn't submit your verification (${error.message}). Please try again.`);
     }
 
     await refreshProfile();
@@ -796,18 +833,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const refreshedUser = mapProfileRowToUser(refreshedRow);
       setUsers((prev) => prev.map((user) => (user.id === userId ? refreshedUser : user)));
     }
-
-    uploadVerificationDocuments(userId, data).catch(async (uploadError) => {
-      console.error('Error uploading verification documents:', uploadError);
-      await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'unverified',
-          verification_rejection_reason: "We couldn't upload your photos. Please try verifying again.",
-        })
-        .eq('id', userId);
-      await refreshProfile();
-    });
   };
 
   // Dev-only: lets a tester flip verification status without a real review pipeline.
@@ -902,34 +927,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return event;
   };
 
-  const updateEvent = (
-    eventId: string,
-    data: Partial<Pick<Event, 'title' | 'description' | 'area' | 'timeSlot' | 'exactTime' | 'locationNote' | 'maxPeople'>>
-  ) => {
+  // Only the start time (same day) and the description can change after posting; the
+  // restrict_event_edits() trigger (migration 017) enforces that, and members are notified of a
+  // new time server-side. exactTime / timeSlot are dateTime's display labels and move with it.
+  const updateEvent = async (eventId: string, data: EventEdit): Promise<void> => {
     const previous = rawEvents.find((event) => event.id === eventId);
     setRawEvents((prev) => prev.map((event) => (event.id === eventId ? { ...event, ...data } : event)));
 
-    (async () => {
-      const { error } = await supabase
-        .from('events')
-        .update({
-          title: data.title,
-          description: data.description,
-          area: data.area,
-          time_slot: data.timeSlot,
-          exact_time: data.exactTime,
-          location_note: data.locationNote,
-          max_people: data.maxPeople,
-        })
-        .eq('id', eventId);
+    const { error } = await supabase
+      .from('events')
+      .update({
+        description: data.description,
+        date_time: data.dateTime,
+        exact_time: data.exactTime,
+        time_slot: data.timeSlot,
+      })
+      .eq('id', eventId);
 
-      if (error) {
-        console.error('Error updating event:', error);
-        if (previous) {
-          setRawEvents((prev) => prev.map((event) => (event.id === eventId ? previous : event)));
-        }
+    if (error) {
+      console.error('Error updating event:', error);
+      if (previous) {
+        setRawEvents((prev) => prev.map((event) => (event.id === eventId ? previous : event)));
       }
-    })();
+      throw new Error(error.message);
+    }
   };
 
   const deleteEvent = (eventId: string) => {
@@ -1007,6 +1028,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         userId: currentUser.id,
         eventId,
         status: 'pending',
+        attempts: 1,
         createdAt: new Date().toISOString(),
       };
 
@@ -1026,7 +1048,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // erroring out the user.
           const { data: existingRow } = await supabase
             .from('join_requests')
-            .select('id, status, created_at')
+            .select('id, status, attempts, created_at')
             .eq('user_id', currentUser.id)
             .eq('event_id', eventId)
             .maybeSingle();
@@ -1038,6 +1060,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 userId: currentUser.id,
                 eventId,
                 status: existingRow.status as RequestStatus,
+                attempts: existingRow.attempts ?? 1,
                 createdAt: existingRow.created_at,
               })
             );
@@ -1051,21 +1074,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // upsert, not append: the realtime echo of this same insert may already have landed.
       setRequests((prev) => upsertById(prev, nextRequest));
-      updateCurrentUserUsage((user) => {
-        const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
-        const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
-        const shouldSpendCredit = usage.monetisationEnabled && (user.joinRequestsThisMonth ?? 0) >= freeJoinLimit;
-
-        return {
-          ...user,
-          joinRequestsThisMonth: nextUsed,
-          credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
-          totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
-        };
-      });
+      chargeJoinRequest(usage.monetisationEnabled);
     } finally {
       pendingJoinEventIds.current.delete(dedupeKey);
     }
+  };
+
+  const chargeJoinRequest = (monetisationOn: boolean) => {
+    updateCurrentUserUsage((user) => {
+      const freeJoinLimit = FREE_JOIN_LIMIT + (user.verified ? VERIFIED_JOIN_BONUS : 0);
+      const nextUsed = (user.joinRequestsThisMonth ?? 0) + 1;
+      const shouldSpendCredit = monetisationOn && (user.joinRequestsThisMonth ?? 0) >= freeJoinLimit;
+
+      return {
+        ...user,
+        joinRequestsThisMonth: nextUsed,
+        credits: shouldSpendCredit ? Math.max((user.credits ?? 0) - 1, 0) : user.credits ?? 0,
+        totalCreditsSpent: shouldSpendCredit ? (user.totalCreditsSpent ?? 0) + 1 : user.totalCreditsSpent ?? 0,
+      };
+    });
+  };
+
+  // Sends a declined request again (rejected -> pending on the same row). The attempt limit
+  // is enforced server-side by rerequest_to_join() (migration 013); the checks here only
+  // give a friendlier message before the round trip.
+  const rerequestToJoin = async (eventId: string): Promise<void> => {
+    if (!currentUser) {
+      return;
+    }
+    const existing = requests.find((request) => request.eventId === eventId && request.userId === currentUser.id);
+    if (!existing || existing.status !== 'rejected') {
+      return;
+    }
+    if ((existing.attempts ?? 1) >= MAX_JOIN_REQUEST_ATTEMPTS) {
+      throw new Error('You have used all your requests for this plan.');
+    }
+
+    const dedupeKey = `${eventId}:${currentUser.id}`;
+    if (pendingJoinEventIds.current.has(dedupeKey)) {
+      return;
+    }
+    pendingJoinEventIds.current.add(dedupeKey);
+
+    try {
+      const event = events.find((item) => item.id === eventId);
+      if (event?.maxPeople && event.approvedUserIds.length + 1 >= event.maxPeople) {
+        throw new Error('This plan is already full.');
+      }
+
+      const usage = getUsageSummaryForUser(currentUser);
+      if (usage.monetisationEnabled && usage.joinLimitReached) {
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('rerequest_to_join', { p_event_id: eventId });
+      if (error) {
+        console.error('Error re-sending join request:', error);
+        throw new Error(error.message);
+      }
+
+      const attempts = typeof data === 'number' ? data : (existing.attempts ?? 1) + 1;
+      setRequests((prev) =>
+        prev.map((request) => (request.id === existing.id ? { ...request, status: 'pending', attempts } : request))
+      );
+      chargeJoinRequest(usage.monetisationEnabled);
+    } finally {
+      pendingJoinEventIds.current.delete(dedupeKey);
+    }
+  };
+
+  const getRequestAttempts = (eventId: string) => {
+    if (!currentUser) {
+      return 0;
+    }
+    const request = requests.find((item) => item.eventId === eventId && item.userId === currentUser.id);
+    return request ? request.attempts ?? 1 : 0;
   };
 
   const buyCreditPack = (packId: CreditPackId) => {
@@ -1145,30 +1228,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // Host takes an approved member off the plan. 'removed' is final: they lose chat/details
+  // access (RLS only admits 'approved') and can't request this plan again.
+  const removeMember = async (eventId: string, userId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('join_requests')
+      .update({ status: 'removed' })
+      .eq('user_id', userId)
+      .eq('event_id', eventId);
+
+    if (error) {
+      console.error('Error removing member:', error);
+      throw new Error(error.message);
+    }
+
+    setRequests((prev) =>
+      prev.map((request) =>
+        request.eventId === eventId && request.userId === userId ? { ...request, status: 'removed' } : request
+      )
+    );
+  };
+
+  // Host invites an accepted crew member. invite_to_event() (migration 014) checks host, crew,
+  // full / started / women-only, and creates an 'invited' row that grants nothing until the
+  // invitee accepts via respondToInvite.
+  // Anyone in a plan can report another person in it (report_member(), migration 018). The host
+  // is notified unless the report is about them, in which case only admins see it.
+  const reportMember = async (eventId: string, userId: string, reason: string): Promise<void> => {
+    const { error } = await supabase.rpc('report_member', { p_event_id: eventId, p_reported_id: userId, p_reason: reason });
+    if (error) {
+      console.error('Error reporting member:', error);
+      throw new Error(error.message);
+    }
+  };
+
+  // Host's decision on open reports about a member: remove them (same as Remove) or dismiss.
+  const resolveMemberReports = async (eventId: string, userId: string, remove: boolean): Promise<void> => {
+    const { error } = await supabase.rpc('resolve_member_reports', {
+      p_event_id: eventId,
+      p_reported_id: userId,
+      p_remove: remove,
+    });
+    if (error) {
+      console.error('Error resolving reports:', error);
+      throw new Error(error.message);
+    }
+    if (remove) {
+      setRequests((prev) =>
+        prev.map((request) =>
+          request.eventId === eventId && request.userId === userId && request.status === 'approved'
+            ? { ...request, status: 'removed' }
+            : request
+        )
+      );
+    }
+  };
+
   const inviteToEvent = async (eventId: string, userId: string): Promise<void> => {
-    const event = events.find((item) => item.id === eventId);
-    if (!event || !currentUser) {
-      return;
-    }
-
-    if (event.approvedUserIds.includes(userId) || event.requestUserIds.includes(userId)) {
-      return;
-    }
-
-    const inviteId = randomUUID();
-    const status = event.creatorId === currentUser.id ? 'approved' : 'pending';
-
-    const { error } = await supabase.from('join_requests').insert([
-      { id: inviteId, user_id: userId, event_id: eventId, status },
-    ]);
-
+    const { error } = await supabase.rpc('invite_to_event', { p_event_id: eventId, p_user_id: userId });
     if (error) {
       console.error('Error creating invite:', error);
       throw new Error(error.message);
     }
 
+    const { data: row } = await supabase
+      .from('join_requests')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (row) {
+      setRequests((prev) => upsertById(prev, mapRequestRow(row)));
+    }
+  };
+
+  // Invitee's answer. Accept makes them an approved member; decline deletes the invite row, so
+  // they're back to "no request" and can still ask to join later.
+  const respondToInvite = async (eventId: string, accept: boolean): Promise<void> => {
+    if (!currentUser) {
+      return;
+    }
+    const { error } = await supabase.rpc('respond_to_invite', { p_event_id: eventId, p_accept: accept });
+    if (error) {
+      console.error('Error responding to invite:', error);
+      throw new Error(error.message);
+    }
+
+    const isMine = (request: JoinRequest) => request.eventId === eventId && request.userId === currentUser.id;
     setRequests((prev) =>
-      upsertById(prev, { id: inviteId, eventId, userId, status, createdAt: new Date().toISOString() })
+      accept
+        ? prev.map((request) => (isMine(request) ? { ...request, status: 'approved' } : request))
+        : prev.filter((request) => !isMine(request))
     );
   };
 
@@ -1182,60 +1332,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const sendCrewRequest = (userId: string) => {
+  // send_crew_request() (migration 014) also accepts their request if they'd already asked
+  // you, and clears an old declined one, so just re-read the list afterwards.
+  const sendCrewRequest = async (userId: string): Promise<void> => {
     if (!currentUser || currentUser.id === userId) {
       return;
     }
+    const { error } = await supabase.rpc('send_crew_request', { p_to_user_id: userId });
+    if (error) {
+      console.error('Error sending crew request:', error);
+      throw new Error(error.message);
+    }
+    await syncCrewRequests();
+  };
 
-    const existing = crewRequests.find(
-      (request) =>
-        ((request.fromUserId === currentUser.id && request.toUserId === userId) ||
-          (request.fromUserId === userId && request.toUserId === currentUser.id)) &&
-        request.status !== 'rejected'
-    );
+  const respondToCrewRequest = async (requestId: string, accept: boolean): Promise<void> => {
+    const previous = crewRequests.find((request) => request.id === requestId);
+    const status = accept ? 'accepted' : 'rejected';
+    setCrewRequests((prev) => prev.map((request) => (request.id === requestId ? { ...request, status } : request)));
 
-    if (existing) {
+    const { error } = await supabase.rpc('respond_to_crew_request', { p_request_id: requestId, p_accept: accept });
+    if (error) {
+      console.error('Error responding to crew request:', error);
+      if (previous) {
+        setCrewRequests((prev) => prev.map((request) => (request.id === requestId ? previous : request)));
+      }
+      throw new Error(error.message);
+    }
+  };
+
+  const acceptCrewRequest = (requestId: string) => respondToCrewRequest(requestId, true);
+  const rejectCrewRequest = (requestId: string) => respondToCrewRequest(requestId, false);
+
+  // Ends a crew connection, or cancels a pending request either way. remove_from_crew()
+  // (migration 015) also withdraws open invites between the two of you; people who already
+  // accepted stay in the plan. The other person isn't notified.
+  const removeFromCrew = async (userId: string): Promise<void> => {
+    if (!currentUser) {
       return;
     }
+    const { error } = await supabase.rpc('remove_from_crew', { p_user_id: userId });
+    if (error) {
+      console.error('Error removing from crew:', error);
+      throw new Error(error.message);
+    }
 
-    setCrewRequests((prev) => [
-      ...prev,
-      {
-        id: `c${Date.now()}`,
-        fromUserId: currentUser.id,
-        toUserId: userId,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  };
-
-  const acceptCrewRequest = (requestId: string) => {
-    setCrewRequests((prev) =>
-      prev.map((request) =>
-        request.id === requestId ? { ...request, status: 'accepted' } : request
+    const me = currentUser.id;
+    const betweenUs = (request: CrewRequest) =>
+      (request.fromUserId === me && request.toUserId === userId) || (request.fromUserId === userId && request.toUserId === me);
+    setCrewRequests((prev) => prev.filter((request) => !betweenUs(request)));
+    const hostOf = new Map(rawEvents.map((event) => [event.id, event.creatorId]));
+    setRequests((prev) =>
+      prev.filter(
+        (request) =>
+          request.status !== 'invited' ||
+          !(
+            (hostOf.get(request.eventId) === me && request.userId === userId) ||
+            (hostOf.get(request.eventId) === userId && request.userId === me)
+          )
       )
     );
   };
 
-  const rejectCrewRequest = (requestId: string) => {
-    setCrewRequests((prev) =>
-      prev.map((request) =>
-        request.id === requestId ? { ...request, status: 'rejected' } : request
-      )
-    );
-  };
-
+  // A declined request (either way) counts as no relationship: either side can ask again.
   const getCrewStatus = (userId: string) => {
     if (!currentUser) {
       return 'none';
     }
 
-    const existing = crewRequests.find(
+    // There can be more than one live row between two people (one each way); an accepted one
+    // wins, otherwise a connected person could show up as "request sent" / "add to crew".
+    const between = crewRequests.filter(
       (request) =>
-        (request.fromUserId === currentUser.id && request.toUserId === userId) ||
-        (request.fromUserId === userId && request.toUserId === currentUser.id)
+        request.status !== 'rejected' &&
+        ((request.fromUserId === currentUser.id && request.toUserId === userId) ||
+          (request.fromUserId === userId && request.toUserId === currentUser.id))
     );
+    const existing = between.find((request) => request.status === 'accepted') ?? between[0];
 
     if (!existing) {
       return 'none';
@@ -1470,13 +1643,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateEvent,
         deleteEvent,
         requestToJoin,
+        rerequestToJoin,
+        getRequestAttempts,
         approveRequest,
         rejectRequest,
+        removeMember,
+        reportMember,
+        resolveMemberReports,
         inviteToEvent,
+        respondToInvite,
         getRequestStatus,
         sendCrewRequest,
         acceptCrewRequest,
         rejectCrewRequest,
+        removeFromCrew,
         getCrewStatus,
         getCrewMembers,
         sendMessage,

@@ -22,6 +22,7 @@ export default function DocumentsScreen() {
   const { colors } = useTheme();
   const { aadhaarFrontUri, aadhaarBackUri, selfieUri, reset } = useVerificationDraftStore();
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
 
   const photos = [
     { key: 'front' as const, label: 'Aadhaar — front', uri: aadhaarFrontUri },
@@ -30,12 +31,11 @@ export default function DocumentsScreen() {
   ];
   const allCaptured = photos.every((photo) => photo.uri);
 
-  // submitVerification only awaits the (fast) status flip — the slow photo uploads run in
-  // the background from AppProvider itself, so this can't hang for long. Still, block
-  // every way off this screen while it's in flight: the header back button is already
-  // disabled via `submitting`, but neither the Android hardware back button nor the iOS
-  // edge-swipe gesture respect that, and navigating away mid-await used to leave this
-  // screen calling setState/navigation on itself after it had already unmounted.
+  // submitVerification uploads all three photos before it returns, so this can take a while
+  // on a slow connection. Block every way off this screen while it's in flight: the header
+  // back button is already disabled via `submitting`, but neither the Android hardware back
+  // button nor the iOS edge-swipe gesture respect that, and navigating away mid-await used to
+  // leave this screen calling setState/navigation on itself after it had already unmounted.
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: !submitting });
   }, [submitting, navigation]);
@@ -57,14 +57,20 @@ export default function DocumentsScreen() {
     if (submitting || !aadhaarFrontUri || !aadhaarBackUri || !selfieUri) return;
     setSubmitting(true);
     try {
-      await submitVerification({ aadhaarFrontUri, aadhaarBackUri, selfieUri });
+      await submitVerification({ aadhaarFrontUri, aadhaarBackUri, selfieUri }, (count) => {
+        if (mountedRef.current) setUploadedCount(count);
+      });
       reset();
       if (!mountedRef.current) return;
       router.dismissTo('/verification');
     } catch (error) {
       console.error('Failed to submit verification:', error);
+      // The photos stay in the draft store, so retrying doesn't mean retaking them.
       if (mountedRef.current) {
-        Alert.alert('Something went wrong', 'We could not submit your verification. Please check your connection and try again.');
+        Alert.alert(
+          "Couldn't submit",
+          error instanceof Error ? error.message : 'Please check your connection and try again.'
+        );
       }
     } finally {
       if (mountedRef.current) setSubmitting(false);
@@ -185,7 +191,13 @@ export default function DocumentsScreen() {
             </View>
 
             <GradientButton
-              label={submitting ? 'Submitting…' : 'Submit for review'}
+              label={
+                !submitting
+                  ? 'Submit for review'
+                  : uploadedCount < photos.length
+                    ? `Uploading photos (${uploadedCount}/${photos.length})…`
+                    : 'Submitting…'
+              }
               onPress={handleSubmit}
               disabled={submitting}
               icon={submitting ? <ActivityIndicator color="#FFFFFF" /> : undefined}

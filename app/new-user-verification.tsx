@@ -5,6 +5,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
+import { useVerificationDraftStore } from '@/store/verificationDraftStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const benefits = [
@@ -17,13 +18,14 @@ export default function NewUserVerificationScreen() {
   const insets = useSafeAreaInsets();
   const { currentUser, updateCurrentUser } = useApp();
   const { colors } = useTheme();
+  const resetDraft = useVerificationDraftStore((s) => s.reset);
 
   if (!currentUser) {
     return null;
   }
 
   const finish = (verified: boolean) => {
-    updateCurrentUser({ verified });
+    updateCurrentUser({ verified }).catch(() => {});
     router.replace('/(tabs)/home');
   };
 
@@ -71,7 +73,14 @@ export default function NewUserVerificationScreen() {
           ))}
         </View>
 
-        <GradientButton label="Get verified" onPress={() => router.push('/verification/documents')} fullWidth />
+        <GradientButton
+          label="Get verified"
+          onPress={() => {
+            resetDraft();
+            router.push('/verification/documents');
+          }}
+          fullWidth
+        />
         <Pressable onPress={() => finish(false)} style={{ alignItems: 'center', paddingVertical: 8 }}>
           <Text style={{ color: colors.muted, fontWeight: '900' }}>Skip for now</Text>
         </Pressable>

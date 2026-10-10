@@ -133,6 +133,7 @@ function ThemedApp() {
             <Stack.Screen name="profile-plans/[section]" />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="chat/[id]" />
+            <Stack.Screen name="event-members/[id]" />
             <Stack.Screen name="user/[id]" />
           </Stack>
           <VerificationPrompt />

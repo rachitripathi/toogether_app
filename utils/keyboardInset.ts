@@ -1,40 +1,34 @@
 /**
- * Bottom inset for a composer pinned to the bottom of a full-bleed screen while
- * the keyboard is up.
+ * How much of the bottom of the screen the keyboard covers (0 when hidden).
  *
  * Android runs edge-to-edge (mandatory since SDK 54; `edgeToEdgeEnabled=true` in
- * gradle.properties), which means the activity window no longer shrinks for the
- * keyboard even though the manifest still says `windowSoftInputMode="adjustResize"`.
- * The root view stays full-screen and the IME just draws over it, so the composer
- * has to lift itself.
+ * gradle.properties), so the window usually no longer shrinks for the keyboard even
+ * though the manifest still says `windowSoftInputMode="adjustResize"`, and the IME just
+ * draws over the root view. Content that has to clear it lifts itself — but by the
+ * measured overlap (hooks/useKeyboardHeight.ts `useKeyboardOverlap`), not by this number
+ * directly, so a window that did resize doesn't get lifted twice.
  *
- * How much to lift differs per platform, because the two sides measure differently:
+ * The two platforms measure differently:
  *
  * - Android: RN reports `endCoordinates.height` as `imeInsets.bottom - systemBars.bottom`
  *   (ReactRootView.checkForKeyboardEvents), i.e. the keyboard *minus* the navigation
  *   bar it overlaps. safe-area-context's bottom inset is that same navigation bar and
  *   deliberately never includes the IME (SafeAreaUtils.getRootWindowInsetsCompatR).
- *   The two are complements, so clearing the keyboard takes keyboardHeight + bottomInset.
+ *   The two are complements, so the covered height is keyboardHeight + bottomInset.
  * - iOS: the keyboard frame is already measured from the bottom of the screen, home
- *   indicator included, so keyboardHeight alone clears it.
- *
- * With the keyboard up the system bars / home indicator are covered by the keyboard,
- * so the resting safe-area padding is replaced rather than added on top of it —
- * adding both is what produces a double gap.
+ *   indicator included, so keyboardHeight alone is the covered height.
  */
-export function composerBottomInset({
+export function keyboardCoveredHeight({
   os,
   keyboardHeight,
   bottomInset,
-  minRestInset = 16,
 }: {
   os: string;
   keyboardHeight: number;
   bottomInset: number;
-  minRestInset?: number;
 }): number {
   if (keyboardHeight <= 0) {
-    return Math.max(bottomInset, minRestInset);
+    return 0;
   }
   return os === 'android' ? keyboardHeight + bottomInset : keyboardHeight;
 }

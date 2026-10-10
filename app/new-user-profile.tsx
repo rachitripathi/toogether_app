@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Icon } from '@/components/Icon';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { FormField } from '@/components/FormField';
+import { CityPickerField } from '@/components/CityPickerField';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
+import { PROFILE_LIMITS, cleanLine, validateName } from '@/lib/profileFields';
 import { GradientButton } from '@/components/GradientButton';
 import { UsernameStatusIcon, usernameStatusMessage } from '@/components/UsernameStatusIcon';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -76,6 +79,7 @@ export default function NewUserProfileScreen() {
   const usernameStatus = useUsernameAvailability(username, currentUser?.username);
   const [dob, setDob] = useState<Date | null>(currentUser?.dob ? new Date(currentUser.dob) : null);
   const [gender, setGender] = useState<Gender>(currentUser?.gender ?? 'man');
+  const [city, setCity] = useState(currentUser?.city ?? '');
   const [avatarPreviewUri, setAvatarPreviewUri] = useState(currentUser?.avatarUri);
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUri);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -133,15 +137,16 @@ export default function NewUserProfileScreen() {
     setShowDatePicker(true);
   };
 
-  const continueToVerification = () => {
-    const trimmedName = name.trim();
+  const continueToVerification = async () => {
+    const trimmedName = cleanLine(name);
     const normalizedUsername = normalizeUsername(username);
     const dobValue = dob ? toDobValue(dob) : '';
     const age = getAgeFromDob(dobValue);
     const dobError = getDobError(dob);
 
-    if (!trimmedName) {
-      setError('Add your name to continue.');
+    const nameProblem = validateName(name);
+    if (nameProblem) {
+      setError(nameProblem);
       return;
     }
 
@@ -170,14 +175,20 @@ export default function NewUserProfileScreen() {
       return;
     }
 
-    updateCurrentUser({
-      name: trimmedName,
-      username: normalizedUsername,
-      dob: dobValue,
-      age,
-      avatarUri: avatarUrl ?? '',
-      gender,
-    });
+    try {
+      await updateCurrentUser({
+        name: trimmedName,
+        username: normalizedUsername,
+        dob: dobValue,
+        age,
+        avatarUri: avatarUrl ?? '',
+        gender,
+        city,
+      });
+    } catch (saveError) {
+      setError(`Couldn't save your profile (${saveError instanceof Error ? saveError.message : 'network error'}). Try again.`);
+      return;
+    }
     router.push('/new-user-verification');
   };
 
@@ -198,7 +209,7 @@ export default function NewUserProfileScreen() {
         <Text style={{ color: colors.muted }}>Name, gender, and DOB are required. Photo is optional.</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
+      <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
         <View
           style={{
             backgroundColor: colors.surface,
@@ -250,7 +261,13 @@ export default function NewUserProfileScreen() {
           </Text>
         </View>
 
-        <FormField label="Full name" value={name} onChangeText={setName} placeholder="Aisha Thomas" />
+        <FormField
+          label="Full name"
+          value={name}
+          onChangeText={setName}
+          placeholder="Aisha Thomas"
+          maxLength={PROFILE_LIMITS.name}
+        />
 
         <FormField
           label="Username"
@@ -317,10 +334,12 @@ export default function NewUserProfileScreen() {
           </Pressable>
         </View>
 
+        <CityPickerField label="City (optional)" value={city} onChange={setCity} />
+
         {error ? <Text style={{ color: colors.danger, fontWeight: '700' }}>{error}</Text> : null}
 
         <GradientButton label="Continue" onPress={continueToVerification} disabled={isUploadingPhoto} fullWidth />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {Platform.OS !== 'android' && showDatePicker ? (
         <Modal transparent animationType="fade" visible={showDatePicker}>

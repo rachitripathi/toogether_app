@@ -5,14 +5,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "@/components/KeyboardAwareScrollView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ResetStep = "request" | "otp";
@@ -148,10 +146,7 @@ export default function ResetPasswordScreen() {
   const isOtpStep = step === "otp";
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
+    <View style={{ flex: 1 }}>
       <LinearGradient colors={gradients.hero} style={{ flex: 1 }}>
         <View
           style={{
@@ -192,7 +187,7 @@ export default function ResetPasswordScreen() {
           </View>
         </View>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           style={{
             flex: 1,
             backgroundColor: colors.page,
@@ -406,8 +401,8 @@ export default function ResetPasswordScreen() {
               </Text>
             </Pressable>
           ) : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </LinearGradient>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -79,6 +79,8 @@ type NotificationsContextValue = {
   isLoading: boolean;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  dismissNotifications: (ids: string[]) => void;
+  restoreNotifications: (ids: string[]) => void;
   getUnreadChatCount: (eventId: string) => number;
   markChatRead: (eventId: string) => void;
 };
@@ -124,6 +126,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('user_id', userId)
       .neq('type', 'new_message')
+      .is('dismissed_at', null)
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
@@ -288,6 +291,41 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       });
   };
 
+  // Swipe-to-remove in Activity. A soft delete (dismissed_at, migration 013) rather than a
+  // DELETE, so the screen's Undo can bring rows back. Removed rows are kept here in a ref,
+  // not refetched, so an undo restores them exactly where they were.
+  const dismissedRef = useRef<Map<string, AppNotification>>(new Map());
+
+  const setDismissedAt = (ids: string[], dismissedAt: string | null) => {
+    supabase
+      .from('notifications')
+      .update({ dismissed_at: dismissedAt })
+      .in('id', ids)
+      .then(({ error }) => {
+        if (error) console.error('Error updating dismissed notifications:', error);
+      });
+  };
+
+  const dismissNotifications = (ids: string[]) => {
+    const targets = notifications.filter((item) => ids.includes(item.id));
+    if (!targets.length) return;
+    targets.forEach((item) => dismissedRef.current.set(item.id, item));
+    setNotifications((prev) => prev.filter((item) => !ids.includes(item.id)));
+    setDismissedAt(targets.map((item) => item.id), new Date().toISOString());
+  };
+
+  const restoreNotifications = (ids: string[]) => {
+    const restored = ids.map((id) => dismissedRef.current.get(id)).filter(Boolean) as AppNotification[];
+    if (!restored.length) return;
+    restored.forEach((item) => dismissedRef.current.delete(item.id));
+    setNotifications((prev) =>
+      [...prev, ...restored.filter((item) => !prev.some((existing) => existing.id === item.id))].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt)
+      )
+    );
+    setDismissedAt(restored.map((item) => item.id), null);
+  };
+
   const markChatRead = (eventId: string) => {
     if (!userId || !unreadChatNotifications.some((item) => item.data.eventId === eventId)) {
       return;
@@ -317,7 +355,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotificationsContext.Provider
-      value={{ notifications, unreadCount, isLoading, markAsRead, markAllAsRead, getUnreadChatCount, markChatRead }}
+      value={{
+        notifications,
+        unreadCount,
+        isLoading,
+        markAsRead,
+        markAllAsRead,
+        dismissNotifications,
+        restoreNotifications,
+        getUnreadChatCount,
+        markChatRead,
+      }}
     >
       {children}
     </NotificationsContext.Provider>

@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
@@ -9,7 +9,9 @@ import { AvatarBubble } from '@/components/AvatarBubble';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { SafetyTipsSheet } from '@/components/SafetyTipsSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { composerBottomInset } from '@/utils/keyboardInset';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardHeight';
+import { PlanClosedScreen } from '@/components/PlanClosedScreen';
+import { isEventArchived } from '@/lib/eventTime';
 
 function formatMessageTime(value: string) {
   const date = new Date(value);
@@ -20,14 +22,13 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage, refreshEventMessages } =
+  const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage, refreshEventMessages, isLoadingEvents } =
     useApp();
   const { colors } = useTheme();
   const { getUnreadChatCount, markChatRead } = useNotifications();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showSafetyBanner, setShowSafetyBanner] = useState(true);
   const [showSafetyTips, setShowSafetyTips] = useState(false);
   const event = getEventById(id ?? '');
@@ -58,27 +59,23 @@ export default function ChatScreen() {
     }
   }, [eventId, hasUnreadChat]);
 
-  // Driving the composer's bottom padding from real keyboard-height events instead of
-  // KeyboardAvoidingView: that component's own dynamic padding compounds with this
-  // screen's safe-area padding (double bottom spacing while the keyboard is up), and its
-  // internal padding can fail to fully reset to 0 after the keyboard closes, leaving a
-  // stray gap at rest. Listening directly guarantees the padding matches reality.
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  // Driving the composer's bottom padding from keyboard events instead of KeyboardAvoidingView:
+  // that component's own dynamic padding compounds with this screen's safe-area padding, and
+  // can fail to reset to 0 after the keyboard closes. The overlap is measured against this
+  // screen's root view, so if the OS already resized the window for the keyboard we don't
+  // lift by the keyboard height a second time (that's what parked the composer mid-screen).
+  const { ref: keyboardOverlapRef, onLayout: onKeyboardOverlapLayout, keyboardVisible, overlap: keyboardOverlap } = useKeyboardOverlap(() => scrollRef.current?.scrollToEnd({ animated: true }));
 
   if (!event) {
-    return null;
+    // Still loading (e.g. opened from a push on a cold start): render nothing yet. Otherwise the
+    // plan isn't visible to this user anymore (cancelled, or archived and they weren't in it).
+    return isLoadingEvents ? null : <PlanClosedScreen />;
+  }
+
+  // The chat closes 6h after the plan starts (migration 016's messages RLS). Messages already
+  // loaded into memory aren't shown either.
+  if (isEventArchived(event)) {
+    return <PlanClosedScreen event={event} />;
   }
 
   const isCreator = currentUser?.id === event.creatorId;
@@ -104,7 +101,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.page }}>
+    <View ref={keyboardOverlapRef} onLayout={onKeyboardOverlapLayout} style={{ flex: 1, backgroundColor: colors.page }}>
       <View
         style={{
           paddingTop: insets.top + 10,
@@ -144,6 +141,25 @@ export default function ChatScreen() {
               </Text>
             </View>
           </Pressable>
+
+          {canChat ? (
+            // Members list: see who's in, report someone, and (host) manage members.
+            <Pressable
+              onPress={() => router.push(`/event-members/${event.id}`)}
+              hitSlop={6}
+              accessibilityLabel="Members"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: colors.page,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name="people-outline" size={19} color={colors.text} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -245,11 +261,11 @@ export default function ChatScreen() {
       <View
         style={{
           paddingHorizontal: 16,
-          // Both platforms need the manual lift: Android runs edge-to-edge, so its window
-          // does not resize for the keyboard any more (see composerBottomInset), and iOS
-          // never did. Growing this padding shrinks the flex:1 ScrollView above by the
-          // same amount, so the messages stay visible rather than sliding under the IME.
-          paddingBottom: composerBottomInset({ os: Platform.OS, keyboardHeight, bottomInset: insets.bottom }) + 12,
+          // With the keyboard up it covers the home indicator / nav bar, so the resting
+          // safe-area padding is replaced by the measured overlap rather than added to it.
+          // Growing this padding shrinks the flex:1 ScrollView above by the same amount,
+          // so the messages stay visible rather than sliding under the keyboard.
+          paddingBottom: (keyboardVisible ? keyboardOverlap : Math.max(insets.bottom, 16)) + 12,
           paddingTop: 10,
         }}
       >

@@ -16,6 +16,8 @@ type FormFieldProps = {
   success?: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   rightAccessory?: ReactNode;
+  // Hard cap on length; also shows a live "used/max" counter under the field.
+  maxLength?: number;
 };
 
 export function FormField({
@@ -30,6 +32,7 @@ export function FormField({
   success,
   autoCapitalize,
   rightAccessory,
+  maxLength,
 }: FormFieldProps) {
   const { colors } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
@@ -56,6 +59,7 @@ export function FormField({
           multiline={multiline}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          maxLength={maxLength}
           textAlignVertical={multiline ? 'top' : 'center'}
           style={{
             flex: 1,
@@ -80,8 +84,19 @@ export function FormField({
           <View style={{ paddingHorizontal: 14 }}>{rightAccessory}</View>
         ) : null}
       </View>
-      {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
-      {!error && success ? <Text style={{ color: colors.success, fontSize: 12 }}>{success}</Text> : null}
+      {error || success || maxLength ? (
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
+            {!error && success ? <Text style={{ color: colors.success, fontSize: 12 }}>{success}</Text> : null}
+          </View>
+          {maxLength ? (
+            <Text style={{ color: value.length >= maxLength ? colors.danger : colors.muted, fontSize: 12, fontWeight: '600' }}>
+              {value.length}/{maxLength}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
