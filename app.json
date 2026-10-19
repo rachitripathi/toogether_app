@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Toogether",
+    "name": "Open Plans",
     "slug": "toogether-expo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "toogetherexpo",
+    "scheme": "openplans",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Toogether uses your location to help you pin exact meeting spots for plans.",
-        "NSCameraUsageDescription": "Toogether uses your camera to capture your ID and a selfie during account verification."
+        "NSLocationWhenInUseUsageDescription": "Open Plans uses your location to help you pin exact meeting spots for plans.",
+        "NSCameraUsageDescription": "Open Plans uses your camera to capture your ID and a selfie during account verification."
       },
       "bundleIdentifier": "com.toogether.app"
     },
@@ -19,7 +19,7 @@
       "package": "com.toogether.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#FCEEDD",
+        "backgroundColor": "#FF6A00",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -46,11 +46,11 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 280,
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#F9F7F2",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0B0D14"
           }
         }
       ],
@@ -61,7 +61,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Toogether uses your location to help you pin exact meeting spots for plans."
+          "locationWhenInUsePermission": "Open Plans uses your location to help you pin exact meeting spots for plans."
         }
       ],
       "expo-notifications",

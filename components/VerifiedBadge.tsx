@@ -17,7 +17,7 @@ type VerifiedBadgeProps = {
 
 export function VerifiedBadge({ size = 14, color, variant = 'filled' }: VerifiedBadgeProps) {
   const { colors } = useTheme();
-  const resolvedColor = color ?? colors.primary;
+  const resolvedColor = color ?? colors.verified;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d={PATHS[variant]} fill={resolvedColor} fillRule="evenodd" clipRule="evenodd" />

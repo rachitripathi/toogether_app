@@ -82,13 +82,13 @@ export interface Message {
   createdAt: string;
 }
 
-export interface Rating {
-  id: string;
-  fromUserId: string;
-  toUserId: string;
-  eventId: string;
-  stars: number;
-  createdAt: string;
+// One row of get_crew_recommendations() (migration 019).
+export interface CrewRecommendation {
+  userId: string;
+  sharedPlans: number;
+  mutualCrew: number;
+  sameCity: boolean;
+  score: number;
 }
 
 export interface CrewRequest {

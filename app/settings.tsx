@@ -15,8 +15,6 @@ function SettingsRow({ label, value }: { label: string; value: string }) {
       style={{
         backgroundColor: colors.surface,
         borderRadius: 18,
-        borderWidth: 1,
-        borderColor: colors.border,
         padding: 16,
         gap: 4,
       }}
@@ -59,8 +57,6 @@ export default function SettingsScreen() {
           paddingHorizontal: 20,
           paddingBottom: 18,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
@@ -85,8 +81,6 @@ export default function SettingsScreen() {
             style={{
               backgroundColor: colors.card,
               borderRadius: 20,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 6,
               flexDirection: 'row',
               gap: 6,
@@ -108,8 +102,6 @@ export default function SettingsScreen() {
                     flex: 1,
                     backgroundColor: active ? colors.status.info.bg : 'transparent',
                     borderRadius: 15,
-                    borderWidth: 1,
-                    borderColor: active ? colors.primary : 'transparent',
                     paddingVertical: 12,
                     alignItems: 'center',
                     gap: 6,
@@ -133,8 +125,6 @@ export default function SettingsScreen() {
             style={{
               backgroundColor: colors.surface,
               borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 16,
               flexDirection: 'row',
               alignItems: 'center',
@@ -162,7 +152,7 @@ export default function SettingsScreen() {
 
         <View style={{ gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>App details</Text>
-          <SettingsRow label="Privacy policy" value="Your data and discovery preferences are handled according to Toogether's privacy rules." />
+          <SettingsRow label="Privacy policy" value="Your data and discovery preferences are handled according to Open Plans' privacy rules." />
           <SettingsRow label="Community & safety" value="Women-only visibility, host approvals, and private location unlocks are all part of the safety model." />
           <SettingsRow label="App version" value={appVersion} />
         </View>

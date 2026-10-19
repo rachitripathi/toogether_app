@@ -55,8 +55,6 @@ function SearchBar({ query, setQuery }: { query: string; setQuery: (value: strin
         style={{
           backgroundColor: colors.surface,
           borderRadius: 18,
-          borderWidth: 1,
-          borderColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: 16,
@@ -274,8 +272,6 @@ export default function HomeScreen() {
                   gap: 4,
                   backgroundColor: colors.surface,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   paddingHorizontal: 10,
                   paddingVertical: 7,
                   maxWidth: 130,
@@ -302,14 +298,14 @@ export default function HomeScreen() {
                       flexDirection: 'row',
                       alignItems: 'center',
                       gap: 5,
-                      backgroundColor: colors.status.info.bg,
+                      backgroundColor: colors.verifiedTint,
                       borderRadius: 999,
                       paddingHorizontal: 10,
                       paddingVertical: 7,
                     }}
                   >
                     <VerifiedBadge size={14} />
-                    <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>Verified</Text>
+                    <Text style={{ color: colors.verified, fontWeight: '800', fontSize: 12 }}>Verified</Text>
                   </Pressable>
                 );
               }
@@ -341,7 +337,7 @@ export default function HomeScreen() {
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 5,
-                    backgroundColor: colors.primary,
+                    backgroundColor: colors.verified,
                     borderRadius: 999,
                     paddingHorizontal: 10,
                     paddingVertical: 7,
@@ -372,15 +368,13 @@ export default function HomeScreen() {
                   style={{
                     backgroundColor: active ? colors.primary : colors.card,
                     borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: active ? colors.primary : colors.border,
                     paddingLeft: 14,
                     paddingRight: 16,
                     paddingVertical: 10,
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 8,
-                    shadowColor: scheme === 'dark' ? '#000000' : '#3A4B8C',
+                    shadowColor: scheme === 'dark' ? '#000000' : '#8A6A4F',
                     shadowOpacity: active ? 0.25 : 0.12,
                     shadowRadius: 10,
                     shadowOffset: { width: 0, height: 4 },
@@ -432,8 +426,6 @@ export default function HomeScreen() {
               style={{
                 backgroundColor: usage.joinLimitReached ? colors.status.warning.bg : colors.surface,
                 borderRadius: 18,
-                borderWidth: 1,
-                borderColor: usage.joinLimitReached ? colors.status.warning.border : colors.border,
                 paddingHorizontal: 14,
                 paddingVertical: 12,
                 flexDirection: 'row',
@@ -487,8 +479,6 @@ export default function HomeScreen() {
                 style={{
                   backgroundColor: colors.surface,
                   borderRadius: 28,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   padding: 28,
                   alignItems: 'center',
                   gap: 10,
@@ -537,8 +527,6 @@ export default function HomeScreen() {
                 gap: 12,
                 backgroundColor: colors.surface,
                 borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
                 padding: 14,
                 opacity: locationLoading ? 0.6 : 1,
               }}
@@ -563,8 +551,6 @@ export default function HomeScreen() {
                 gap: 12,
                 backgroundColor: colors.surface,
                 borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
                 padding: 14,
               }}
             >

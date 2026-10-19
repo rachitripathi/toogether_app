@@ -45,9 +45,9 @@ export function FormField({
           flexDirection: 'row',
           alignItems: 'center',
           borderRadius: 18,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: error ? colors.danger : colors.border,
+          backgroundColor: colors.inset,
+          borderWidth: error ? 1 : 0,
+          borderColor: colors.danger,
         }}
       >
         <TextInput

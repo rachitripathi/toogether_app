@@ -7,15 +7,16 @@ import { supabase } from '@/utils/supabase';
 import { wasRestoredBySystem } from '@/modules/launch-state';
 import { unregisterPushToken } from '@/lib/pushToken';
 import { uploadVerificationDocument } from '@/lib/cloudinary';
-import { CATEGORY_CONFIG, MOCK_RATINGS } from '@/lib/mockData';
+import { CATEGORY_CONFIG } from '@/lib/mockData';
+import { mapKarmaRow, type KarmaInfo } from '@/lib/karma';
 import { randomUUID } from '@/lib/uuid';
 import type {
+  CrewRecommendation,
   CrewRequest,
   Event,
   EventCategory,
   JoinRequest,
   Message,
-  Rating,
   RequestStatus,
   User,
   VerificationStatus,
@@ -81,7 +82,9 @@ type AppContextValue = {
   requests: JoinRequest[];
   crewRequests: CrewRequest[];
   messages: Record<string, Message[]>;
-  ratings: Rating[];
+  crewRecommendations: CrewRecommendation[];
+  isLoadingRecommendations: boolean;
+  refreshCrewRecommendations: () => Promise<void>;
   isOnboardingComplete: boolean;
   isAppReady: boolean;
   lastRoute: string | null;
@@ -138,9 +141,7 @@ type AppContextValue = {
   getCrewMembers: () => User[];
   sendMessage: (eventId: string, text: string) => Promise<void>;
   refreshEventMessages: (eventId: string) => Promise<void>;
-  rateUser: (toUserId: string, eventId: string, stars: number) => void;
-  getUserAverageRating: (userId: string) => number | null;
-  getMyRatingForUser: (toUserId: string, eventId?: string) => number | null;
+  getUserKarma: (userId: string) => KarmaInfo | null;
   getUserById: (id: string) => User | undefined;
   getEventById: (id: string) => Event | undefined;
   getEventsImPartOf: () => Event[];
@@ -148,6 +149,21 @@ type AppContextValue = {
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+// PostgREST answers PGRST202 when an RPC doesn't exist, i.e. its migration hasn't been run on
+// this Supabase project yet. Karma refetches on every data change, so log that once as a warning
+// naming the fix instead of an error each time; real failures still log as errors.
+const warnedMissingRpcs = new Set<string>();
+const logRpcError = (rpc: string, migration: string, error: { code?: string; message: string }) => {
+  if (error.code === 'PGRST202') {
+    if (!warnedMissingRpcs.has(rpc)) {
+      warnedMissingRpcs.add(rpc);
+      console.warn(`${rpc}() is missing on Supabase. Run migrations/${migration} in the SQL editor.`);
+    }
+    return;
+  }
+  console.error(`Error calling ${rpc}:`, error);
+};
 
 const getEmailName = (email: string) => email.split('@')[0] || 'New user';
 
@@ -322,7 +338,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Written only through RPCs (migration 014), kept live by the feed-realtime channel below.
   const [crewRequests, setCrewRequests] = useState<CrewRequest[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
-  const [ratings, setRatings] = useState(MOCK_RATINGS);
+  // Karma per user id, from get_karma() (migration 019). Derived server-side from real rows;
+  // refetched for every known user after login, resume, and (debounced) whenever requests,
+  // events or crew change, since any of those can move someone's karma.
+  const [karmaByUser, setKarmaByUser] = useState<Record<string, KarmaInfo>>({});
+  const [crewRecommendations, setCrewRecommendations] = useState<CrewRecommendation[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isOnboardingLoaded, setIsOnboardingLoaded] = useState(false);
   const [lastRoute, setLastRoute] = useState<string | null>(null);
@@ -493,6 +514,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return mapped.flatMap((request) => [request.fromUserId, request.toUserId]);
   };
 
+  const refreshKarma = async (ids: string[]) => {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return;
+    const { data, error } = await supabase.rpc('get_karma', { p_user_ids: unique });
+    if (error || !data) {
+      if (error) logRpcError('get_karma', '019_karma_and_crew_recommendations.sql', error);
+      return;
+    }
+    setKarmaByUser((prev) => {
+      const next = { ...prev };
+      (data as any[]).forEach((row) => {
+        next[row.user_id] = mapKarmaRow(row);
+      });
+      return next;
+    });
+  };
+
+  // People to suggest on the Crew tab's Recommendations (get_crew_recommendations(), migration
+  // 019): ranked by shared plans, then mutual crew, then same city. Excludes current crew,
+  // pending requests and declined pairs.
+  const refreshCrewRecommendations = async () => {
+    if (!isLoggedIn) return;
+    setIsLoadingRecommendations(true);
+    const { data, error } = await supabase.rpc('get_crew_recommendations', { p_limit: 40 });
+    setIsLoadingRecommendations(false);
+    if (error || !data) {
+      if (error) logRpcError('get_crew_recommendations', '019_karma_and_crew_recommendations.sql', error);
+      return;
+    }
+    const mapped: CrewRecommendation[] = (data as any[]).map((row) => ({
+      userId: row.user_id,
+      sharedPlans: row.shared_plans ?? 0,
+      mutualCrew: row.mutual_crew ?? 0,
+      sameCity: Boolean(row.same_city),
+      score: row.score ?? 0,
+    }));
+    setCrewRecommendations(mapped);
+    ensureUsers(mapped.map((rec) => rec.userId));
+  };
+
   useEffect(() => {
     if (!isLoggedIn) {
       return;
@@ -532,6 +593,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isLoggedIn, refreshFeedToken]);
 
   const refreshFeed = () => setRefreshFeedToken((token) => token + 1);
+
+  // Karma depends on events, join requests and crew, so refetch it (for everyone we know)
+  // shortly after any of them change. Debounced so a burst of realtime rows is one call.
+  useEffect(() => {
+    if (!isLoggedIn || !users.length) return;
+    const timer = setTimeout(() => {
+      refreshKarma([...users.map((user) => user.id), ...(currentUser ? [currentUser.id] : [])]);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [isLoggedIn, users.length, rawEvents, requests, crewRequests, currentUser?.verified]);
 
   // Resync on return to the foreground (see syncEventsAndRequests for why).
   useEffect(() => {
@@ -712,6 +783,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setShouldShowVerificationPrompt(false);
     setCrewRequests([]);
+    setKarmaByUser({});
+    setCrewRecommendations([]);
     setLastRoute(null);
     AsyncStorage.removeItem(LAST_ROUTE_KEY).catch(() => {});
   };
@@ -1500,59 +1573,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMessages((prev) => ({ ...prev, [eventId]: freshMessages }));
   };
 
-  const rateUser = (toUserId: string, eventId: string, stars: number) => {
-    if (!currentUser || currentUser.id === toUserId) {
-      return;
-    }
-
-    setRatings((prev) => {
-      const existingIndex = prev.findIndex(
-        (rating) =>
-          rating.fromUserId === currentUser.id &&
-          rating.toUserId === toUserId &&
-          rating.eventId === eventId
-      );
-
-      const nextRating: Rating = {
-        id: existingIndex >= 0 ? prev[existingIndex].id : `rt${Date.now()}`,
-        fromUserId: currentUser.id,
-        toUserId,
-        eventId,
-        stars,
-        createdAt: new Date().toISOString(),
-      };
-
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = nextRating;
-        return updated;
-      }
-
-      return [...prev, nextRating];
-    });
-  };
-
-  const getUserAverageRating = (userId: string) => {
-    const userRatings = ratings.filter((rating) => rating.toUserId === userId);
-    if (!userRatings.length) {
-      return null;
-    }
-    return userRatings.reduce((sum, rating) => sum + rating.stars, 0) / userRatings.length;
-  };
-
-  const getMyRatingForUser = (toUserId: string, eventId?: string) => {
-    if (!currentUser) {
-      return null;
-    }
-    return (
-      ratings.find(
-        (rating) =>
-          rating.fromUserId === currentUser.id &&
-          rating.toUserId === toUserId &&
-          (!eventId || rating.eventId === eventId)
-      )?.stars ?? null
-    );
-  };
+  const getUserKarma = (userId: string) => karmaByUser[userId] ?? null;
 
   const getUserById = (id: string) => {
     return users.find((user) => user.id === id) ?? (currentUser?.id === id ? currentUser : undefined);
@@ -1609,7 +1630,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         requests,
         crewRequests,
         messages,
-        ratings,
+        crewRecommendations,
+        isLoadingRecommendations,
+        refreshCrewRecommendations,
         isOnboardingComplete,
         isAppReady,
         lastRoute,
@@ -1661,9 +1684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getCrewMembers,
         sendMessage,
         refreshEventMessages,
-        rateUser,
-        getUserAverageRating,
-        getMyRatingForUser,
+        getUserKarma,
         getUserById,
         getEventById,
         getEventsImPartOf,

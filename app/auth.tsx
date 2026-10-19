@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   Text,
   View,
@@ -14,7 +13,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import loginIllustration from '@/assets/auth/login-illustration.png';
+import OpenPlansWordmark from '@/assets/brand/open-plans-wordmark.svg';
 
 type Mode = 'login' | 'signup';
 
@@ -133,20 +132,20 @@ export default function AuthScreen() {
         style={{ flex: 1, backgroundColor: colors.page }}
         contentContainerStyle={{
           padding: 24,
-          paddingTop: insets.top + 12,
-          gap: 14,
+          paddingTop: insets.top + 36,
+          gap: 16,
           paddingBottom: Math.max(insets.bottom, 16) + 20,
         }}
       >
-        <View style={{ alignItems: 'center' }}>
-          <Image source={loginIllustration} style={{ width: 220, height: 147 }} resizeMode="contain" />
+        <View style={{ alignItems: 'center', marginBottom: 20 }}>
+          <OpenPlansWordmark width={100} height={61} />
         </View>
 
-        <View style={{ alignItems: 'center' }}>
+        <View style={{ alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: '900', color: colors.text, textAlign: 'center' }}>
             {mode === 'login' ? 'Welcome back 👋' : 'Create your account 🎉'}
           </Text>
-          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 6, textAlign: 'center' }}>
+          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 8, textAlign: 'center' }}>
             {mode === 'login'
               ? 'Enter your details to access your account'
               : "Let's get your plans started in a minute"}
@@ -155,7 +154,7 @@ export default function AuthScreen() {
 
         <View
           style={{
-            backgroundColor: colors.surface,
+            backgroundColor: colors.inset,
             borderRadius: 18,
             padding: 4,
             flexDirection: 'row',
@@ -242,8 +241,6 @@ export default function AuthScreen() {
               backgroundColor: colors.surface,
               alignItems: 'center',
               justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: colors.border,
               opacity: 0.55,
             }}
           >

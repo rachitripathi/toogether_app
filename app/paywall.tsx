@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { CtaFill } from '@/components/CtaFill';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
@@ -115,8 +116,6 @@ export default function PaywallScreen() {
           style={{
             backgroundColor: colors.surface,
             borderRadius: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
             padding: 18,
             gap: 12,
           }}
@@ -154,8 +153,6 @@ export default function PaywallScreen() {
               style={{
                 backgroundColor: colors.surface,
                 borderRadius: 22,
-                borderWidth: 1,
-                borderColor: colors.border,
                 padding: 18,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -192,6 +189,7 @@ export default function PaywallScreen() {
                   justifyContent: 'center',
                 }}
               >
+                <CtaFill radius={16} />
                 <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 15 }}>₹{pack.price}</Text>
               </View>
             </Pressable>

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Animated, Pressable, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '@/providers/ThemeProvider';
+import { CtaFill } from '@/components/CtaFill';
 import type { ReactNode } from 'react';
 
 type GradientButtonProps = {
@@ -55,6 +56,7 @@ export function GradientButton({
             ...(disabled ? {} : shadow.lift),
           }}
         >
+          {!disabled && variant === 'gradient' ? <CtaFill radius={28} /> : null}
           {icon}
           <Text
             style={{

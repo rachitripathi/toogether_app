@@ -105,8 +105,6 @@ export default function LocationPickerScreen() {
           paddingHorizontal: 16,
           paddingBottom: 12,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 10,
@@ -166,8 +164,6 @@ export default function LocationPickerScreen() {
               right: 16,
               backgroundColor: colors.card,
               borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 12,
             }}
           >

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CtaFill } from '@/components/CtaFill';
 import { Animated, LayoutAnimation, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Icon } from '@/components/Icon';
@@ -44,17 +45,14 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-type PendingUndo = { notificationIds: string[]; nudgeIds: string[] };
+type PendingUndo = { notificationIds: string[] };
 
 export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { currentUser, getUserById, getEventsImPartOf, getMyRatingForUser } = useApp();
+  const { getUserById } = useApp();
   const { notifications, markAsRead, markAllAsRead, dismissNotifications, restoreNotifications } = useNotifications();
   const { colors, shadow } = useTheme();
-
-  const now = new Date();
-  const [dismissedNudges, setDismissedNudges] = useState<Set<string>>(new Set());
 
   // One Undo bar covers every swipe made while it's showing; each new swipe restarts the 10s.
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
@@ -63,10 +61,9 @@ export default function ActivityScreen() {
     if (undoTimer.current) clearTimeout(undoTimer.current);
   }, []);
 
-  const queueUndo = (entry: Partial<PendingUndo>) => {
+  const queueUndo = (entry: PendingUndo) => {
     setPendingUndo((prev) => ({
-      notificationIds: [...(prev?.notificationIds ?? []), ...(entry.notificationIds ?? [])],
-      nudgeIds: [...(prev?.nudgeIds ?? []), ...(entry.nudgeIds ?? [])],
+      notificationIds: [...(prev?.notificationIds ?? []), ...entry.notificationIds],
     }));
     if (undoTimer.current) clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => setPendingUndo(null), UNDO_WINDOW_MS);
@@ -77,17 +74,11 @@ export default function ActivityScreen() {
     queueUndo({ notificationIds: [id] });
   };
 
-  const removeNudge = (id: string) => {
-    setDismissedNudges((prev) => new Set([...prev, id]));
-    queueUndo({ nudgeIds: [id] });
-  };
-
   const undo = () => {
     if (!pendingUndo) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     restoreNotifications(pendingUndo.notificationIds);
-    setDismissedNudges((prev) => new Set([...prev].filter((id) => !pendingUndo.nudgeIds.includes(id))));
     setPendingUndo(null);
   };
 
@@ -98,43 +89,10 @@ export default function ActivityScreen() {
     }
   };
 
-  type RatingNudge = {
-    id: string;
-    eventTitle: string;
-    eventEmoji: string;
-    userId: string;
-    route: string;
-  };
-
-  const ratingNudges: RatingNudge[] = currentUser
-    ? getEventsImPartOf()
-        .filter((event) => new Date(event.dateTime) < now)
-        .flatMap((event) => {
-          const participantIds = [
-            event.creatorId,
-            ...event.approvedUserIds,
-          ].filter((id) => id !== currentUser.id);
-
-          return participantIds
-            .filter((id) => {
-              const alreadyRated = getMyRatingForUser(id, event.id) !== null;
-              const nudgeId = `nudge-${event.id}-${id}`;
-              return !alreadyRated && !dismissedNudges.has(nudgeId);
-            })
-            .map((id) => ({
-              id: `nudge-${event.id}-${id}`,
-              eventTitle: event.title,
-              eventEmoji: event.emoji,
-              userId: id,
-              route: '/(tabs)/people',
-            }));
-        })
-    : [];
-
   const unread = notifications.filter((item) => !item.readAt);
   const earlier = notifications.filter((item) => item.readAt);
-  const hasContent = notifications.length > 0 || ratingNudges.length > 0;
-  const undoCount = pendingUndo ? pendingUndo.notificationIds.length + pendingUndo.nudgeIds.length : 0;
+  const hasContent = notifications.length > 0;
+  const undoCount = pendingUndo ? pendingUndo.notificationIds.length : 0;
 
   const subtitleOpacity = scrollY.interpolate({
     inputRange: [0, 55],
@@ -166,10 +124,11 @@ export default function ActivityScreen() {
         <TapPressable
           onPress={() => openNotification(notification)}
           style={{
-            backgroundColor: isUnread ? colors.card : colors.surface,
+            // Unread rows are white cards; read ones sit flat on the page.
+            backgroundColor: isUnread ? colors.card : 'transparent',
             borderRadius: 20,
-            borderWidth: 1,
-            borderColor: isUnread ? colors.primary + '40' : colors.border,
+            borderWidth: isUnread ? 1 : 0,
+            borderColor: colors.primary + '40',
             paddingVertical: 12,
             paddingHorizontal: 14,
             flexDirection: 'row',
@@ -196,7 +155,7 @@ export default function ActivityScreen() {
                   borderRadius: 10,
                   backgroundColor: accent,
                   borderWidth: 2,
-                  borderColor: isUnread ? colors.card : colors.surface,
+                  borderColor: isUnread ? colors.card : colors.page,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -225,6 +184,7 @@ export default function ActivityScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom, gap: 3 }}>
+        <CtaFill variant="header" />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 }}>Activity</Text>
           {unread.length ? (
@@ -250,43 +210,6 @@ export default function ActivityScreen() {
           </>
         ) : null}
 
-        {ratingNudges.length > 0 ? (
-          <>
-            {sectionTitle('Rate your crew')}
-            {ratingNudges.map((nudge) => {
-              const user = getUserById(nudge.userId);
-              if (!user) return null;
-              return (
-                <SwipeToDismiss key={nudge.id} onDismiss={() => removeNudge(nudge.id)}>
-                  <TapPressable
-                    onPress={() => router.push(nudge.route as never)}
-                    style={{
-                      backgroundColor: colors.surface,
-                      borderRadius: 20,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingVertical: 12,
-                      paddingHorizontal: 14,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                    }}
-                  >
-                    <Text style={{ fontSize: 26 }}>{nudge.eventEmoji}</Text>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ color: colors.text, fontWeight: '800' }}>How was {user.name.split(' ')[0]}?</Text>
-                      <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                        {nudge.eventTitle} · Tap to rate in My Crew
-                      </Text>
-                    </View>
-                    <Icon name="star-outline" size={18} color={colors.warning} />
-                  </TapPressable>
-                </SwipeToDismiss>
-              );
-            })}
-          </>
-        ) : null}
-
         {earlier.length ? (
           <>
             {sectionTitle('Earlier')}
@@ -299,8 +222,6 @@ export default function ActivityScreen() {
             style={{
               backgroundColor: colors.surface,
               borderRadius: 28,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 28,
               alignItems: 'center',
               gap: 10,

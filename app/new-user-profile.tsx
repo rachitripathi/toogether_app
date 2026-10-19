@@ -44,7 +44,7 @@ function getDobError(value: Date | null) {
   }
 
   if (age < 18) {
-    return 'You need to be 18 or older to use Toogether.';
+    return 'You need to be 18 or older to use Open Plans.';
   }
 
   return '';
@@ -200,8 +200,6 @@ export default function NewUserProfileScreen() {
           paddingHorizontal: 20,
           paddingBottom: 18,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           gap: 6,
         }}
       >
@@ -214,8 +212,6 @@ export default function NewUserProfileScreen() {
           style={{
             backgroundColor: colors.surface,
             borderRadius: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
             padding: 18,
             alignItems: 'center',
             gap: 12,
@@ -229,8 +225,8 @@ export default function NewUserProfileScreen() {
               height: 104,
               borderRadius: 52,
               backgroundColor: colors.status.info.bg,
-              borderWidth: 1,
-              borderColor: avatarPreviewUri ? colors.primary : colors.border,
+              borderWidth: avatarPreviewUri ? 1.5 : 0,
+              borderColor: colors.primary,
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
@@ -290,10 +286,10 @@ export default function NewUserProfileScreen() {
                   onPress={() => setGender(option.id)}
                   style={{
                     flex: 1,
-                    backgroundColor: active ? colors.status.info.bg : colors.surface,
+                    backgroundColor: active ? colors.status.info.bg : colors.inset,
                     borderRadius: 18,
-                    borderWidth: 1,
-                    borderColor: active ? colors.primary : colors.border,
+                    borderWidth: active ? 1.5 : 0,
+                    borderColor: colors.primary,
                     paddingVertical: 14,
                     alignItems: 'center',
                     gap: 6,
@@ -319,9 +315,9 @@ export default function NewUserProfileScreen() {
             style={{
               minHeight: 54,
               borderRadius: 18,
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: error && !dob ? colors.danger : colors.border,
+              backgroundColor: colors.inset,
+              borderWidth: error && !dob ? 1 : 0,
+              borderColor: colors.danger,
               paddingHorizontal: 16,
               flexDirection: 'row',
               alignItems: 'center',

@@ -66,8 +66,6 @@ export default function ProfilePlansScreen() {
           paddingHorizontal: 20,
           paddingBottom: 18,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
@@ -99,8 +97,6 @@ export default function ProfilePlansScreen() {
                   style={{
                     backgroundColor: colors.surface,
                     borderRadius: 22,
-                    borderWidth: 1,
-                    borderColor: colors.border,
                     padding: 16,
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -125,8 +121,6 @@ export default function ProfilePlansScreen() {
               style={{
                 backgroundColor: colors.surface,
                 borderRadius: 22,
-                borderWidth: 1,
-                borderColor: colors.border,
                 padding: 16,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -156,8 +150,6 @@ export default function ProfilePlansScreen() {
             style={{
               backgroundColor: colors.surface,
               borderRadius: 24,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 24,
               gap: 8,
             }}

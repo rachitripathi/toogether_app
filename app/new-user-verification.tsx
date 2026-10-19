@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { CtaFill } from '@/components/CtaFill';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { GradientButton } from '@/components/GradientButton';
@@ -32,6 +33,7 @@ export default function NewUserVerificationScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <View style={{ backgroundColor: colors.primary }}>
+        <CtaFill variant="header" />
         <View style={{ paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: 28, gap: 16 }}>
           <View style={{ alignItems: 'center', gap: 14 }}>
             <View
@@ -57,7 +59,7 @@ export default function NewUserVerificationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 20, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why it matters</Text>
           {benefits.map((benefit) => (
             <View key={benefit.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

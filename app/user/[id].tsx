@@ -8,8 +8,9 @@ import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { hasEventStarted } from '@/lib/eventTime';
-import { RatingBadge } from '@/components/RatingBadge';
-import { formatRating, ratingColor } from '@/lib/rating';
+import { KarmaBadge } from '@/components/KarmaBadge';
+import { CtaFill } from '@/components/CtaFill';
+import { karmaTier } from '@/lib/karma';
 
 function InviteToEventModal({
   visible,
@@ -89,7 +90,7 @@ export default function UserProfileScreen() {
     getUserById,
     events,
     getEventsImPartOf,
-    getUserAverageRating,
+    getUserKarma,
     getCrewStatus,
     sendCrewRequest,
     acceptCrewRequest,
@@ -159,7 +160,8 @@ export default function UserProfileScreen() {
   const mutualEvents = getEventsImPartOf().filter(
     (event) => event.creatorId === user.id || event.approvedUserIds.includes(user.id)
   );
-  const rating = getUserAverageRating(user.id);
+  const karmaInfo = getUserKarma(user.id);
+  const karma = karmaInfo?.karma ?? 0;
   const crewStatus = getCrewStatus(user.id);
   const incomingCrewRequest = crewRequests.find(
     (request) => request.fromUserId === user.id && request.toUserId === currentUser.id && request.status === 'pending'
@@ -251,7 +253,7 @@ export default function UserProfileScreen() {
           {[
             { label: 'Plans', value: theirEvents.length, color: colors.text },
             { label: 'Mutual', value: mutualEvents.length, color: colors.text },
-            { label: 'Rating', value: rating ? `★ ${formatRating(rating)}` : 'New', color: ratingColor(colors, rating) },
+            { label: 'Karma', value: karma, color: colors.primary },
           ].map((item) => (
             <View key={item.label} style={{ flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, alignItems: 'center' }}>
               <Text style={{ color: item.color, fontWeight: '900', fontSize: 18 }}>{item.value}</Text>
@@ -268,14 +270,13 @@ export default function UserProfileScreen() {
               minHeight: 52,
               borderRadius: 26,
               backgroundColor: crewAction.settled ? colors.card : colors.primary,
-              borderWidth: crewAction.settled ? 1 : 0,
-              borderColor: colors.border,
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
             }}
           >
+            {!crewAction.settled ? <CtaFill radius={26} /> : null}
             <Icon
               name={crewAction.icon}
               size={19}
@@ -290,13 +291,14 @@ export default function UserProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
-        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Trust snapshot</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <TrustPill label={user.verified ? 'ID verified' : 'Verification pending'} tone="accent" />
-            {rating ? <RatingBadge average={rating} size="md" /> : <TrustPill label="Not rated yet" />}
+            <KarmaBadge karma={karma} size="md" />
+            <TrustPill label={karmaTier(karma).label} tone={karma >= 25 ? 'accent' : 'neutral'} />
             <TrustPill label={mutualEvents.length ? `${mutualEvents.length} mutual plans` : 'No mutual plans yet'} />
-            <TrustPill label={`${theirEvents.length} hosted plans`} />
+            <TrustPill label={`${karmaInfo?.plansHosted ?? theirEvents.length} hosted · ${karmaInfo?.plansJoined ?? 0} joined`} />
           </View>
         </View>
 
@@ -308,7 +310,7 @@ export default function UserProfileScreen() {
               <Pressable
                 key={event.id}
                 onPress={() => router.push(`/event/${event.id}`)}
-                style={{ backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{ backgroundColor: colors.surface, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>
@@ -330,7 +332,7 @@ export default function UserProfileScreen() {
               <Pressable
                 key={event.id}
                 onPress={() => router.push(`/event/${event.id}`)}
-                style={{ backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                style={{ backgroundColor: colors.surface, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
               >
                 <Text style={{ fontSize: 26 }}>{event.emoji}</Text>
                 <View style={{ flex: 1 }}>

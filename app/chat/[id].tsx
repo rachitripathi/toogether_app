@@ -108,8 +108,6 @@ export default function ChatScreen() {
           paddingHorizontal: 16,
           paddingBottom: 12,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -176,8 +174,6 @@ export default function ChatScreen() {
             paddingVertical: 10,
             borderRadius: 16,
             backgroundColor: colors.status.info.bg,
-            borderWidth: 1,
-            borderColor: colors.status.info.border,
           }}
         >
           <Icon name="shield-checkmark-outline" size={16} color={colors.status.info.text} />
@@ -220,8 +216,6 @@ export default function ChatScreen() {
                     style={{
                       backgroundColor: isMe ? colors.primary : colors.surface,
                       borderRadius: 18,
-                      borderWidth: 1,
-                      borderColor: isMe ? colors.primary : colors.border,
                       paddingHorizontal: 14,
                       paddingVertical: 12,
                       borderBottomRightRadius: isMe ? 6 : 18,
@@ -242,8 +236,6 @@ export default function ChatScreen() {
             style={{
               backgroundColor: colors.surface,
               borderRadius: 24,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 24,
               gap: 8,
             }}
@@ -274,8 +266,6 @@ export default function ChatScreen() {
             style={{
               backgroundColor: colors.surface,
               borderRadius: 24,
-              borderWidth: 1,
-              borderColor: colors.border,
               paddingHorizontal: 16,
               paddingVertical: 16,
               flexDirection: 'row',
@@ -296,10 +286,8 @@ export default function ChatScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 10,
-                backgroundColor: colors.surface,
+                backgroundColor: colors.inset,
                 borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
                 paddingHorizontal: 16,
               }}
             >

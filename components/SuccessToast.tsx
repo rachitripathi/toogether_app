@@ -3,7 +3,7 @@ import { Animated, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/providers/AppProvider';
 import { useTheme } from '@/providers/ThemeProvider';
-import successIllustration from '@/assets/auth/login-illustration.png';
+import successIllustration from '@/assets/images/icon.png';
 
 const OFFSCREEN_Y = 160;
 const VISIBLE_DURATION_MS = 1600;

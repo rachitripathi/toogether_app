@@ -13,7 +13,7 @@ import { formatDistance } from '@/lib/geo';
 import { AvatarBubble } from './AvatarBubble';
 import { PinMark } from './PinMark';
 import { VerifiedBadge } from './VerifiedBadge';
-import { RatingBadge } from '@/components/RatingBadge';
+import { KarmaBadge } from '@/components/KarmaBadge';
 
 type EventCardProps = {
   event: Event;
@@ -27,7 +27,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
     getRequestStatus,
     requestToJoin,
     getUserById,
-    getUserAverageRating,
+    getUserKarma,
     categoryConfig,
     shouldShowPaywallForJoin,
   } = useApp();
@@ -46,7 +46,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
   const attendeeCount = event.approvedUserIds?.length + 1;
   const spotsLeft = event.maxPeople ? Math.max(event.maxPeople - attendeeCount, 0) : null;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
-  const averageRating = creator ? getUserAverageRating(creator.id) : null;
+  const creatorKarma = creator ? getUserKarma(creator.id)?.karma ?? null : null;
   const isClosedForMe = requestStatus === 'rejected' || requestStatus === 'removed';
   // Only the host's and members' own plans reach Home in this state (see home.tsx).
   const happeningNow = isHappeningNow(event);
@@ -243,7 +243,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
                   <Text style={{ color: theme.meta, fontSize: 11, fontWeight: categoryFontWeight('700'), fontFamily: categoryFontFamily }}>
                     {creator.age}
                   </Text>
-                  <RatingBadge average={averageRating} />
+                  <KarmaBadge karma={creatorKarma} />
                 </View>
               ) : null}
             </View>

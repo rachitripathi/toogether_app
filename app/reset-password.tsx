@@ -1,5 +1,6 @@
 import { useTheme } from "@/providers/ThemeProvider";
 import { Icon } from "@/components/Icon";
+import { CtaFill } from "@/components/CtaFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -169,8 +170,6 @@ export default function ResetPasswordScreen() {
               backgroundColor: colors.card,
               alignItems: "center",
               justifyContent: "center",
-              borderWidth: 1,
-              borderColor: colors.border,
             }}
           >
             <Icon name="arrow-back" size={18} color={colors.text} />
@@ -212,10 +211,8 @@ export default function ResetPasswordScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={{
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.inset,
                   borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   fontSize: 15,
@@ -237,10 +234,8 @@ export default function ResetPasswordScreen() {
                 maxLength={6}
                 editable={!done}
                 style={{
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.inset,
                   borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   fontSize: 20,
@@ -270,10 +265,8 @@ export default function ResetPasswordScreen() {
 
               <View
                 style={{
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.inset,
                   borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   flexDirection: "row",
                   alignItems: "center",
                   paddingRight: 12,
@@ -311,10 +304,8 @@ export default function ResetPasswordScreen() {
               </View>
               <View
                 style={{
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.inset,
                   borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   flexDirection: "row",
                   alignItems: "center",
                   paddingRight: 12,
@@ -379,6 +370,7 @@ export default function ResetPasswordScreen() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
+              <CtaFill radius={24} />
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (

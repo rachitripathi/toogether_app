@@ -1,6 +1,7 @@
 import { useRef } from 'react';
+import { CtaFill } from '@/components/CtaFill';
 import type { ReactNode } from 'react';
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Icon } from '@/components/Icon';
@@ -11,7 +12,6 @@ import { CREDIT_PACKS } from '@/lib/monetisation';
 import { useApp } from '@/providers/AppProvider';
 import { isEventArchived } from '@/lib/eventTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatRating, ratingColor } from '@/lib/rating';
 
 function TrustChip({
   icon,
@@ -33,11 +33,11 @@ function TrustChip({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 999,
-        backgroundColor: colors.card,
+        backgroundColor: colors.inset,
       }}
     >
       {icon === 'shield-checkmark-outline' ? (
-        <VerifiedBadge size={14} color={colors.skyDark} />
+        <VerifiedBadge size={14} />
       ) : (
         <Icon name={icon} size={14} color={colors.skyDark} />
       )}
@@ -65,10 +65,8 @@ function ProfileMetric({
     <View
       style={{
         flex: 1,
-        backgroundColor: variant === 'surface' ? colors.surface : colors.card,
+        backgroundColor: variant === 'surface' ? colors.surface : colors.inset,
         borderRadius: 16,
-        borderWidth: variant === 'surface' ? 1 : 0,
-        borderColor: colors.border,
         paddingVertical: 12,
         alignItems: 'center',
       }}
@@ -103,8 +101,6 @@ function ListGroup({ title, children }: { title: string; children: ReactNode }) 
         style={{
           backgroundColor: colors.surface,
           borderRadius: 20,
-          borderWidth: 1,
-          borderColor: colors.border,
           overflow: 'hidden',
         }}
       >
@@ -137,12 +133,12 @@ function ListRow({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
         borderBottomColor: colors.border,
       }}
     >
-      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} size={17} color={colors.primary} />
+      <View style={{ width: 24, alignItems: 'center' }}>
+        <Icon name={icon} size={20} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.text, fontWeight: '700' }}>{label}</Text>
@@ -157,7 +153,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { currentUser, isAppReady, events, logout, getUserAverageRating, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
+  const { currentUser, isAppReady, events, logout, getUserKarma, getCrewMembers, getUsageSummary, buyCreditPack } = useApp();
 
   // Mirrors index.tsx's own gating: wait for isAppReady before treating
   // `!currentUser` as "actually logged out." This screen shouldn't normally
@@ -174,7 +170,7 @@ export default function ProfileScreen() {
   }
 
   if (!currentUser) {
-    return <Redirect href="/auth" />;
+    return <Redirect href="/onboarding" />;
   }
 
   const now = new Date();
@@ -184,7 +180,7 @@ export default function ProfileScreen() {
   const joined = events.filter(e => e.approvedUserIds.includes(currentUser.id) && e.creatorId !== currentUser.id && !isEventArchived(e, now.getTime()));
   const past = events.filter(e => (e.creatorId === currentUser.id || e.approvedUserIds.includes(currentUser.id)) && isEventArchived(e, now.getTime()));
 
-  const rating = getUserAverageRating(currentUser.id);
+  const karmaInfo = getUserKarma(currentUser.id);
   const crew = getCrewMembers().length;
   const totalPlans = hosting.length + joined.length + past.length;
   const usage = getUsageSummary();
@@ -204,6 +200,7 @@ export default function ProfileScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <Animated.View style={{ backgroundColor: colors.primary, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: headerPaddingBottom }}>
+        <CtaFill variant="header" />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Pressable onPress={() => router.push('/edit-profile')}>
             <AvatarBubble user={currentUser} size={52} />
@@ -243,7 +240,7 @@ export default function ProfileScreen() {
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <ProfileMetric label="Plans" value={totalPlans} />
           <ProfileMetric label="Crew" value={crew} />
-          <ProfileMetric label="Rating" value={rating ? `★ ${formatRating(rating)}` : 'New'} valueColor={ratingColor(colors, rating)} />
+          <ProfileMetric label="Karma" value={karmaInfo?.karma ?? 0} valueColor={colors.primary} />
         </View>
 
         {!currentUser.verified ? (
@@ -269,8 +266,6 @@ export default function ProfileScreen() {
           style={{
             backgroundColor: colors.surface,
             borderRadius: 24,
-            borderWidth: 1,
-            borderColor: colors.border,
             padding: 18,
             gap: 14,
           }}
@@ -307,8 +302,6 @@ export default function ProfileScreen() {
             style={{
               backgroundColor: usage.joinLimitReached || usage.createLimitReached ? colors.status.warning.bg : colors.surface,
               borderRadius: 24,
-              borderWidth: 1,
-              borderColor: usage.joinLimitReached || usage.createLimitReached ? colors.status.warning.border : colors.border,
               padding: 18,
               gap: 12,
             }}
@@ -329,7 +322,7 @@ export default function ProfileScreen() {
         ) : null}
 
         {usage.monetisationEnabled ? (
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.status.info.bg, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="flash" size={20} color={colors.skyDark} />
@@ -347,7 +340,7 @@ export default function ProfileScreen() {
                 <Pressable
                   key={pack.id}
                   onPress={() => buyCreditPack(pack.id)}
-                  style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                  style={{ backgroundColor: colors.inset, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '900' }}>{pack.name}</Text>
@@ -413,7 +406,7 @@ export default function ProfileScreen() {
         <Pressable
           onPress={async () => {
             await logout();
-            router.replace('/auth');
+            router.replace('/onboarding');
           }}
           style={{
             // colors.danger ('#FB7185') is a coral/rose tone, tuned for text and small

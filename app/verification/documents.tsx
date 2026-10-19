@@ -85,8 +85,6 @@ export default function DocumentsScreen() {
           paddingHorizontal: 20,
           paddingBottom: 18,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
@@ -123,8 +121,6 @@ export default function DocumentsScreen() {
                 gap: 14,
                 backgroundColor: colors.surface,
                 borderRadius: 20,
-                borderWidth: 1,
-                borderColor: colors.border,
                 padding: 12,
               }}
             >
@@ -137,8 +133,6 @@ export default function DocumentsScreen() {
                     height: 56,
                     borderRadius: 12,
                     backgroundColor: colors.page,
-                    borderWidth: 1,
-                    borderColor: colors.border,
                     borderStyle: 'dashed',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -158,8 +152,8 @@ export default function DocumentsScreen() {
                   paddingVertical: 8,
                   paddingHorizontal: 14,
                   borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: photo.uri ? colors.border : colors.primary,
+                  borderWidth: photo.uri ? 0 : 1,
+                  borderColor: colors.primary,
                   backgroundColor: photo.uri ? 'transparent' : colors.primary,
                 }}
               >
@@ -173,7 +167,7 @@ export default function DocumentsScreen() {
 
         {allCaptured ? (
           <>
-            <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+            <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 12 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: '900' }}>Before you submit</Text>
               {CHECKLIST.map((item) => (
                 <View key={item} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
@@ -183,7 +177,7 @@ export default function DocumentsScreen() {
               ))}
             </View>
 
-            <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 20, borderWidth: 1, borderColor: colors.status.warning.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+            <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 20, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
               <Icon name="time-outline" size={20} color={colors.status.warning.text} style={{ marginTop: 1 }} />
               <Text style={{ color: colors.status.warning.text, lineHeight: 20, flex: 1, fontSize: 13 }}>
                 Verification can take up to 72 hours after you submit.

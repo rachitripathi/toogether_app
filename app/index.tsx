@@ -1,16 +1,16 @@
 import { Redirect } from 'expo-router';
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
 import { useApp } from '@/providers/AppProvider';
 import { useTheme } from '@/providers/ThemeProvider';
-import splashIllustration from '@/assets/images/splash-icon.png';
+import OpenPlansWordmark from '@/assets/brand/open-plans-wordmark.svg';
 
 export default function Index() {
-  const { isAppReady, isOnboardingComplete, currentUser, lastRoute } = useApp();
+  const { isAppReady, currentUser, lastRoute } = useApp();
   const { colors } = useTheme();
 
-  // Wait until we know both whether onboarding was already completed and whether
-  // there's a logged-in session, so we never briefly redirect an already-logged-in
-  // user to /auth (which was firing the "successful login" flow every cold start).
+  // Wait until we know whether there's a logged-in session, so we never briefly redirect an
+  // already-logged-in user to /auth (which was firing the "successful login" flow every cold
+  // start).
   // Expo Go doesn't render the native expo-splash-screen config (that only applies
   // to a prebuilt dev client / production build), so this doubles as the visible
   // splash while running in Expo Go — matches app.json's splash-screen light/dark
@@ -18,17 +18,15 @@ export default function Index() {
   if (!isAppReady) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.page, alignItems: 'center', justifyContent: 'center' }}>
-        <Image source={splashIllustration} style={{ width: 220, height: 147 }} resizeMode="contain" />
+        <OpenPlansWordmark width={200} height={121} />
       </View>
     );
   }
 
-  if (!isOnboardingComplete) {
-    return <Redirect href="/onboarding" />;
-  }
-
+  // Anyone not logged in sees the intro slides first, every launch (not just the first
+  // install). The slides then lead to /auth.
   if (!currentUser) {
-    return <Redirect href="/auth" />;
+    return <Redirect href="/onboarding" />;
   }
 
   // Every cold start lands here at "/" with the navigation stack gone. If Android

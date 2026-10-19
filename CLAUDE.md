@@ -1,4 +1,4 @@
-# Toogether — repo notes
+# Open Plans — repo notes
 
 ## Documentation convention
 

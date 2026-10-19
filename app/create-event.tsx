@@ -249,8 +249,6 @@ export default function CreateEventScreen() {
           alignItems: 'center',
           gap: 12,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
         }}
       >
         <Pressable
@@ -278,8 +276,6 @@ export default function CreateEventScreen() {
             style={{
               backgroundColor: usage.createLimitReached ? colors.status.warning.bg : colors.surface,
               borderRadius: 18,
-              borderWidth: 1,
-              borderColor: usage.createLimitReached ? colors.status.warning.border : colors.border,
               padding: 14,
               gap: 8,
             }}
@@ -310,10 +306,10 @@ export default function CreateEventScreen() {
                   onPress={() => setCategory(item.id)}
                   style={{
                     width: '22%',
-                    backgroundColor: active ? colors.status.info.bg : colors.surface,
+                    backgroundColor: active ? colors.status.info.bg : colors.inset,
                     borderRadius: 18,
-                    borderWidth: 1,
-                    borderColor: active ? colors.primary : colors.border,
+                    borderWidth: active ? 1.5 : 0,
+                    borderColor: colors.primary,
                     paddingVertical: 14,
                     alignItems: 'center',
                     gap: 5,
@@ -354,9 +350,7 @@ export default function CreateEventScreen() {
                 flex: 1,
                 minHeight: 54,
                 borderRadius: 18,
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.border,
+                backgroundColor: colors.inset,
                 paddingHorizontal: 14,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -374,9 +368,7 @@ export default function CreateEventScreen() {
                 flex: 1,
                 minHeight: 54,
                 borderRadius: 18,
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.border,
+                backgroundColor: colors.inset,
                 paddingHorizontal: 14,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -403,10 +395,8 @@ export default function CreateEventScreen() {
               router.push('/location-picker');
             }}
             style={{
-              backgroundColor: colors.surface,
+              backgroundColor: colors.inset,
               borderRadius: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 16,
               gap: 12,
             }}
@@ -472,8 +462,8 @@ export default function CreateEventScreen() {
             style={{
               backgroundColor: womenOnly ? colors.status.danger.bg : colors.surface,
               borderRadius: 18,
-              borderWidth: 1,
-              borderColor: womenOnly ? colors.status.danger.border : colors.border,
+              borderWidth: womenOnly ? 1 : 0,
+              borderColor: colors.status.danger.border,
               padding: 16,
               flexDirection: 'row',
               alignItems: 'center',

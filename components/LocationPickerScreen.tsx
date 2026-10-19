@@ -29,8 +29,6 @@ export default function LocationPickerScreen() {
           paddingHorizontal: 16,
           paddingBottom: 12,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 10,

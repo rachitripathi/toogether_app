@@ -84,7 +84,7 @@ export default function VerificationScreen() {
         </LinearGradient>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 16 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 20, gap: 16 }}>
             <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>Your verified perks</Text>
             {perks.map((perk) => (
               <View key={perk.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -100,7 +100,7 @@ export default function VerificationScreen() {
             ))}
           </View>
 
-          <View style={{ backgroundColor: colors.status.success.bg, borderRadius: 20, borderWidth: 1, borderColor: colors.status.success.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <View style={{ backgroundColor: colors.status.success.bg, borderRadius: 20, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Icon name="checkmark-circle" size={22} color={colors.status.success.text} />
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.status.success.text, fontWeight: '800' }}>Verification active</Text>
@@ -127,8 +127,6 @@ export default function VerificationScreen() {
             paddingHorizontal: 20,
             paddingBottom: 18,
             backgroundColor: colors.card,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
             flexDirection: 'row',
             alignItems: 'center',
             gap: 12,
@@ -139,7 +137,7 @@ export default function VerificationScreen() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-          <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 28, borderWidth: 1, borderColor: colors.status.warning.border, padding: 22, gap: 14, alignItems: 'center' }}>
+          <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 28, padding: 22, gap: 14, alignItems: 'center' }}>
             <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="hourglass-outline" size={28} color={colors.status.warning.text} />
             </View>
@@ -154,7 +152,7 @@ export default function VerificationScreen() {
             </Text>
           </View>
 
-          <View style={{ backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="time-outline" size={20} color={colors.muted} style={{ marginTop: 1 }} />
             <Text style={{ color: colors.text, lineHeight: 20, flex: 1, fontSize: 13 }}>
               Verification can take up to <Text style={{ fontWeight: '800' }}>72 hours</Text>. Thanks for your
@@ -162,7 +160,7 @@ export default function VerificationScreen() {
             </Text>
           </View>
 
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 14 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>What you'll get</Text>
             {benefits.map((item) => (
               <View key={item} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
@@ -181,8 +179,6 @@ export default function VerificationScreen() {
               gap: 8,
               paddingVertical: 14,
               borderRadius: 20,
-              borderWidth: 1,
-              borderColor: colors.border,
               backgroundColor: colors.surface,
             }}
           >
@@ -191,7 +187,7 @@ export default function VerificationScreen() {
           </Pressable>
 
           {DEV_TOOLS_ENABLED ? (
-            <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.status.warning.border, padding: 14, gap: 10 }}>
+            <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 16, padding: 14, gap: 10 }}>
               <Text style={{ color: colors.status.warning.text, fontWeight: '800', fontSize: 12 }}>
                 Dev tools: simulate a review outcome
               </Text>
@@ -225,8 +221,6 @@ export default function VerificationScreen() {
             paddingHorizontal: 20,
             paddingBottom: 18,
             backgroundColor: colors.card,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
             flexDirection: 'row',
             alignItems: 'center',
             gap: 12,
@@ -237,7 +231,7 @@ export default function VerificationScreen() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-          <View style={{ backgroundColor: colors.status.danger.bg, borderRadius: 28, borderWidth: 1, borderColor: colors.status.danger.border, padding: 22, gap: 14, alignItems: 'center' }}>
+          <View style={{ backgroundColor: colors.status.danger.bg, borderRadius: 28, padding: 22, gap: 14, alignItems: 'center' }}>
             <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="close-circle" size={30} color={colors.danger} />
             </View>
@@ -267,8 +261,6 @@ export default function VerificationScreen() {
               gap: 8,
               paddingVertical: 14,
               borderRadius: 20,
-              borderWidth: 1,
-              borderColor: colors.border,
               backgroundColor: colors.surface,
             }}
           >
@@ -288,8 +280,6 @@ export default function VerificationScreen() {
           paddingHorizontal: 20,
           paddingBottom: 18,
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
@@ -300,22 +290,22 @@ export default function VerificationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-        <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 28, borderWidth: 1, borderColor: colors.status.warning.border, padding: 22, gap: 14 }}>
+        <View style={{ backgroundColor: colors.status.warning.bg, borderRadius: 28, padding: 22, gap: 14 }}>
           <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
-            <VerifiedBadge size={32} color={colors.primary} />
+            <VerifiedBadge size={32} />
           </View>
           <Text style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: '900' }}>
             Verified profiles feel safer to meet.
           </Text>
           <Text style={{ color: colors.text, lineHeight: 22 }}>
-            Verification is optional, but it explains why Toogether asks people to build trust before meeting offline.
+            Verification is optional, but it explains why Open Plans asks people to build trust before meeting offline.
           </Text>
         </View>
 
         {currentUser.verificationRejectionReason ? (
           // Left over from a submission that didn't go through (e.g. the old background upload
           // failing), so the user knows why they're back here instead of being silently reset.
-          <View style={{ backgroundColor: colors.status.danger.bg, borderRadius: 20, borderWidth: 1, borderColor: colors.status.danger.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <View style={{ backgroundColor: colors.status.danger.bg, borderRadius: 20, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="warning-outline" size={20} color={colors.status.danger.text} style={{ marginTop: 1 }} />
             <Text style={{ color: colors.status.danger.text, lineHeight: 20, flex: 1, fontSize: 13, fontWeight: '700' }}>
               {currentUser.verificationRejectionReason}
@@ -323,7 +313,7 @@ export default function VerificationScreen() {
           </View>
         ) : null}
 
-        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why get verified?</Text>
           {benefits.map((item) => (
             <View key={item} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
@@ -333,7 +323,7 @@ export default function VerificationScreen() {
           ))}
         </View>
 
-        <View style={{ backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
           <Icon name="information-circle-outline" size={20} color={colors.muted} style={{ marginTop: 1 }} />
           <Text style={{ color: colors.muted, lineHeight: 20, flex: 1, fontSize: 13 }}>
             You'll take live photos of your Aadhaar card and a quick selfie check — no gallery uploads, so we know

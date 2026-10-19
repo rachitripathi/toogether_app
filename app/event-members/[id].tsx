@@ -140,7 +140,7 @@ export default function EventMembersScreen() {
       Alert.alert(
         'Report sent',
         reportTarget.id === event.creatorId
-          ? 'Thanks. The Toogether team will review it.'
+          ? 'Thanks. The Open Plans team will review it.'
           : 'Thanks. The host can see your report and decide what to do.'
       );
     } catch (err) {
@@ -201,7 +201,7 @@ export default function EventMembersScreen() {
       >
         <Pressable
           onPress={() => router.back()}
-          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.inset, alignItems: 'center', justifyContent: 'center' }}
         >
           <Icon name="arrow-back" size={18} color={colors.text} />
         </Pressable>
@@ -219,7 +219,7 @@ export default function EventMembersScreen() {
           <Text style={{ color: colors.muted, fontSize: 12.5, lineHeight: 18, flex: 1 }}>
             {isHost
               ? 'Reports about your members show up here. You can remove someone or dismiss the report.'
-              : "If someone makes you uncomfortable, report them. The host sees reports about members; reports about the host go to the Toogether team."}
+              : "If someone makes you uncomfortable, report them. The host sees reports about members; reports about the host go to the Open Plans team."}
           </Text>
         </View>
 
@@ -346,7 +346,7 @@ export default function EventMembersScreen() {
             <KeyboardAwareScrollView padForKeyboard={false} contentContainerStyle={{ gap: 14, paddingBottom: Math.max(insets.bottom, 8) }}>
               <Text style={{ color: colors.muted, lineHeight: 20 }}>
                 {reportTarget.id === event.creatorId
-                  ? "This goes to the Toogether team, not the host. Tell us what happened."
+                  ? "This goes to the Open Plans team, not the host. Tell us what happened."
                   : "The host will see this report and your name, and can remove them from the plan. Tell them what happened."}
               </Text>
               <FormField

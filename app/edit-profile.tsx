@@ -164,8 +164,6 @@ export default function EditProfileScreen() {
           alignItems: 'center',
           justifyContent: 'space-between',
           backgroundColor: colors.card,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
         }}
       >
         <Pressable onPress={close} hitSlop={10} style={{ minWidth: 64 }}>
@@ -236,8 +234,6 @@ export default function EditProfileScreen() {
           style={{
             backgroundColor: colors.card,
             borderRadius: 28,
-            borderWidth: 1,
-            borderColor: colors.border,
             padding: 18,
             gap: 16,
             ...shadow.card,

@@ -23,7 +23,7 @@ import { keyboardCoveredHeight } from '@/utils/keyboardInset';
 import { MAX_JOIN_REQUEST_ATTEMPTS, type User } from '@/lib/types';
 import { PLAN_LIMITS, cleanMultiline } from '@/lib/profileFields';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { RatingBadge } from '@/components/RatingBadge';
+import { KarmaBadge } from '@/components/KarmaBadge';
 
 // The back/edit buttons sit on translucent white chips (rgba(255,255,255,0.75)) laid
 // over the category art photo — that chip stays white regardless of app theme (it needs
@@ -187,7 +187,7 @@ export default function EventDetailScreen() {
     currentUser,
     getEventById,
     getUserById,
-    getUserAverageRating,
+    getUserKarma,
     requestToJoin,
     getRequestStatus,
     getRequestAttempts,
@@ -248,7 +248,7 @@ export default function EventDetailScreen() {
     (event.latitude && event.longitude
       ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
       : undefined);
-  const creatorRating = creator ? getUserAverageRating(creator.id) : null;
+  const creatorKarma = creator ? getUserKarma(creator.id)?.karma ?? null : null;
   const attendeeCount = event.approvedUserIds.length + 1;
   const isFull = event.maxPeople ? attendeeCount >= event.maxPeople : false;
   const attendeesUnlocked = isAttendeesUnlocked(event.id);
@@ -697,8 +697,6 @@ export default function EventDetailScreen() {
               flex: 1,
               backgroundColor: colors.surface,
               borderRadius: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 16,
               gap: 5,
             }}
@@ -714,8 +712,6 @@ export default function EventDetailScreen() {
               flex: 1,
               backgroundColor: colors.surface,
               borderRadius: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
               padding: 16,
               gap: 5,
             }}
@@ -730,7 +726,7 @@ export default function EventDetailScreen() {
           </View>
         </View>
 
-        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 14 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Plan snapshot</Text>
           <InfoRow
             icon="time-outline"
@@ -744,7 +740,7 @@ export default function EventDetailScreen() {
           {event.maxPeople ? <InfoRow icon="people-outline" iconColor={colors.success} label={`${attendeeCount} going so far`} /> : null}
         </View>
 
-        <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+        <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Private details</Text>
             <View
@@ -814,14 +810,14 @@ export default function EventDetailScreen() {
         </View>
 
         {event.description ? (
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 10 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 10 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>About</Text>
             <Text style={{ color: colors.muted, lineHeight: 22 }}>{event.description}</Text>
           </View>
         ) : null}
 
         {creator ? (
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 14 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Hosted by</Text>
             <Pressable onPress={() => router.push(`/user/${creator.id}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <AvatarBubble user={creator} size={48} />
@@ -833,7 +829,7 @@ export default function EventDetailScreen() {
                 <Text style={{ color: colors.muted }}>@{creator.username}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>{creator.age}</Text>
-                  <RatingBadge average={creatorRating} />
+                  <KarmaBadge karma={creatorKarma} />
                 </View>
               </View>
               <Icon name="chevron-forward" size={18} color={colors.muted} />
@@ -842,7 +838,7 @@ export default function EventDetailScreen() {
         ) : null}
 
         {event.approvedUserIds.length || isCreator ? (
-          <View style={{ backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 12 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 18, gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
                 {isCreator ? 'Members' : 'Going'} ({event.approvedUserIds.length})
@@ -905,14 +901,14 @@ export default function EventDetailScreen() {
                 })}
               </View>
             ) : !monetisationEnabled ? (
-              <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14 }}>
+              <View style={{ backgroundColor: colors.inset, borderRadius: 18, padding: 14 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} confirmed so far</Text>
                 <Text style={{ color: colors.muted, marginTop: 4 }}>
                   Full attendee details unlock after you are part of the plan.
                 </Text>
               </View>
             ) : !attendeesUnlocked ? (
-              <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, gap: 10 }}>
+              <View style={{ backgroundColor: colors.inset, borderRadius: 18, padding: 14, gap: 10 }}>
                 <Text style={{ color: colors.text, fontWeight: '800' }}>{event.approvedUserIds.length} people are going</Text>
                 <Text style={{ color: colors.muted, lineHeight: 20 }}>
                   Phase 2 preview: unlock the attendee list for 1 credit.
@@ -939,7 +935,7 @@ export default function EventDetailScreen() {
                       key={userId}
                       onPress={() => router.push(`/user/${userId}`)}
                       style={{
-                        backgroundColor: colors.card,
+                        backgroundColor: colors.inset,
                         borderRadius: 999,
                         padding: 8,
                         paddingRight: 12,
@@ -988,8 +984,6 @@ export default function EventDetailScreen() {
               style={{
                 backgroundColor: colors.status.warning.bg,
                 borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.status.warning.border,
                 paddingHorizontal: 14,
                 paddingVertical: 10,
                 flexDirection: 'row',
@@ -1108,9 +1102,7 @@ export default function EventDetailScreen() {
                   style={{
                     minHeight: 54,
                     borderRadius: 18,
-                    backgroundColor: colors.surface,
-                    borderWidth: 1,
-                    borderColor: colors.border,
+                    backgroundColor: colors.inset,
                     paddingHorizontal: 16,
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -1139,7 +1131,7 @@ export default function EventDetailScreen() {
                 multiline
                 maxLength={PLAN_LIMITS.description}
               />
-              <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 12, flexDirection: 'row', gap: 10 }}>
+              <View style={{ backgroundColor: colors.inset, borderRadius: 16, padding: 12, flexDirection: 'row', gap: 10 }}>
                 <Icon name="lock-closed-outline" size={16} color={colors.muted} style={{ marginTop: 1 }} />
                 <Text style={{ color: colors.muted, fontSize: 12.5, lineHeight: 18, flex: 1 }}>
                   Title, place, group size and day can&apos;t be changed after posting, so people know what they joined. To change

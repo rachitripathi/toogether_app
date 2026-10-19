@@ -1,4 +1,4 @@
-import type { CategoryTheme, Event, JoinRequest, Message, Rating, User } from './types';
+import type { CategoryTheme, Event, JoinRequest, Message, User } from './types';
 
 export const MOCK_USERS: User[] = [
   {
@@ -299,25 +299,6 @@ export const MOCK_MESSAGES: Record<string, Message[]> = {
     },
   ],
 };
-
-export const MOCK_RATINGS: Rating[] = [
-  {
-    id: 'rt1',
-    fromUserId: 'u1',
-    toUserId: 'u3',
-    eventId: 'e2',
-    stars: 5,
-    createdAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'rt2',
-    fromUserId: 'u2',
-    toUserId: 'u1',
-    eventId: 'e3',
-    stars: 4,
-    createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-  },
-];
 
 export const CATEGORY_CONFIG: Record<string, CategoryTheme> = {
   movies: {

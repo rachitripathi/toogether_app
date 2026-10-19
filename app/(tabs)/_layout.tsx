@@ -8,10 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CustomTabBar({ state, navigation }: any) {
   const { unreadCount } = useNotifications();
-  const { colors, scheme } = useTheme();
+  const { colors, gradients, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const fadeGradientColors: [string, string] =
-    scheme === 'dark' ? ['rgba(11,13,20,0)', 'rgba(11,13,20,0.92)'] : ['rgba(255,255,255,0)', 'rgba(246,247,251,0.9)'];
+    scheme === 'dark' ? ['rgba(11,13,20,0)', 'rgba(11,13,20,0.92)'] : ['rgba(249,247,242,0)', 'rgba(249,247,242,0.92)'];
 
   const items = [
     { key: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
@@ -52,8 +52,6 @@ function CustomTabBar({ state, navigation }: any) {
         style={{
           backgroundColor: colors.card,
           borderRadius: 34,
-          borderWidth: 1,
-          borderColor: colors.border,
           paddingHorizontal: 10,
           paddingVertical: 10,
           flexDirection: 'row',
@@ -61,7 +59,7 @@ function CustomTabBar({ state, navigation }: any) {
           gap: 6,
           ...Platform.select({
             ios: {
-              shadowColor: scheme === 'dark' ? '#000000' : '#5D6B99',
+              shadowColor: scheme === 'dark' ? '#000000' : '#8A6A4F',
               shadowOpacity: 0.3,
               shadowRadius: 26,
               shadowOffset: { width: 0, height: 14 },
@@ -133,7 +131,7 @@ function CustomTabBar({ state, navigation }: any) {
             backgroundColor: colors.primary,
             ...Platform.select({
               ios: {
-                shadowColor: scheme === 'dark' ? '#000000' : '#3355DD',
+                shadowColor: scheme === 'dark' ? '#000000' : '#FF6A00',
                 shadowOpacity: 0.5,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 8 },
@@ -149,7 +147,7 @@ function CustomTabBar({ state, navigation }: any) {
             style={{ flex: 1, borderRadius: 29, overflow: 'hidden' }}
           >
             <LinearGradient
-              colors={['#7B96FF', colors.primary]}
+              colors={gradients.brand}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={{

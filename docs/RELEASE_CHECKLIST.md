@@ -1,4 +1,4 @@
-# Toogether — Build, Test & Launch Checklist
+# Open Plans — Build, Test & Launch Checklist
 
 This is an operational runbook, not a functionality/schema doc — it doesn't duplicate `FUNCTIONALITY.md` or `DATABASE.md`, it links to them. Check items off as you go; re-run the "every build" section every single time, it's cheap insurance.
 

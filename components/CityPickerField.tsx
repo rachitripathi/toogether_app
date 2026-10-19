@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
@@ -80,9 +80,9 @@ export function CityPickerField({
         style={{
           minHeight: 54,
           borderRadius: 18,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: error ? colors.danger : colors.border,
+          backgroundColor: colors.inset,
+          borderWidth: error ? 1 : 0,
+          borderColor: colors.danger,
           paddingHorizontal: 16,
           flexDirection: 'row',
           alignItems: 'center',
@@ -141,8 +141,6 @@ export function CityPickerField({
                 alignItems: 'center',
                 gap: 10,
                 borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
                 backgroundColor: colors.surface,
                 paddingHorizontal: 14,
               }}
@@ -168,7 +166,7 @@ export function CityPickerField({
                 trimmedQuery.length >= 2 && !exactMatch ? (
                   <Pressable
                     onPress={() => pick(trimmedQuery)}
-                    style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                    style={{ paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}
                   >
                     <Text style={{ color: colors.text, fontSize: 15 }}>
                       Use <Text style={{ fontWeight: '800' }}>“{trimmedQuery}”</Text>
@@ -183,7 +181,7 @@ export function CityPickerField({
                     onPress={() => pick(item)}
                     style={{
                       paddingVertical: 14,
-                      borderBottomWidth: 1,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
                       borderBottomColor: colors.border,
                       flexDirection: 'row',
                       justifyContent: 'space-between',
