@@ -6,16 +6,11 @@ import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useApp } from '@/providers/AppProvider';
 import { setRegisteredPushToken } from '@/lib/pushToken';
+import { loadNotifications } from '@/lib/notifications';
 import type { AppNotification } from '@/lib/types';
 
-// expo-notifications registers a device push-token listener as an import-time side effect
-// (DevicePushTokenAutoRegistration.fx), which throws on Android in Expo Go — remote push was
-// removed from Expo Go in SDK 53. Load the module lazily and only outside Expo Go so merely
-// opening the app in Expo Go doesn't crash; dev/standalone builds get full functionality.
-const isExpoGo = Constants.appOwnership === 'expo';
-const Notifications: typeof import('expo-notifications') | null = isExpoGo
-  ? null
-  : require('expo-notifications');
+// null wherever expo-notifications can't load (Expo Go, a dev build older than SDK 58); see lib/notifications.ts.
+const Notifications = loadNotifications();
 
 // The chat screen currently in focus, set by app/chat/[id].tsx. Module-level because the
 // foreground handler below is registered once at module scope, outside React.

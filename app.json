@@ -65,7 +65,9 @@
         }
       ],
       "expo-notifications",
-      "./plugins/withIosSceneDelegate"
+      "expo-image",
+      "expo-secure-store",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

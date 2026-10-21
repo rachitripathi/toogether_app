@@ -172,7 +172,7 @@ export function CityPickerField({
                       Use <Text style={{ fontWeight: '800' }}>“{trimmedQuery}”</Text>
                     </Text>
                   </Pressable>
-                ) : null
+                ) : undefined
               }
               renderItem={({ item }) => {
                 const selected = item === value;

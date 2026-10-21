@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Dimensions, Keyboard, Platform, View, type KeyboardEvent } from 'react-native';
+import { Dimensions, Keyboard, Platform, type KeyboardEvent, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keyboardCoveredHeight } from '@/utils/keyboardInset';
 
@@ -38,10 +38,10 @@ export function useKeyboardHeight(onShow?: (event: KeyboardEvent) => void) {
 // composer up to the middle of the screen or leaves a band of empty scroll under a form.
 // Re-measure from the view's onLayout too: a window resize can land after the show event.
 // `getTarget` measures something other than `ref` (e.g. a ScrollView's native node).
-type Measurable = Pick<View, 'measureInWindow'>;
+type Measurable = Pick<ViewInstance, 'measureInWindow'>;
 export function useKeyboardOverlap(onShow?: (event: KeyboardEvent) => void, getTarget?: () => Measurable | null | undefined) {
   const insets = useSafeAreaInsets();
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const coveredRef = useRef(0);
   const [overlap, setOverlap] = useState(0);
 

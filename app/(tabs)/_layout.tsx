@@ -1,12 +1,14 @@
 import { Platform, Pressable, Text, View } from 'react-native';
 import { router, Tabs } from 'expo-router';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 import { Icon } from '@/components/Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNotifications } from '@/providers/NotificationsProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function CustomTabBar({ state, navigation }: any) {
+// SDK 58 router: tab bars get navigateToTab(routeKey) instead of a React Navigation `navigation`.
+function CustomTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const { unreadCount } = useNotifications();
   const { colors, gradients, scheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -78,7 +80,8 @@ function CustomTabBar({ state, navigation }: any) {
             <Pressable
               key={item.key}
               onPress={() => {
-                navigation.navigate(item.key);
+                const route = state.routes.find((r) => r.name === item.key);
+                if (route) navigateToTab(route.key);
               }}
               style={{
                 flex: isActive ? 1.35 : 1,
@@ -168,10 +171,12 @@ function CustomTabBar({ state, navigation }: any) {
   );
 }
 
+// SDK 58 router: the tabs' first screen is the layout's `anchor`, no longer a <Tabs> prop.
+export const unstable_settings = { anchor: 'home' };
+
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarStyle: { backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 },

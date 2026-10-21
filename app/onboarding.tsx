@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from '@/components/Icon';
@@ -69,7 +69,7 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   // Size of the art area (everything above the text), measured once; same on every slide.
   const [artArea, setArtArea] = useState({ width: 0, height: 0 });
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const { completeOnboarding } = useApp();
   const { colors, gradients } = useTheme();
   const insets = useSafeAreaInsets();

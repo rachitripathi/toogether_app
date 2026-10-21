@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
@@ -20,7 +20,7 @@ function formatMessageTime(value: string) {
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { currentUser, getEventById, getUserById, getRequestStatus, messages, sendMessage, refreshEventMessages, isLoadingEvents } =
     useApp();
