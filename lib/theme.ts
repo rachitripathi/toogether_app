@@ -28,7 +28,7 @@ export type AppColors = {
   verifiedTint: string;
   // Solid fills for accept / decline / remove buttons, always with white text. The
   // status.*.bg tints are translucent washes in dark mode and read as see-through buttons.
-  solid: { accept: string; decline: string };
+  solid: { accept: string; decline: string; pending: string };
   // Fill for a card that needs the user's attention (e.g. pending join requests). Strong enough
   // to stand apart from the page without an outline; page and card are both white in light mode.
   attention: string;
@@ -62,8 +62,8 @@ export const lightColors: AppColors = {
   danger: '#FB7185',
   overlay: 'rgba(12, 18, 38, 0.52)',
   verified: '#0095F6',
-  verifiedTint: 'rgba(0, 149, 246, 0.12)',
-  solid: { accept: '#16A34A', decline: '#DC2626' },
+  verifiedTint: '#E0F0FE',
+  solid: { accept: '#16A34A', decline: '#DC2626', pending: '#D97706' },
   attention: '#FFF3C4',
   status: {
     success: { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' },
@@ -76,7 +76,10 @@ export const lightColors: AppColors = {
 // Dark palette isn't just light-with-inverted-lightness: text/status colors are bumped a
 // notch brighter than their light-mode counterparts (WCAG needs more luminance contrast
 // for colored text/icons on a dark ground than on a white one), and tint chips move from
-// pale washes to low-opacity overlays of the same hue rather than flat pastel fills.
+// pale washes to dark tints of the same hue. Those tints are opaque on purpose: they're the
+// old 14–18% alpha overlays pre-blended onto `surface`. Translucent fills changed shade with
+// whatever was behind them, and on Android an elevated view's shadow shows through a
+// translucent fill as a grey smudge.
 // card is deliberately the lightest neutral (page < surface < inset < card). That's what
 // makes an active segment/pill/header/modal sheet visibly "pop" off whatever it's sitting
 // on. Segmented-control tracks use `inset` and the active segment `card`, in both themes
@@ -104,14 +107,14 @@ export const darkColors: AppColors = {
   danger: '#FB8B98',
   overlay: 'rgba(0, 0, 0, 0.68)',
   verified: '#1DA1F2',
-  verifiedTint: 'rgba(29, 161, 242, 0.18)',
-  solid: { accept: '#16A34A', decline: '#DC2626' },
+  verifiedTint: '#18334B',
+  solid: { accept: '#16A34A', decline: '#DC2626', pending: '#D97706' },
   attention: '#3A2C12',
   status: {
-    success: { bg: 'rgba(52, 211, 153, 0.16)', text: '#4ADE80', border: 'rgba(52, 211, 153, 0.32)' },
-    warning: { bg: 'rgba(251, 191, 36, 0.14)', text: '#FBBF24', border: 'rgba(251, 191, 36, 0.32)' },
-    danger: { bg: 'rgba(251, 139, 152, 0.16)', text: '#FCA5AE', border: 'rgba(251, 139, 152, 0.32)' },
-    info: { bg: 'rgba(255, 122, 26, 0.16)', text: '#FFA066', border: 'rgba(255, 122, 26, 0.32)' },
+    success: { bg: '#1C3838', text: '#4ADE80', border: '#20564B' },
+    warning: { bg: '#373226', text: '#FBBF24', border: '#604F25' },
+    danger: { bg: '#3B2D38', text: '#FCA5AE', border: '#603F4A' },
+    info: { bg: '#3C2A24', text: '#FFA066', border: '#613922' },
   },
 };
 
@@ -119,6 +122,7 @@ export type AppGradients = {
   hero: readonly [string, string];
   softHero: readonly [string, string];
   amber: readonly [string, string];
+  // Verified hero (verification page): deep → bright verified-tick blue, matching VerifiedBadge.
   verified: readonly [string, string];
   // Brand orange, matching the Open Plans logo gradient (FAB, onboarding CTA).
   brand: readonly [string, string];
@@ -132,7 +136,7 @@ export const lightGradients: AppGradients = {
   hero: ['#F9F7F2', '#FFF0E2'],
   softHero: ['#F9F7F2', '#FDF4EA'],
   amber: ['#FFB067', '#FF6A00'],
-  verified: ['#065F46', '#10B981'],
+  verified: ['#00509E', '#0095F6'],
   brand: ['#FF9C56', '#FF6A00'],
   cta: ['#FF9248', '#FF6A00'],
   header: ['#FF6A00', '#FFA463'],
@@ -142,7 +146,7 @@ export const darkGradients: AppGradients = {
   hero: ['#0B0D14', '#1A1410'],
   softHero: ['#0B0D14', '#15110E'],
   amber: ['#C24E00', '#FF7A1A'],
-  verified: ['#065F46', '#10B981'],
+  verified: ['#0A4580', '#1A8CE0'],
   brand: ['#FF9C56', '#FF6A00'],
   cta: ['#FFA060', '#FF7A1A'],
   header: ['#E85F00', '#FF8F45'],

@@ -9,10 +9,11 @@ import { useApp } from '@/providers/AppProvider';
 import { useVerificationDraftStore } from '@/store/verificationDraftStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Icon colors are theme keys, not hex: fixed dark hues vanished on the dark-mode card.
 const benefits = [
-  { icon: 'flash' as const, text: 'Hosts can trust your join requests faster', color: '#7C3AED' },
-  { icon: 'shield-checkmark' as const, text: 'Your profile gets a visible verified badge', color: '#0369A1' },
-  { icon: 'trending-up' as const, text: 'Future discovery boosts prioritize trusted accounts', color: '#D97706' },
+  { icon: 'flash' as const, text: 'Hosts can trust your join requests faster', tone: 'secondary' as const },
+  { icon: 'shield-checkmark' as const, text: 'Your profile gets a visible verified badge', tone: 'verified' as const },
+  { icon: 'trending-up' as const, text: 'Future discovery boosts prioritize trusted accounts', tone: 'warning' as const },
 ];
 
 export default function NewUserVerificationScreen() {
@@ -63,11 +64,11 @@ export default function NewUserVerificationScreen() {
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Why it matters</Text>
           {benefits.map((benefit) => (
             <View key={benefit.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${benefit.color}15`, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.inset, alignItems: 'center', justifyContent: 'center' }}>
                 {benefit.icon === 'shield-checkmark' ? (
-                  <VerifiedBadge size={19} color={benefit.color} />
+                  <VerifiedBadge size={19} color={colors[benefit.tone]} />
                 ) : (
-                  <Icon name={benefit.icon} size={19} color={benefit.color} />
+                  <Icon name={benefit.icon} size={19} color={colors[benefit.tone]} />
                 )}
               </View>
               <Text style={{ color: colors.text, lineHeight: 21, flex: 1 }}>{benefit.text}</Text>

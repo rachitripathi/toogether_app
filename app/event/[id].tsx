@@ -12,6 +12,7 @@ import { EventDetailSkeleton } from '@/components/SkeletonLoaders/EventDetailSke
 import { PlanClosedScreen } from '@/components/PlanClosedScreen';
 import { formatClockTime, hasEventStarted, isEventArchived, timeSlotFor } from '@/lib/eventTime';
 import { useTheme } from '@/providers/ThemeProvider';
+import { lightColors } from '@/lib/theme';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals, type CategoryVisualTheme } from '@/lib/categoryVisuals';
 import { useApp } from '@/providers/AppProvider';
 import { useNotifications } from '@/providers/NotificationsProvider';
@@ -488,7 +489,7 @@ export default function EventDetailScreen() {
     requestStatus === 'approved'
       ? { bg: '#15803D', text: '#FFFFFF', label: 'Approved member', shadow: '#15803D' }
       : requestStatus === 'pending'
-        ? { bg: colors.warning, text: '#FFFFFF', label: 'Approval pending', shadow: colors.status.warning.border }
+        ? { bg: colors.solid.pending, text: '#FFFFFF', label: 'Approval pending', shadow: colors.solid.pending }
         : requestStatus === 'rejected'
           ? { ...closedTone, label: 'Request declined' }
           : requestStatus === 'removed'
@@ -551,7 +552,7 @@ export default function EventDetailScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <Icon name="trash-outline" size={18} color={colors.danger} />
+                  <Icon name="trash-outline" size={18} color={lightColors.status.danger.text} />
                 </Pressable>
               </>
             ) : null}
@@ -620,7 +621,7 @@ export default function EventDetailScreen() {
                   width: 40,
                   height: 40,
                   borderRadius: 14,
-                  backgroundColor: colors.warning,
+                  backgroundColor: colors.solid.pending,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -650,7 +651,7 @@ export default function EventDetailScreen() {
                   height: 24,
                   borderRadius: 12,
                   paddingHorizontal: 7,
-                  backgroundColor: colors.warning,
+                  backgroundColor: colors.solid.pending,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -1029,7 +1030,7 @@ export default function EventDetailScreen() {
               badgeCount={getUnreadChatCount(event.id)}
             />
           ) : requestStatus === 'pending' ? (
-            <View style={{ backgroundColor: colors.warning, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
+            <View style={{ backgroundColor: colors.solid.pending, borderRadius: 24, paddingVertical: 18, alignItems: 'center' }}>
               <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>Request Pending</Text>
             </View>
           ) : requestStatus === 'rejected' && requestsLeft > 0 && !isFull ? (

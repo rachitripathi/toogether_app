@@ -7,6 +7,7 @@ import { archivesAt, formatClockTime, isHappeningNow } from '@/lib/eventTime';
 import { useNotifications } from '@/providers/NotificationsProvider';
 import { useTapWithoutDrag } from '@/hooks/useTapWithoutDrag';
 import { useTheme } from '@/providers/ThemeProvider';
+import { lightColors } from '@/lib/theme';
 import type { Event } from '@/lib/types';
 import { categoryFontFamily, categoryFontWeight, categoryVisuals } from '@/lib/categoryVisuals';
 import { formatDistance } from '@/lib/geo';
@@ -73,14 +74,16 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
             ? 'Full'
             : 'Request to Join';
 
+  // The card sits on category art that's light in both themes, so anything drawn on it uses
+  // light-theme or solid colors; dark tokens turned into a dark blob / faint text here.
   const actionBackground = isCreator
     ? theme.buttonBackground
     : requestStatus === 'approved'
       ? theme.buttonBackground
       : requestStatus === 'pending'
-        ? colors.warning
+        ? colors.solid.pending
         : isClosedForMe || isFull
-          ? colors.border
+          ? lightColors.border
           : theme.buttonBackground;
 
   const actionTextColor = isCreator
@@ -90,7 +93,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
       : requestStatus === 'pending'
         ? '#FFFFFF'
         : isClosedForMe || isFull
-          ? colors.muted
+          ? lightColors.muted
           : theme.buttonText;
 
   const handleAction = async () => {
@@ -243,7 +246,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
                   <Text style={{ color: theme.meta, fontSize: 11, fontWeight: categoryFontWeight('700'), fontFamily: categoryFontFamily }}>
                     {creator.age}
                   </Text>
-                  <KarmaBadge karma={creatorKarma} />
+                  <KarmaBadge karma={creatorKarma} onArt />
                 </View>
               ) : null}
             </View>
@@ -263,8 +266,8 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
                 gap: 5,
               }}
             >
-              <Icon name="chatbubble-ellipses-outline" size={14} color={colors.danger} />
-              <Text style={{ color: colors.danger, fontWeight: categoryFontWeight('900'), fontSize: 12, fontFamily: categoryFontFamily }}>
+              <Icon name="chatbubble-ellipses-outline" size={14} color={lightColors.status.danger.text} />
+              <Text style={{ color: lightColors.status.danger.text, fontWeight: categoryFontWeight('900'), fontSize: 12, fontFamily: categoryFontFamily }}>
                 {unreadChatCount > 99 ? '99+' : unreadChatCount} new
               </Text>
             </Pressable>
@@ -278,7 +281,7 @@ export function EventCard({ event, distanceKm }: EventCardProps) {
               borderRadius: 999,
               paddingHorizontal: 14,
               paddingVertical: 9,
-              shadowColor: isClosedForMe || isFull ? colors.border : theme.buttonShadow,
+              shadowColor: isClosedForMe || isFull ? lightColors.border : theme.buttonShadow,
               shadowOpacity: isClosedForMe || isFull ? 0.14 : 0.28,
               shadowRadius: 9,
               shadowOffset: { width: 0, height: 5 },
