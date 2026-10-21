@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
@@ -6,22 +6,42 @@ import type * as NotificationsType from 'expo-notifications';
 import Constants from 'expo-constants';
 import { useTheme, type ThemePreference } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
+import { loadNotifications } from '@/lib/notifications';
+import { emailSupport, openWebPage, PRIVACY_POLICY_URL, SUPPORT_EMAIL, SUPPORT_URL } from '@/lib/links';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function SettingsRow({ label, value }: { label: string; value: string }) {
+// With onPress the row is tappable and shows `trailingIcon` (an external-link arrow by default).
+function SettingsRow({
+  label,
+  value,
+  onPress,
+  trailingIcon = 'open-outline',
+}: {
+  label: string;
+  value: string;
+  onPress?: () => void;
+  trailingIcon?: ComponentProps<typeof Icon>['name'];
+}) {
   const { colors } = useTheme();
   return (
-    <View
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
       style={{
         backgroundColor: colors.surface,
         borderRadius: 18,
         padding: 16,
-        gap: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
       }}
     >
-      <Text style={{ color: colors.text, fontWeight: '800' }}>{label}</Text>
-      <Text style={{ color: colors.muted }}>{value}</Text>
-    </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={{ color: colors.text, fontWeight: '800' }}>{label}</Text>
+        <Text style={{ color: colors.muted }}>{value}</Text>
+      </View>
+      {onPress ? <Icon name={trailingIcon} size={18} color={colors.muted} /> : null}
+    </Pressable>
   );
 }
 
@@ -34,12 +54,9 @@ export default function SettingsScreen() {
   );
 
   useEffect(() => {
-    // expo-notifications must not be imported at all in Expo Go on Android — its import-time
-    // push-token auto-registration side effect throws there (removed from Expo Go in SDK 53).
-    if (Constants.appOwnership === 'expo') {
-      return;
-    }
-    const Notifications: typeof NotificationsType = require('expo-notifications');
+    // null where expo-notifications can't load (Expo Go, an outdated dev build); see lib/notifications.ts.
+    const Notifications = loadNotifications();
+    if (!Notifications) return;
     Notifications.getPermissionsAsync().then(({ status }) => setNotificationPermission(status));
   }, []);
 
@@ -152,9 +169,15 @@ export default function SettingsScreen() {
 
         <View style={{ gap: 12 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>App details</Text>
-          <SettingsRow label="Privacy policy" value="Your data and discovery preferences are handled according to Open Plans' privacy rules." />
+          <SettingsRow label="Privacy policy" value="How Open Plans handles your data." onPress={() => openWebPage(PRIVACY_POLICY_URL)} />
           <SettingsRow label="Community & safety" value="Women-only visibility, host approvals, and private location unlocks are all part of the safety model." />
           <SettingsRow label="App version" value={appVersion} />
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Help & support</Text>
+          <SettingsRow label="Support" value="Help with your account, plans, verification and reporting someone." onPress={() => openWebPage(SUPPORT_URL)} />
+          <SettingsRow label="Contact us" value={SUPPORT_EMAIL} onPress={() => emailSupport()} trailingIcon="mail-outline" />
         </View>
       </ScrollView>
     </View>

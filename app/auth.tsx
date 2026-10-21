@@ -14,6 +14,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useApp } from '@/providers/AppProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OpenPlansWordmark from '@/assets/brand/open-plans-wordmark.svg';
+import { openWebPage, PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/links';
 
 type Mode = 'login' | 'signup';
 
@@ -126,11 +127,14 @@ export default function AuthScreen() {
     router.replace('/(tabs)/home');
   };
 
+  const termsUrl = TERMS_URL;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <KeyboardAwareScrollView
         style={{ flex: 1, backgroundColor: colors.page }}
         contentContainerStyle={{
+          flexGrow: 1,
           padding: 24,
           paddingTop: insets.top + 36,
           gap: 16,
@@ -263,6 +267,24 @@ export default function AuthScreen() {
             <Icon name="logo-apple" size={22} color="#FFFFFF" />
           </Pressable>
         </View>
+
+        {/* Same line for login and sign up: continuing either way (email or social) is agreeing.
+            marginTop 'auto' pins it to the bottom on tall screens; flexGrow above makes room. */}
+        <Text style={{ marginTop: 'auto', paddingTop: 12, color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' }}>
+          By continuing, you agree to our{' '}
+          {termsUrl ? (
+            <>
+              <Text onPress={() => openWebPage(termsUrl)} style={{ color: colors.text, fontWeight: '700', textDecorationLine: 'underline' }}>
+                Terms of Service
+              </Text>
+              {' and '}
+            </>
+          ) : null}
+          <Text onPress={() => openWebPage(PRIVACY_POLICY_URL)} style={{ color: colors.text, fontWeight: '700', textDecorationLine: 'underline' }}>
+            Privacy Policy
+          </Text>
+          .
+        </Text>
       </KeyboardAwareScrollView>
     </View>
   );

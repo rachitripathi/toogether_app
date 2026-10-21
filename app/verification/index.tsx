@@ -1,4 +1,5 @@
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { emailSupport } from '@/lib/links';
 import { router } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,13 +11,13 @@ import { useApp } from '@/providers/AppProvider';
 import { useVerificationDraftStore } from '@/store/verificationDraftStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const SUPPORT_EMAIL = 'support@toogether.app';
 
+// Icon colors are theme keys, not hex: fixed dark hues vanished on the dark-mode card.
 const perks = [
-  { icon: 'flash' as const, label: 'Hosts trust your requests faster', color: '#7C3AED' },
-  { icon: 'shield-checkmark' as const, label: 'Visible verified badge on your profile', color: '#0369A1' },
-  { icon: 'star' as const, label: 'Priority in future plan discovery', color: '#D97706' },
-  { icon: 'people' as const, label: 'Access to verified-only plans', color: '#16A34A' },
+  { icon: 'flash' as const, label: 'Hosts trust your requests faster', tone: 'secondary' as const },
+  { icon: 'shield-checkmark' as const, label: 'Visible verified badge on your profile', tone: 'verified' as const },
+  { icon: 'star' as const, label: 'Priority in future plan discovery', tone: 'warning' as const },
+  { icon: 'people' as const, label: 'Access to verified-only plans', tone: 'success' as const },
 ];
 
 const benefits = [
@@ -24,10 +25,6 @@ const benefits = [
   'Your profile gets a visible verified badge',
   'Future discovery boosts can prioritize trusted accounts',
 ];
-
-function writeToUs(subject: string) {
-  Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`).catch(() => {});
-}
 
 function BackButton({ light }: { light?: boolean }) {
   const { colors } = useTheme();
@@ -88,11 +85,11 @@ export default function VerificationScreen() {
             <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>Your verified perks</Text>
             {perks.map((perk) => (
               <View key={perk.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: `${perk.color}18`, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.inset, alignItems: 'center', justifyContent: 'center' }}>
                   {perk.icon === 'shield-checkmark' ? (
-                    <VerifiedBadge size={20} color={perk.color} />
+                    <VerifiedBadge size={20} color={colors[perk.tone]} />
                   ) : (
-                    <Icon name={perk.icon} size={20} color={perk.color} />
+                    <Icon name={perk.icon} size={20} color={colors[perk.tone]} />
                   )}
                 </View>
                 <Text style={{ color: colors.text, fontWeight: '700', flex: 1, lineHeight: 20 }}>{perk.label}</Text>
@@ -171,7 +168,7 @@ export default function VerificationScreen() {
           </View>
 
           <Pressable
-            onPress={() => writeToUs('Question about my verification')}
+            onPress={() => emailSupport('Question about my verification')}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -253,7 +250,7 @@ export default function VerificationScreen() {
             fullWidth
           />
           <Pressable
-            onPress={() => writeToUs('Help with a rejected verification')}
+            onPress={() => emailSupport('Help with a rejected verification')}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
